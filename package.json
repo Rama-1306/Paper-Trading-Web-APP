@@ -3,12 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:next\" \"npm run ws\"",
+    "dev": "npm run dev:next",
     "dev:next": "DATABASE_URL='file:/home/runner/workspace/bank-nifty-paper-trader/prisma/dev.db' next dev -p 5000",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "ws": "DATABASE_URL='file:/home/runner/workspace/bank-nifty-paper-trader/prisma/dev.db' tsx server/wsServer.ts"
+    "lint": "next lint"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
