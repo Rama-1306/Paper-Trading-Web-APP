@@ -1,0 +1,284 @@
+'use client';
+
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { useMarketStore } from '@/stores/marketStore';
+import { useTradingStore } from '@/stores/tradingStore';
+import { formatINR, formatPercent } from '@/lib/utils/formatters';
+import { getPredefinedSymbols, parseSymbolDisplay, SymbolItem } from '@/lib/utils/symbols';
+
+export function Header() {
+  const spotPrice = useMarketStore((s) => s.spotPrice);
+  const activeSymbol = useMarketStore((s) => s.activeSymbol);
+  const connectionStatus = useMarketStore((s) => s.connectionStatus);
+  const account = useTradingStore((s) => s.account);
+  const positions = useTradingStore((s) => s.positions);
+  const ticks = useMarketStore((s) => s.ticks);
+  
+  const [hasToken, setHasToken] = useState(false);
+  const [symbolInput, setSymbolInput] = useState(activeSymbol);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [mcxSymbols, setMcxSymbols] = useState<SymbolItem[]>([]);
+  const [mcxLoading, setMcxLoading] = useState(false);
+  const [mcxLoaded, setMcxLoaded] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setHasToken(!!localStorage.getItem('fyers_access_token'));
+  }, []);
+
+  useEffect(() => {
+    setSymbolInput(activeSymbol);
+  }, [activeSymbol]);
+
+  const fetchMcxSymbols = useCallback(async () => {
+    if (mcxLoaded || mcxLoading) return;
+    setMcxLoading(true);
+    try {
+      const res = await fetch('/api/symbol-search?exchange=MCX&type=futures&limit=60');
+      const data = await res.json();
+      if (data.results) {
+        setMcxSymbols(data.results.map((s: any) => ({
+          value: s.value,
+          label: s.label,
+          group: 'MCX',
+          lotSize: s.lotSize,
+        })));
+        setMcxLoaded(true);
+      }
+    } catch (err) {
+      console.error('Failed to fetch MCX symbols:', err);
+    } finally {
+      setMcxLoading(false);
+    }
+  }, [mcxLoaded, mcxLoading]);
+
+  const handleSymbolChange = () => {
+    if (symbolInput && symbolInput !== activeSymbol) {
+      const match = allSymbols.find(s => s.value === symbolInput);
+      const lotSize = match?.lotSize;
+      useMarketStore.getState().setActiveSymbol(symbolInput, lotSize);
+      useTradingStore.getState().setSelectedSymbol(symbolInput);
+      if (lotSize && lotSize > 0) {
+        useTradingStore.getState().setOrderQuantity(lotSize);
+      }
+    }
+  };
+
+  const bankNiftySymbols = getPredefinedSymbols();
+  const allSymbols: SymbolItem[] = [...bankNiftySymbols, ...mcxSymbols];
+
+  const handleSymbolSelect = (val: string, lotSize?: number) => {
+    setSymbolInput(val);
+    setShowDropdown(false);
+    if (val !== activeSymbol) {
+      useMarketStore.getState().setActiveSymbol(val, lotSize);
+      useTradingStore.getState().setSelectedSymbol(val);
+      if (lotSize && lotSize > 0) {
+        useTradingStore.getState().setOrderQuantity(lotSize);
+      }
+    }
+  };
+
+  const handleDropdownOpen = () => {
+    setShowDropdown(true);
+    fetchMcxSymbols();
+  };
+
+  const activeTick = ticks[activeSymbol];
+  const change = activeTick?.change ?? 0;
+  const changePercent = activeTick?.changePercent ?? 0;
+
+  const balance = account?.balance ?? 1000000;
+  const realizedPnl = account?.realizedPnl ?? 0;
+  const unrealizedPnl = positions
+    .filter(p => p.isOpen)
+    .reduce((sum, pos) => {
+      const ltp = ticks[pos.symbol]?.ltp ?? pos.currentPrice;
+      const pnl = pos.side === 'BUY'
+        ? (ltp - pos.entryPrice) * pos.quantity
+        : (pos.entryPrice - ltp) * pos.quantity;
+      return sum + pnl;
+    }, 0);
+  const totalPnl = realizedPnl + unrealizedPnl;
+
+  const filtered = allSymbols.filter(s =>
+    s.label.toLowerCase().includes(symbolInput.toLowerCase()) ||
+    s.value.toLowerCase().includes(symbolInput.toLowerCase())
+  );
+
+  let lastGroup = '';
+
+  return (
+    <header className="header">
+      <div className="header-left">
+        <div className="header-logo">
+          <div className="header-logo-icon">📊</div>
+          BN Paper Trader
+        </div>
+
+        <div className="header-spot" style={{ position: 'relative' }} ref={dropdownRef}>
+          <input
+            value={symbolInput}
+            onFocus={handleDropdownOpen}
+            onChange={(e) => {
+              const val = e.target.value.toUpperCase();
+              setSymbolInput(val);
+            }}
+            onBlur={() => {
+              setTimeout(() => setShowDropdown(false), 200);
+              handleSymbolChange();
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && handleSymbolChange()}
+            placeholder="Search Fyers Symbol..."
+            style={{
+              background: 'rgba(0,0,0,0.2)',
+              border: '1px solid var(--border-primary)',
+              color: 'var(--text-primary)',
+              fontSize: '11px',
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 600,
+              padding: '6px 12px',
+              borderRadius: '4px',
+              width: '220px',
+              outline: 'none',
+              transition: 'all 0.2s',
+            }}
+          />
+
+          {showDropdown && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              width: '320px',
+              maxHeight: '400px',
+              overflowY: 'auto',
+              background: '#1a1d23',
+              border: '1px solid var(--border-primary)',
+              borderRadius: '4px',
+              marginTop: '4px',
+              zIndex: 1000,
+              boxShadow: '0 8px 16px rgba(0,0,0,0.4)',
+            }}>
+              {filtered.map(s => {
+                const showGroup = s.group !== lastGroup;
+                lastGroup = s.group;
+                return (
+                  <div key={s.value}>
+                    {showGroup && (
+                      <div style={{
+                        padding: '6px 12px',
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        color: s.group === 'MCX' ? '#ff9800' : 'var(--text-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px',
+                        background: 'rgba(255,255,255,0.03)',
+                        borderBottom: '1px solid rgba(255,255,255,0.08)',
+                        position: 'sticky',
+                        top: 0,
+                      }}>{s.group} {s.group === 'MCX' && '(Live from Fyers)'}</div>
+                    )}
+                    <div
+                      onClick={() => handleSymbolSelect(s.value, s.lotSize)}
+                      style={{
+                        padding: '6px 12px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                        transition: 'background 0.2s',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div>
+                        <div style={{ color: 'var(--text-bright)', fontWeight: 600 }}>{s.label}</div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '9px' }}>{s.value}</div>
+                      </div>
+                      {s.lotSize && (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '9px' }}>
+                          Lot: {s.lotSize}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {mcxLoading && (
+                <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '10px' }}>
+                  Loading MCX symbols...
+                </div>
+              )}
+              {filtered.length === 0 && !mcxLoading && (
+                <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '10px' }}>
+                  No matching symbols. Type a Fyers symbol and press Enter.
+                </div>
+              )}
+            </div>
+          )}
+          
+          <span className="header-spot-price" style={{ minWidth: '80px' }}>
+            {spotPrice > 0 ? (
+              spotPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            ) : connectionStatus.isConnected ? (
+              <span style={{ opacity: 0.5, fontSize: '10px' }}>Fetching...</span>
+            ) : (
+              '—'
+            )}
+          </span>
+          {spotPrice > 0 && (
+            <span className={`header-spot-change ${change >= 0 ? 'profit' : 'loss'}`}
+              style={{
+                background: change >= 0 
+                  ? 'rgba(0, 230, 118, 0.12)' 
+                  : 'rgba(255, 23, 68, 0.12)'
+              }}
+            >
+              {change >= 0 ? '+' : ''}{change.toFixed(2)} ({formatPercent(changePercent)})
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="header-right">
+        <div className="header-balance">
+          <span className="header-balance-label">Balance</span>
+          <span className={`header-balance-value ${totalPnl >= 0 ? 'profit' : 'loss'}`}>
+            {formatINR(balance)}
+          </span>
+        </div>
+
+        <div className="header-balance">
+          <span className="header-balance-label">P&L</span>
+          <span className={`header-balance-value ${totalPnl >= 0 ? 'profit' : 'loss'}`}>
+            {totalPnl >= 0 ? '+' : ''}{formatINR(totalPnl)}
+          </span>
+        </div>
+
+        {connectionStatus.isConnected ? (
+          <div 
+            className="status-dot connected"
+            title="Connected to Fyers live feed"
+          />
+        ) : hasToken ? (
+          <div
+            className="status-dot"
+            style={{ background: '#ff9800' }}
+            title="Token found, connecting..."
+          />
+        ) : (
+          <a 
+            href="/api/auth/fyers" 
+            className="btn btn-primary"
+            style={{ padding: '4px 12px', fontSize: '11px', textDecoration: 'none' }}
+          >
+            Connect Fyers
+          </a>
+        )}
+      </div>
+    </header>
+  );
+}

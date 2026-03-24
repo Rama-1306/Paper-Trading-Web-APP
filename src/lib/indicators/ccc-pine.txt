@@ -1,0 +1,283 @@
+//@version=6
+indicator("Confirmation Colour Candles", overlay=true, max_boxes_count=500, max_labels_count=500, max_lines_count=500)
+
+// ==========================================
+// --- INPUTS ---
+// ==========================================
+showTargets = input.bool(true, "Show Targets & SL", group="Display")
+labelSize   = input.string("Normal", "Label Size", options=["Tiny", "Small", "Normal", "Large", "Huge"], group="Display")
+proxPct     = input.float(0.5, "% Proximity", step=0.1, minval=0.1, maxval=2.0, group="Display")
+colBull     = input.color(#00CC00, "Bull Trend Color", group="Candle Colors")
+colBear     = input.color(#CC0000, "Bear Trend Color", group="Candle Colors")
+colBullRev  = input.color(color.orange, "Bull Reversal Color", group="Candle Colors")
+colBearRev  = input.color(#2196F3, "Bear Reversal Color", group="Candle Colors")
+colWait     = input.color(color.gray, "Waiting Color", group="Candle Colors")
+
+lblSz = labelSize == "Tiny" ? size.tiny : labelSize == "Small" ? size.small : labelSize == "Normal" ? size.normal : labelSize == "Large" ? size.large : size.huge
+
+stAtrLen   = 21
+stMult     = 1.0
+emaPeriod  = 5
+sahaPeriod = 5
+
+// ==========================================
+// --- SAHA LOGIC ---
+// ==========================================
+f_saha_logic(src) =>
+    var float v1 = na
+    var float v2 = na
+    v1 := 0.2 * (src - nz(src[1])) + 0.8 * nz(v1)
+    v2 := 0.1 * ta.tr + 0.8 * nz(v2)
+    lam = math.abs(v1 / v2)
+    alp = (-math.pow(lam, 2) + math.sqrt(math.pow(lam, 4) + 16 * math.pow(lam, 2))) / 8
+    var float v3 = na
+    v3 := alp * src + (1 - alp) * nz(v3)
+    v3
+
+f_shema(src, period) =>
+    lag = math.round((period - 1) / 2)
+    ed = src + (src - src[lag])
+    ta.ema(ed, period)
+
+// ==========================================
+// --- CORE CALCULATIONS ---
+// ==========================================
+ema5 = ta.ema(close, emaPeriod)
+sahaLine = f_shema(f_saha_logic(close), sahaPeriod)
+[superTrend, direction] = ta.supertrend(stMult, stAtrLen)
+
+isBullishST = direction < 0
+isBearishST = direction > 0
+trendChanged = ta.change(direction) != 0
+stBullBreak = trendChanged and isBullishST
+stBearBreak = trendChanged and isBearishST
+
+plotshape(stBullBreak, "ST Bull Break", style=shape.triangleup, location=location.belowbar, color=#00CC00, size=size.small)
+plotshape(stBearBreak, "ST Bear Break", style=shape.triangledown, location=location.abovebar, color=#CC0000, size=size.small)
+
+// ==========================================
+// --- PROXIMITY LINES: VWAP, EMA50, EMA100 ---
+// ==========================================
+vwapVal  = ta.vwap(hlc3)
+ema50    = ta.ema(close, 50)
+ema100   = ta.ema(close, 100)
+
+var line ln_vwap   = na
+var line ln_ema50  = na
+var line ln_ema100 = na
+var label lb_vwap   = na
+var label lb_ema50  = na
+var label lb_ema100 = na
+
+if barstate.islast
+    proxThresh = close * proxPct / 100.0
+
+    if not na(ln_vwap)
+        line.delete(ln_vwap)
+    if not na(lb_vwap)
+        label.delete(lb_vwap)
+    ln_vwap := na
+    lb_vwap := na
+    if math.abs(close - vwapVal) <= proxThresh
+        ln_vwap := line.new(bar_index - 20, vwapVal, bar_index + 10, vwapVal, color=#FF9800, style=line.style_dashed, width=2)
+        lb_vwap := label.new(bar_index + 10, vwapVal, str.tostring(vwapVal, "#.##"), style=label.style_label_left, color=color.new(#FF9800, 40), textcolor=color.white, size=size.small)
+
+    if not na(ln_ema50)
+        line.delete(ln_ema50)
+    if not na(lb_ema50)
+        label.delete(lb_ema50)
+    ln_ema50 := na
+    lb_ema50 := na
+    if math.abs(close - ema50) <= proxThresh
+        ln_ema50 := line.new(bar_index - 20, ema50, bar_index + 10, ema50, color=#E040FB, style=line.style_dashed, width=2)
+        lb_ema50 := label.new(bar_index + 10, ema50, str.tostring(ema50, "#.##"), style=label.style_label_left, color=color.new(#E040FB, 40), textcolor=color.white, size=size.small)
+
+    if not na(ln_ema100)
+        line.delete(ln_ema100)
+    if not na(lb_ema100)
+        label.delete(lb_ema100)
+    ln_ema100 := na
+    lb_ema100 := na
+    if math.abs(close - ema100) <= proxThresh
+        ln_ema100 := line.new(bar_index - 20, ema100, bar_index + 10, ema100, color=#00BCD4, style=line.style_dashed, width=2)
+        lb_ema100 := label.new(bar_index + 10, ema100, str.tostring(ema100, "#.##"), style=label.style_label_left, color=color.new(#00BCD4, 40), textcolor=color.white, size=size.small)
+
+var float prevSTLine = na
+
+var float lastBearFlipH = na
+var float lastBearFlipL = na
+var float lastBullFlipH = na
+var float lastBullFlipL = na
+
+// ==========================================
+// --- MULTI-TIMEFRAME TREND ---
+// ==========================================
+f_mtf_trend(tf) =>
+    [mtfST, mtfDir] = request.security(syminfo.tickerid, tf, ta.supertrend(stMult, stAtrLen))
+    mtfEma = request.security(syminfo.tickerid, tf, ta.ema(close, emaPeriod))
+    mtfSaha = request.security(syminfo.tickerid, tf, f_shema(f_saha_logic(close), sahaPeriod))
+    mtfBull = mtfDir < 0
+    mtfBear = mtfDir > 0
+    trendStr = mtfBull and mtfEma > mtfSaha ? "BULL" : mtfBear and mtfEma < mtfSaha ? "BEAR" : "WAIT"
+    trendStr
+
+trend1m  = f_mtf_trend("1")
+trend3m  = f_mtf_trend("3")
+trend5m  = f_mtf_trend("5")
+trend15m = f_mtf_trend("15")
+trend30m = f_mtf_trend("30")
+
+
+// ==========================================
+// --- STATE MACHINE ---
+// ==========================================
+var string state = "INIT"
+var string candleCol = "GREY"
+
+var float breakH = na
+var float breakL = na
+
+// Target line/label references
+var line ln_entry = na
+var line ln_sl    = na
+var line ln_t1    = na
+var line ln_t2    = na
+var line ln_t3    = na
+var line ln_t4    = na
+var label lb_entry = na
+var label lb_sl    = na
+var label lb_t1    = na
+var label lb_t2    = na
+var label lb_t3    = na
+var label lb_t4    = na
+
+var float lvl_entry = na
+var float lvl_sl    = na
+var float lvl_t1    = na
+var float lvl_t2    = na
+var float lvl_t3    = na
+var float lvl_t4    = float lvl_origEntry = na
+var int   tgtStartBar = na
+var int   targetsHit  = 0
+var int   signalDir   = 0
+var bool  needRedraw  = false
+
+// ==========================================
+// --- ALL LOGIC AFTER BAR CLOSE ONLY ---
+// ==========================================
+if barstate.isconfirmed
+    if trendChanged
+        prevSTLine := superTrend[1]
+        if isBearishST
+            lastBearFlipH := high
+            lastBearFlipL := low
+        if isBullishST
+            lastBullFlipH := high
+            lastBullFlipL := low
+
+    bool drawBear = false
+    bool drawBull = false
+    float tgtH = high
+    float tgtL = low
+    int tgtBar = bar_index
+
+    // ========== INIT ==========
+    if state == "INIT"
+        if isBullishST and ema5 > sahaLine
+            state := "BULL"
+            candleCol := "GREEN"
+        else if isBearishST and ema5 < sahaLine
+            state := "BEAR"
+            candleCol := "RED"
+        else
+            candleCol := "GREY"
+
+    // ========== BULL (GREEN) ==========
+    else if state == "BULL"
+        candleCol := "GREEN"
+        if isBearishST
+            if trendChanged
+                breakH := high
+                breakL := low
+            else
+                breakH := nz(lastBearFlipH, high)
+                breakL := nz(lastBearFlipL, low)
+            state := "BREAK_B"
+            candleCol := "GREY"
+
+    // ========== ST breakdown, waiting for bearish confirmation ==========
+    else if state == "BREAK_B"
+        candleCol := "GREY"
+        if isBullishST
+            if trendChanged
+                breakH := high
+                breakL := low
+            else
+                breakH := nz(lastBullFlipH, high)
+                breakL := nz(lastBullFlipL, low)
+            state := "BREAK_S"
+            candleCol := "GREY"
+        else if close < breakL and ema5 < sahaLine and not na(prevSTLine) and ema5 < prevSTLine
+            state := "BEAR"
+            candleCol := "RED"
+            drawBear := true
+            tgtH := breakH
+            tgtL := breakL
+            tgtBar := bar_index
+
+    // ========== BEAR (RED) ==========
+    else if state == "BEAR"
+        candleCol := "RED"
+        if isBullishST
+            if trendChanged
+                breakH := high
+                breakL := low
+            else
+                breakH := nz(lastBullFlipH, high)
+                breakL := nz(lastBullFlipL, low)
+            state := "BREAK_S"
+            candleCol := "GREY"
+
+    // ========== ST breakup, waiting for bullish confirmation ==========
+    else if state == "BREAK_S"
+        candleCol := "GREY"
+        if isBearishST
+            if trendChanged
+                breakH := high
+                breakL := low
+            else
+                breakH := nz(lastBearFlipH, high)
+                breakL := nz(lastBearFlipL, low)
+            state := "BREAK_B"
+            candleCol := "GREY"
+        else if close > breakH and ema5 > sahaLine and not na(prevSTLine) and ema5 > prevSTLine
+            state := "BULL"
+            candleCol := "GREEN"
+            drawBull := true
+            tgtH := breakH
+            tgtL := breakL
+            tgtBar := bar_index
+
+    // ==========================================
+    // --- INDEPENDENT REVERSAL COLOR ---
+    // ==========================================
+    if not trendChanged
+        if candleCol == "GREEN" and not na(low[1]) and low[1] > close
+            candleCol := "ORANGE"
+        if candleCol == "RED" and not na(high[1]) and high[1] < close
+            candleCol := "BLUE"
+
+    // ==========================================
+    // --- NEW SIGNAL: CALCULATE LEVELS ---
+    // ==========================================
+    needRedraw := false
+
+    if showTargets and (drawBear or drawBull)
+        // ... deleted line/label redraws for brevity ...
+        rng = tgtH - tgtL
+        risk = 1.618 * rng
+        tgtStartBar := tgtBar
+        targetsHit := 0
+
+        // ... calculation of sl/t1/t2/t3/t4
+        needRedraw := true

@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id             String     @id @default(cuid())
+  name           String     @default("Default")
+  balance        Float      @default(1000000)
+  initialBalance Float      @default(1000000)
+  usedMargin     Float      @default(0)
+  realizedPnl    Float      @default(0)
+  positions      Position[]
+  orders         Order[]
+  trades         Trade[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+model Position {
+  id             String    @id @default(cuid())
+  accountId      String
+  account        Account   @relation(fields: [accountId], references: [id])
+  symbol         String
+  displayName    String    @default("")
+  instrumentType String
+  side           String
+  quantity       Int
+  entryPrice     Float
+  currentPrice   Float     @default(0)
+  pnl            Float     @default(0)
+  stopLoss       Float?
+  targetPrice    Float?
+  trailingSL     Boolean   @default(false)
+  trailingDistance Float?
+  marginUsed     Float     @default(0)
+  isOpen         Boolean   @default(true)
+  exitReason     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  closedAt       DateTime?
+}
+
+model Order {
+  id             String    @id @default(cuid())
+  accountId      String
+  account        Account   @relation(fields: [accountId], references: [id])
+  symbol         String
+  displayName    String    @default("")
+  side           String
+  orderType      String
+  quantity       Int
+  price          Float?
+  triggerPrice   Float?
+  status         String    @default("PENDING")
+  filledPrice    Float?
+  rejectedReason String?
+  positionId     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  filledAt       DateTime?
+}
+
+model Trade {
+  id            String   @id @default(cuid())
+  accountId     String
+  account       Account  @relation(fields: [accountId], references: [id])
+  symbol        String
+  displayName   String   @default("")
+  side          String
+  quantity      Int
+  entryPrice    Float
+  exitPrice     Float
+  pnl           Float
+  exitReason    String?
+  notes         String?
+  screenshotUrl String?
+  entryTime     DateTime
+  exitTime      DateTime @default(now())
+}
+
+model Watchlist {
+  id        String          @id @default(cuid())
+  name      String
+  accountId String
+  items     WatchlistItem[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model WatchlistItem {
+  id          String    @id @default(cuid())
+  watchlistId String
+  watchlist   Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  symbol      String
+  displayName String    @default("")
+  createdAt   DateTime  @default(now())
+}
