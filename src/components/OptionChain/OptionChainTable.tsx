@@ -5,12 +5,20 @@ import { useMarketStore } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
 import { formatINR } from '@/lib/utils/formatters';
+import { WatchlistAddModal } from '@/components/Trading/WatchlistAddModal';
+
+interface WatchlistModalState {
+  symbol: string;
+  displayName: string;
+  position: { x: number; y: number };
+}
 
 export function OptionChainTable() {
   const optionChain = useMarketStore((s) => s.optionChain);
   const setSelectedSymbol = useTradingStore((s) => s.setSelectedSymbol);
   const addNotification = useUIStore((s) => s.addNotification);
   const [mounted, setMounted] = useState(false);
+  const [watchlistModal, setWatchlistModal] = useState<WatchlistModalState | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -64,6 +72,32 @@ export function OptionChainTable() {
     });
   };
 
+  const handleAddToWatchlist = (
+    e: React.MouseEvent,
+    symbol: string,
+    strikePrice: number,
+    type: 'CE' | 'PE'
+  ) => {
+    e.stopPropagation();
+
+    if (!symbol || symbol.startsWith('DEMO:')) {
+      addNotification({
+        type: 'warning',
+        title: 'Not Connected',
+        message: 'Connect to Fyers to add live options to watchlist.',
+      });
+      return;
+    }
+
+    const displayName = `BN ${strikePrice} ${type}`;
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setWatchlistModal({
+      symbol,
+      displayName,
+      position: { x: rect.right + 4, y: rect.top - 8 },
+    });
+  };
+
   if (!mounted) return <div style={{ overflow: 'auto', height: '100%' }} />;
 
   return (
@@ -90,11 +124,13 @@ export function OptionChainTable() {
             <th className="right" style={{ color: 'var(--color-buy)' }}>Chg</th>
             <th className="right" style={{ color: 'var(--color-buy)' }}>CE LTP</th>
             <th className="center" style={{ color: 'var(--color-buy)', fontSize: '9px' }}>Chart</th>
+            <th className="center" style={{ color: 'var(--color-buy)', fontSize: '9px', width: '24px' }}>WL</th>
             <th className="center" style={{ 
               fontWeight: 700, 
               color: 'var(--text-bright)',
               fontSize: '11px',
             }}>STRIKE</th>
+            <th className="center" style={{ color: 'var(--color-sell)', fontSize: '9px', width: '24px' }}>WL</th>
             <th className="center" style={{ color: 'var(--color-sell)', fontSize: '9px' }}>Chart</th>
             <th className="right" style={{ color: 'var(--color-sell)' }}>PE LTP</th>
             <th className="right" style={{ color: 'var(--color-sell)' }}>Chg</th>
@@ -173,6 +209,20 @@ export function OptionChainTable() {
                   </button>
                 </td>
 
+                {/* CE Watchlist Add Button */}
+                <td className="center" style={{
+                  background: isITM_CE ? 'rgba(41, 121, 255, 0.04)' : 'transparent',
+                  padding: '0 2px',
+                }}>
+                  <button
+                    className="oc-wl-btn oc-wl-btn-ce"
+                    onClick={(e) => handleAddToWatchlist(e, s.ce?.symbol || '', s.strikePrice, 'CE')}
+                    title={`Add ${s.strikePrice} CE to watchlist`}
+                  >
+                    +
+                  </button>
+                </td>
+
                 <td className="center" style={{
                   fontWeight: 700,
                   color: isATM ? 'var(--color-accent)' : 'var(--text-primary)',
@@ -180,6 +230,20 @@ export function OptionChainTable() {
                   position: 'relative',
                 }}>
                   {s.strikePrice}
+                </td>
+
+                {/* PE Watchlist Add Button */}
+                <td className="center" style={{
+                  background: isITM_PE ? 'rgba(255, 109, 0, 0.04)' : 'transparent',
+                  padding: '0 2px',
+                }}>
+                  <button
+                    className="oc-wl-btn oc-wl-btn-pe"
+                    onClick={(e) => handleAddToWatchlist(e, s.pe?.symbol || '', s.strikePrice, 'PE')}
+                    title={`Add ${s.strikePrice} PE to watchlist`}
+                  >
+                    +
+                  </button>
                 </td>
 
                 <td className="center" style={{
@@ -243,6 +307,16 @@ export function OptionChainTable() {
           })}
         </tbody>
       </table>
+
+      {/* Watchlist Add Modal */}
+      {watchlistModal && (
+        <WatchlistAddModal
+          symbol={watchlistModal.symbol}
+          displayName={watchlistModal.displayName}
+          position={watchlistModal.position}
+          onClose={() => setWatchlistModal(null)}
+        />
+      )}
     </div>
   );
 }
