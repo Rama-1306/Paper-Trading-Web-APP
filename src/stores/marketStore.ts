@@ -140,10 +140,11 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     set({ connectionStatus: { ...connectionStatus, isAuthenticated: true } });
 
     const newSocket: Socket = io(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3002', {
-      auth: { token },
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
+  auth: { token },
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+  transports: ['polling', 'websocket'],
+});
     
     set({ socket: newSocket });
 
