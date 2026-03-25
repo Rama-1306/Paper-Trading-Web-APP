@@ -143,6 +143,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   auth: { token },
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
+  transports: ['polling', 'websocket'],
 });
     
     set({ socket: newSocket });
