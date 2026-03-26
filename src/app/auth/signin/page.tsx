@@ -11,6 +11,7 @@ function SignInForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
   const error = searchParams.get("error");
+  const registered = searchParams.get("registered");
 
   const [formData, setFormData] = useState({
     email: "",
@@ -50,6 +51,11 @@ function SignInForm() {
           <h1 className={styles.title}>Welcome Back</h1>
           <p className={styles.subtitle}>Sign in to your trading account</p>
         </div>
+ {registered && (
+          <div style={{background:"#e6ffe6",border:"1px solid #4caf50",color:"#2e7d32",padding:"12px",borderRadius:"8px",marginBottom:"20px",fontSize:"14px"}}>
+            Account created successfully! Please sign in.
+          </div>
+        )}
 
         {errorMessage && (
           <div className={styles.error}>

@@ -1,5 +1,5 @@
 'use client';
-
+import { useSession } from "next-auth/react";
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
@@ -20,6 +20,10 @@ export function Header() {
   const [mcxSymbols, setMcxSymbols] = useState<SymbolItem[]>([]);
   const [mcxLoading, setMcxLoading] = useState(false);
   const [mcxLoaded, setMcxLoaded] = useState(false);
+const { data: session } = useSession();
+const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -269,7 +273,7 @@ export function Header() {
             style={{ background: '#ff9800' }}
             title="Token found, connecting..."
           />
-        ) : (
+        ) : isAdmin ? (
           <a 
             href="/api/auth/fyers" 
             className="btn btn-primary"
@@ -277,6 +281,12 @@ export function Header() {
           >
             Connect Fyers
           </a>
+        ) : (
+          <div
+            className="status-dot"
+            style={{ background: '#ff9800' }}
+            title="Waiting for live feed"
+          />
         )}
       </div>
     </header>
