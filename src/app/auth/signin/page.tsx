@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import styles from "./signin.module.css";
 
-export default function SignIn() {
+function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
@@ -109,7 +109,7 @@ export default function SignIn() {
 
         <div className={styles.footer}>
           <p>
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/auth/signup" className={styles.link}>
               Sign up
             </Link>
@@ -126,5 +126,13 @@ export default function SignIn() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignIn() {
+  return (
+    <Suspense fallback={<div style={{display:"flex",justifyContent:"center",alignItems:"center",minHeight:"100vh",fontSize:"18px",color:"#666"}}>Loading...</div>}>
+      <SignInForm />
+    </Suspense>
   );
 }
