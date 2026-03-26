@@ -1,8 +1,8 @@
 'use client';
-import { useSession } from "next-auth/react";
-import { useEffect, useState, useRef, useCallback } from 'react';
+
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { formatINR, formatPercent } from '@/lib/utils/formatters';
@@ -24,10 +24,6 @@ export function Header() {
   const [mcxLoaded, setMcxLoaded] = useState(false);
   const { data: session } = useSession();
   const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-const { data: session } = useSession();
-const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-
-
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
