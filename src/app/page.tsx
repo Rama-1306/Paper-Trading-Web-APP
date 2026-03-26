@@ -1,5 +1,5 @@
 'use client';
-
+import ProtectedRoute from '@/components/common/ProtectedRoute';
 import { Header } from '@/components/common/Header';
 import { StatusBar } from '@/components/common/StatusBar';
 import { TradingChart } from '@/components/Chart/TradingChart';
@@ -143,7 +143,8 @@ export default function Dashboard() {
     };
   }, [isDragging]);
 
-  return (
+ return (
+    <ProtectedRoute>
     <div className="app-container">
       <Header />
 
@@ -246,5 +247,6 @@ export default function Dashboard() {
       <StatusBar />
       <ToastContainer />
     </div>
+    </ProtectedRoute>
   );
 }
