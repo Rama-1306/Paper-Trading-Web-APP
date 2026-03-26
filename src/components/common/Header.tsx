@@ -34,6 +34,12 @@ export function Header() {
     setSymbolInput(activeSymbol);
   }, [activeSymbol]);
 
+  const handleDisconnectFyers = () => {
+    localStorage.removeItem('fyers_access_token');
+    setHasToken(false);
+    window.location.reload();
+  };
+
   const fetchMcxSymbols = useCallback(async () => {
     if (mcxLoaded || mcxLoading) return;
     setMcxLoading(true);
@@ -263,10 +269,30 @@ export function Header() {
         </div>
 
         {connectionStatus.isConnected ? (
-          <div 
-            className="status-dot connected"
-            title="Connected to Fyers live feed"
-          />
+          <>
+            <div 
+              className="status-dot connected"
+              title="Connected to Fyers live feed"
+            />
+            {isAdmin && (
+              <button
+                onClick={handleDisconnectFyers}
+                style={{
+                  background: 'rgba(255, 152, 0, 0.15)',
+                  color: '#ff9800',
+                  border: '1px solid rgba(255, 152, 0, 0.3)',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '9px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+                title="Disconnect Fyers live feed"
+              >
+                Disconnect
+              </button>
+            )}
+          </>
         ) : hasToken ? (
           <div
             className="status-dot"
