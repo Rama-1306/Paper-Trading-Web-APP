@@ -1,6 +1,8 @@
 'use client';
 import { useSession } from "next-auth/react";
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSession, signOut } from "next-auth/react";
+import Link from "next/link";
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { formatINR, formatPercent } from '@/lib/utils/formatters';
@@ -20,6 +22,8 @@ export function Header() {
   const [mcxSymbols, setMcxSymbols] = useState<SymbolItem[]>([]);
   const [mcxLoading, setMcxLoading] = useState(false);
   const [mcxLoaded, setMcxLoaded] = useState(false);
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 const { data: session } = useSession();
 const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 
@@ -288,6 +292,40 @@ const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
             title="Waiting for live feed"
           />
         )}
+
+        <Link href="/profile" style={{
+          width: '28px',
+          height: '28px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '12px',
+          fontWeight: 700,
+          color: '#fff',
+          textDecoration: 'none',
+          cursor: 'pointer',
+        }} title="Profile">
+          {session?.user?.name?.charAt(0).toUpperCase() || 'U'}
+        </Link>
+
+        <button
+          onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+          style={{
+            background: 'rgba(255, 23, 68, 0.15)',
+            color: '#ff1744',
+            border: '1px solid rgba(255, 23, 68, 0.3)',
+            padding: '4px 10px',
+            borderRadius: '4px',
+            fontSize: '10px',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+          title="Sign Out"
+        >
+          Logout
+        </button>
       </div>
     </header>
   );
