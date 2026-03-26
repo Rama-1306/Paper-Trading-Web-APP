@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Providers from "@/components/common/Providers";
 
 export const metadata: Metadata = {
   title: "BN Paper Trader | Bank Nifty F&O Simulator",
@@ -14,7 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

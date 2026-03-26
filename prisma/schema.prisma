@@ -8,8 +8,23 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// User model for authentication
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  accounts      Account[] // User can have multiple trading accounts
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
 model Account {
   id             String     @id @default(cuid())
+  userId         String     // Link to User
+  user           User       @relation(fields: [userId], references: [id])
   name           String     @default("Default")
   balance        Float      @default(1000000)
   initialBalance Float      @default(1000000)
