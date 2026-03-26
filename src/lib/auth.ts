@@ -1,16 +1,13 @@
-// Update Prisma schema with User model
-// Add this to your existing schema.prisma file
+// Auth utility functions for server-side usage
+// Main NextAuth config is in src/app/api/auth/[...nextauth]/route.ts
 
-// The User model should be added alongside Account model
+import { getServerSession } from "next-auth";
 
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  accounts      Account[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+export async function getSession() {
+  return await getServerSession();
+}
+
+export async function getCurrentUser() {
+  const session = await getSession();
+  return session?.user ?? null;
 }

@@ -23,8 +23,8 @@ model User {
 
 model Account {
   id             String     @id @default(cuid())
-  userId         String     // Link to User
-  user           User       @relation(fields: [userId], references: [id])
+  userId         String?    // Optional - existing accounts won't break
+  user           User?      @relation(fields: [userId], references: [id])
   name           String     @default("Default")
   balance        Float      @default(1000000)
   initialBalance Float      @default(1000000)
