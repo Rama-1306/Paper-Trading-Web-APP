@@ -1,106 +1,63 @@
-import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import { NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
+import { getServerSession } from "next-auth";
 
-// GET /api/account — Get or create default account
+const prisma = new PrismaClient();
+
 export async function GET() {
   try {
-    let account = await prisma.account.findFirst({
-      include: {
-        positions: { where: { isOpen: true } },
-        _count: {
-          select: {
-            orders: { where: { status: 'PENDING' } },
-          },
-        },
-      },
-    });
+    const session = await getServerSession();
 
-    if (!account) {
-      account = await prisma.account.create({
-        data: {
-          name: 'Default',
-          balance: parseFloat(process.env.NEXT_PUBLIC_STARTING_CAPITAL || '1000000'),
-          initialBalance: parseFloat(process.env.NEXT_PUBLIC_STARTING_CAPITAL || '1000000'),
-        },
-        include: {
-          positions: { where: { isOpen: true } },
-          _count: {
-            select: {
-              orders: { where: { status: 'PENDING' } },
-            },
-          },
-        },
-      });
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
     }
 
-    // Calculate unrealized P&L from open positions
-    const unrealizedPnl = account.positions.reduce(
-      (sum, pos) => sum + pos.pnl,
-      0
-    );
-
-    return NextResponse.json({
-      id: account.id,
-      name: account.name,
-      balance: account.balance,
-      initialBalance: account.initialBalance,
-      usedMargin: account.usedMargin,
-      availableMargin: account.balance - account.usedMargin,
-      realizedPnl: account.realizedPnl,
-      unrealizedPnl,
-      totalPnl: account.realizedPnl + unrealizedPnl,
-      totalPnlPercent:
-        ((account.realizedPnl + unrealizedPnl) / account.initialBalance) * 100,
-      todayPnl: 0, // TODO: calculate today's P&L
-      winRate: 0,   // TODO: calculate from trades
-      totalTrades: 0,
+    // Find the user by email
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
     });
-  } catch (error) {
-    console.error('Account API error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
 
-// POST /api/account — Reset account
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
+    if (user) {
+      // Find account linked to this user
+      const account = await prisma.account.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+      });
 
-    if (body.action === 'reset') {
-      const account = await prisma.account.findFirst();
-      if (!account) {
-        return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+      if (account) {
+        return NextResponse.json({ account }, { status: 200 });
       }
+    }
 
-      // Close all positions
-      await prisma.position.updateMany({
-        where: { accountId: account.id, isOpen: true },
-        data: { isOpen: false, closedAt: new Date() },
-      });
+    // Fallback: if no user-linked account found, check for legacy accounts (before auth)
+    const legacyAccount = await prisma.account.findFirst({
+      where: { userId: null },
+      orderBy: { createdAt: "desc" },
+    });
 
-      // Cancel pending orders
-      await prisma.order.updateMany({
-        where: { accountId: account.id, status: 'PENDING' },
-        data: { status: 'CANCELLED' },
-      });
+    if (legacyAccount) {
+      return NextResponse.json({ account: legacyAccount }, { status: 200 });
+    }
 
-      // Reset balance
-      const startingCapital = parseFloat(process.env.NEXT_PUBLIC_STARTING_CAPITAL || '1000000');
-      await prisma.account.update({
-        where: { id: account.id },
-        data: {
-          balance: startingCapital,
-          usedMargin: 0,
+    // Default response for new users
+    return NextResponse.json(
+      {
+        account: {
+          balance: 1000000,
+          initialBalance: 1000000,
           realizedPnl: 0,
         },
-      });
-
-      return NextResponse.json({ success: true, message: 'Account reset' });
-    }
-
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+      },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error('Account reset error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("Account fetch error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch account" },
+      { status: 500 }
+    );
   }
 }
