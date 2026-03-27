@@ -1,8 +1,8 @@
 'use client';
-import { useSession } from "next-auth/react";
-import { useEffect, useState, useRef, useCallback } from 'react';
+
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { formatINR, formatPercent } from '@/lib/utils/formatters';
@@ -24,10 +24,6 @@ export function Header() {
   const [mcxLoaded, setMcxLoaded] = useState(false);
   const { data: session } = useSession();
   const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-const { data: session } = useSession();
-const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-
-
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,6 +33,12 @@ const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
   useEffect(() => {
     setSymbolInput(activeSymbol);
   }, [activeSymbol]);
+
+  const handleDisconnectFyers = () => {
+    localStorage.removeItem('fyers_access_token');
+    setHasToken(false);
+    window.location.reload();
+  };
 
   const fetchMcxSymbols = useCallback(async () => {
     if (mcxLoaded || mcxLoading) return;
@@ -267,10 +269,30 @@ const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
         </div>
 
         {connectionStatus.isConnected ? (
-          <div 
-            className="status-dot connected"
-            title="Connected to Fyers live feed"
-          />
+          <>
+            <div 
+              className="status-dot connected"
+              title="Connected to Fyers live feed"
+            />
+            {isAdmin && (
+              <button
+                onClick={handleDisconnectFyers}
+                style={{
+                  background: 'rgba(255, 152, 0, 0.15)',
+                  color: '#ff9800',
+                  border: '1px solid rgba(255, 152, 0, 0.3)',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '9px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+                title="Disconnect Fyers live feed"
+              >
+                Disconnect
+              </button>
+            )}
+          </>
         ) : hasToken ? (
           <div
             className="status-dot"
