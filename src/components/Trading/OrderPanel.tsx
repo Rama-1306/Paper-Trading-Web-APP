@@ -71,20 +71,6 @@ export function OrderPanel() {
       return;
     }
 
-    if (orderType === 'LIMIT' && price) {
-      const limitP = parseFloat(price);
-      const symbolLtp = selectedSymbol && ticks[selectedSymbol] ? ticks[selectedSymbol].ltp : 0;
-      if (symbolLtp > 0) {
-        if (orderSide === 'BUY' && limitP >= symbolLtp) {
-          addNotification({ type: 'error', title: 'Invalid Limit Price', message: `BUY LIMIT price (${limitP}) must be below current price (${symbolLtp.toFixed(2)}). Use Market order instead.` });
-          return;
-        }
-        if (orderSide === 'SELL' && limitP <= symbolLtp) {
-          addNotification({ type: 'error', title: 'Invalid Limit Price', message: `SELL LIMIT price (${limitP}) must be above current price (${symbolLtp.toFixed(2)}). Use Market order instead.` });
-          return;
-        }
-      }
-    }
 
     if (stopLoss && currentPrice > 0) {
       const sl = parseFloat(stopLoss);

@@ -73,32 +73,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    if (orderType === 'LIMIT' && price) {
-      let serverLtp: number | null = null;
-      try {
-        const ltpRes = await fetch(`http://localhost:3002/ltp?symbol=${encodeURIComponent(symbol)}`);
-        if (ltpRes.ok) {
-          const ltpData = await ltpRes.json();
-          serverLtp = ltpData.ltp;
-        }
-      } catch {}
-
-      const ltp = serverLtp ?? body.currentLtp;
-      if (ltp && ltp > 0) {
-        if (side === 'BUY' && price >= ltp) {
-          return NextResponse.json(
-            { error: `BUY LIMIT price (${price}) must be below current market price (${ltp}). Use Market order to buy at current price.` },
-            { status: 400 }
-          );
-        }
-        if (side === 'SELL' && price <= ltp) {
-          return NextResponse.json(
-            { error: `SELL LIMIT price (${price}) must be above current market price (${ltp}). Use Market order to sell at current price.` },
-            { status: 400 }
-          );
-        }
-      }
-    }
 
     const order = await prisma.order.create({
       data: {
