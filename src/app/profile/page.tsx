@@ -127,10 +127,11 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     minHeight: "100vh",
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "center",
     background: "#0d0f14",
     padding: "20px",
+    overflowY: "auto",
   },
   loadingContainer: {
     minHeight: "100vh",

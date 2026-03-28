@@ -63,6 +63,7 @@ export default function Dashboard() {
         });
         useTradingStore.getState().fetchAccount();
         useTradingStore.getState().fetchOrders();
+        useTradingStore.getState().fetchTrades();
       }
 
       if (event === 'sl_updated') {

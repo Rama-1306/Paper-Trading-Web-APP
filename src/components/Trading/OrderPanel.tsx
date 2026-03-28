@@ -138,6 +138,7 @@ export function OrderPanel() {
           }
         });
         useTradingStore.getState().fetchOrders();
+        useTradingStore.getState().fetchTrades();
 
         setPrice('');
         setTriggerPrice('');
