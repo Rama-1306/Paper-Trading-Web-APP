@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createChart, CandlestickSeries, createSeriesMarkers, type IChartApi, type ISeriesApi, type CandlestickData, type Time, type SeriesMarker, type ISeriesMarkersPluginApi } from 'lightweight-charts';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
+import { useUIStore } from '@/stores/uiStore';
 import { calculateCCC } from '@/lib/indicators/ccc';
 
 export function TradingChart() {
@@ -19,6 +20,7 @@ export function TradingChart() {
   const candles = useMarketStore((s) => s.candles);
   const activeSymbol = useMarketStore((s) => s.activeSymbol);
   const positions = useTradingStore((s) => s.positions);
+  const showIndicators = useUIStore((s) => s.showIndicators);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -114,44 +116,49 @@ export function TradingChart() {
     const markers: SeriesMarker<Time>[] = [];
 
     const formattedData: CandlestickData[] = cccResults.map((c) => {
-      let mainColor = '#8b8f98';
-      if (c.color === 'GREEN') mainColor = '#00e676';
-      else if (c.color === 'RED') mainColor = '#ff1744';
-      else if (c.color === 'ORANGE') mainColor = '#ff9800';
-      else if (c.color === 'BLUE') mainColor = '#2196F3';
-
       const timeIST = (c.time + 19800) as Time;
 
-      if (c.isSignalCandle && c.signalDirection) {
-        markers.push({
-          time: timeIST,
-          position: c.signalDirection === 'BULL' ? 'belowBar' : 'aboveBar',
-          color: c.signalDirection === 'BULL' ? '#00e676' : '#ff1744',
-          shape: c.signalDirection === 'BULL' ? 'arrowUp' : 'arrowDown',
-          text: c.signalDirection === 'BULL' ? 'BUY' : 'SELL',
-          size: 2,
-        });
-      }
+      let mainColor: string;
+      if (showIndicators) {
+        mainColor = '#8b8f98';
+        if (c.color === 'GREEN') mainColor = '#00e676';
+        else if (c.color === 'RED') mainColor = '#ff1744';
+        else if (c.color === 'ORANGE') mainColor = '#ff9800';
+        else if (c.color === 'BLUE') mainColor = '#2196F3';
 
-      if (c.stBullBreak) {
-        markers.push({
-          time: timeIST,
-          position: 'belowBar',
-          color: '#00CC00',
-          shape: 'arrowUp',
-          text: '',
-          size: 1,
-        });
-      }
-      if (c.stBearBreak) {
-        markers.push({
-          time: timeIST,
-          position: 'aboveBar',
-          color: '#CC0000',
-          shape: 'arrowDown',
-          text: '',
-          size: 1,
-        });
+        if (c.isSignalCandle && c.signalDirection) {
+          markers.push({
+            time: timeIST,
+            position: c.signalDirection === 'BULL' ? 'belowBar' : 'aboveBar',
+            color: c.signalDirection === 'BULL' ? '#00e676' : '#ff1744',
+            shape: c.signalDirection === 'BULL' ? 'arrowUp' : 'arrowDown',
+            text: c.signalDirection === 'BULL' ? 'BUY' : 'SELL',
+            size: 2,
+          });
+        }
+
+        if (c.stBullBreak) {
+          markers.push({
+            time: timeIST,
+            position: 'belowBar',
+            color: '#00CC00',
+            shape: 'arrowUp',
+            text: '',
+            size: 1,
+          });
+        }
+        if (c.stBearBreak) {
+          markers.push({
+            time: timeIST,
+            position: 'aboveBar',
+            color: '#CC0000',
+            shape: 'arrowDown',
+            text: '',
+            size: 1,
+          });
+        }
+      } else {
+        mainColor = c.close >= c.open ? '#00e676' : '#ff1744';
       }
 
       return {
@@ -173,6 +180,7 @@ export function TradingChart() {
     if (uniqueSortedData.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (candlestickSeriesRef.current as any).setData(uniqueSortedData);
+      chartRef.current?.timeScale().fitContent();
     }
 
     const uniqueMarkers = Array.from(
@@ -180,7 +188,7 @@ export function TradingChart() {
     ).sort((a, b) => (a.time as number) - (b.time as number));
 
     if (markersPluginRef.current) {
-      markersPluginRef.current.setMarkers(uniqueMarkers);
+      markersPluginRef.current.setMarkers(showIndicators ? uniqueMarkers : []);
     }
 
     if (priceLinesRef.current && priceLinesRef.current.length > 0) {
@@ -189,7 +197,7 @@ export function TradingChart() {
     }
 
     const lastBar = cccResults[cccResults.length - 1];
-    if (lastBar && lastBar.signalDir !== 0 && candlestickSeriesRef.current) {
+    if (showIndicators && lastBar && lastBar.signalDir !== 0 && candlestickSeriesRef.current) {
       const series = candlestickSeriesRef.current;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const createLine = (price: number, color: string, title: string, lineStyle: number = 2) => {
@@ -229,7 +237,7 @@ export function TradingChart() {
       if (lastBar.ema100Prox !== undefined) createLine(lastBar.ema100Prox, '#00BCD4', `EMA100 ${lastBar.ema100Prox.toFixed(2)}`, 2);
     }
 
-  }, [candles, isReady]);
+  }, [candles, isReady, showIndicators]);
 
   useEffect(() => {
     if (!isReady || !candlestickSeriesRef.current) return;
