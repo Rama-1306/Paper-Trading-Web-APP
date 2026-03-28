@@ -8,6 +8,7 @@ import { formatINR } from '@/lib/utils/formatters';
 import { ORDER_TYPES } from '@/lib/utils/constants';
 import { parseSymbolDisplay, getCurrentFuturesSymbol } from '@/lib/utils/symbols';
 import { getQuickMargin } from '@/lib/utils/margins';
+import { MarketDepth } from '@/components/Trading/MarketDepth';
 import type { OrderType } from '@/types/trading';
 
 export function OrderPanel() {
@@ -265,6 +266,19 @@ export function OrderPanel() {
               onChange={(e) => setPrice(e.target.value)}
               placeholder={currentPrice > 0 ? currentPrice.toFixed(2) : '0.00'}
               step="0.05"
+            />
+          </div>
+        )}
+
+        {(orderType === 'LIMIT' || orderType === 'SL') && (
+          <div className="input-group">
+            <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Market Depth</span>
+              <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Click price to auto-fill</span>
+            </label>
+            <MarketDepth
+              symbol={sym}
+              onPriceSelect={(p) => setPrice(p.toFixed(2))}
             />
           </div>
         )}
