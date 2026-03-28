@@ -34,9 +34,10 @@ export function OrderPanel() {
 
   const lotSize = activeLotSize || 30;
 
-  const currentPrice = selectedSymbol && ticks[selectedSymbol]
-    ? ticks[selectedSymbol].ltp
-    : spotPrice || 0;
+  const currentTick = selectedSymbol ? ticks[selectedSymbol] : null;
+  const currentPrice = currentTick?.ltp ?? spotPrice ?? 0;
+  const priceChange = currentTick?.change ?? 0;
+  const priceChangePct = currentTick?.changePercent ?? 0;
 
   const lots = Math.floor(orderQuantity / lotSize);
   const orderValue = currentPrice * orderQuantity;
@@ -189,11 +190,28 @@ export function OrderPanel() {
             background: 'var(--bg-input)',
             border: '1px solid var(--border-primary)',
             borderRadius: 'var(--radius-md)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '13px',
-            color: 'var(--text-primary)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '8px',
           }}>
-            {parseSymbolDisplay(selectedSymbol || getCurrentFuturesSymbol())}
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600 }}>
+              {parseSymbolDisplay(selectedSymbol || getCurrentFuturesSymbol())}
+            </span>
+            {currentPrice > 0 && (
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 700, color: 'var(--text-bright)' }}>
+                  {currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div style={{
+                  fontSize: '10px',
+                  fontFamily: 'var(--font-mono)',
+                  color: priceChange >= 0 ? 'var(--color-profit)' : 'var(--color-loss)',
+                }}>
+                  {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)} ({priceChangePct >= 0 ? '+' : ''}{priceChangePct.toFixed(2)}%)
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
