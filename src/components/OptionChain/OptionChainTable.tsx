@@ -15,6 +15,7 @@ interface WatchlistModalState {
 
 export function OptionChainTable() {
   const optionChain = useMarketStore((s) => s.optionChain);
+  const ticks = useMarketStore((s) => s.ticks);
   const setSelectedSymbol = useTradingStore((s) => s.setSelectedSymbol);
   const addNotification = useUIStore((s) => s.addNotification);
   const [mounted, setMounted] = useState(false);
@@ -143,6 +144,12 @@ export function OptionChainTable() {
             const isATM = s.strikePrice === atmStrike;
             const isITM_CE = s.strikePrice < atmStrike;
             const isITM_PE = s.strikePrice > atmStrike;
+            const ceTick = s.ce?.symbol ? ticks[s.ce.symbol] : undefined;
+            const peTick = s.pe?.symbol ? ticks[s.pe.symbol] : undefined;
+            const ceLtp = ceTick?.ltp ?? s.ce?.ltp ?? 0;
+            const ceChange = ceTick?.change ?? s.ce?.change ?? 0;
+            const peLtp = peTick?.ltp ?? s.pe?.ltp ?? 0;
+            const peChange = peTick?.change ?? s.pe?.change ?? 0;
 
             return (
               <tr key={s.strikePrice} style={{
@@ -166,16 +173,16 @@ export function OptionChainTable() {
                 }}>
                   {(s.ce?.volume ?? 0).toLocaleString('en-IN')}
                 </td>
-                <td className={`right ${(s.ce?.change ?? 0) >= 0 ? 'profit' : 'loss'}`} style={{
+                <td className={`right ${ceChange >= 0 ? 'profit' : 'loss'}`} style={{
                   background: isITM_CE ? 'rgba(41, 121, 255, 0.04)' : 'transparent',
                 }}>
-                  {(s.ce?.change ?? 0).toFixed(2)}
+                  {ceChange.toFixed(2)}
                 </td>
                 <td className="right" style={{
                   fontWeight: 600,
                   cursor: 'pointer',
                   background: isITM_CE ? 'rgba(41, 121, 255, 0.04)' : 'transparent',
-                  color: 'var(--text-bright)',
+                  color: ceTick ? 'var(--text-bright)' : 'var(--text-muted)',
                 }}
                   onClick={() => {
                     const sym = s.ce?.symbol;
@@ -185,7 +192,7 @@ export function OptionChainTable() {
                   }}
                   title={`Trade ${s.strikePrice} CE`}
                 >
-                  {(s.ce?.ltp ?? 0).toFixed(2)}
+                  {ceLtp.toFixed(2)}
                 </td>
 
                 <td className="center" style={{
@@ -271,7 +278,7 @@ export function OptionChainTable() {
                   fontWeight: 600,
                   cursor: 'pointer',
                   background: isITM_PE ? 'rgba(255, 109, 0, 0.04)' : 'transparent',
-                  color: 'var(--text-bright)',
+                  color: peTick ? 'var(--text-bright)' : 'var(--text-muted)',
                 }}
                   onClick={() => {
                     const sym = s.pe?.symbol;
@@ -281,12 +288,12 @@ export function OptionChainTable() {
                   }}
                   title={`Trade ${s.strikePrice} PE`}
                 >
-                  {(s.pe?.ltp ?? 0).toFixed(2)}
+                  {peLtp.toFixed(2)}
                 </td>
-                <td className={`right ${(s.pe?.change ?? 0) >= 0 ? 'profit' : 'loss'}`} style={{
+                <td className={`right ${peChange >= 0 ? 'profit' : 'loss'}`} style={{
                   background: isITM_PE ? 'rgba(255, 109, 0, 0.04)' : 'transparent',
                 }}>
-                  {(s.pe?.change ?? 0).toFixed(2)}
+                  {peChange.toFixed(2)}
                 </td>
                 <td className="right" style={{ 
                   color: 'var(--text-muted)', 
