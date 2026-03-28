@@ -5,6 +5,7 @@ import { io, Socket } from 'socket.io-client';
 import type { Tick, Candle, OptionChain, MarketStatus, Timeframe } from '@/types/market';
 import type { BrokerConnectionStatus } from '@/types/broker';
 import { getCurrentFuturesSymbol } from '@/lib/utils/symbols';
+import { getLotSizeForSymbol } from '@/lib/utils/margins';
 
 let onTickPositionUpdate: ((ticks: Tick[]) => void) | null = null;
 let onServerEvent: ((event: string, data: any) => void) | null = null;
@@ -55,6 +56,10 @@ interface MarketState {
   reset: () => void;
 }
 
+const _defaultSymbol = getCurrentFuturesSymbol();
+const _storedSymbol = typeof window !== 'undefined' ? (localStorage.getItem('activeSymbol') || _defaultSymbol) : _defaultSymbol;
+const _storedLotSize = typeof window !== 'undefined' ? parseInt(localStorage.getItem('activeLotSize') || '0', 10) || getLotSizeForSymbol(_storedSymbol) : getLotSizeForSymbol(_storedSymbol);
+
 const initialState = {
   connectionStatus: {
     isConnected: false,
@@ -68,10 +73,10 @@ const initialState = {
   socket: null,
   ticks: {},
   spotPrice: 0,
-  activeSymbol: getCurrentFuturesSymbol(),
+  activeSymbol: _storedSymbol,
   candles: [],
   timeframe: '5' as Timeframe,
-  activeLotSize: 30,
+  activeLotSize: _storedLotSize,
   optionChain: null,
 };
 
@@ -265,10 +270,17 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       socket.emit('unsubscribe', [activeSymbol]);
       socket.emit('subscribe', [sym]);
     }
-    const updates: Partial<MarketState> = { activeSymbol: sym, candles: [] };
-    if (lotSize && lotSize > 0) updates.activeLotSize = lotSize;
-    else if (sym.startsWith('NSE:BANKNIFTY')) updates.activeLotSize = 30;
-    set(updates as any);
+    const resolvedLotSize = (lotSize && lotSize > 0) ? lotSize : getLotSizeForSymbol(sym);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('activeSymbol', sym);
+      localStorage.setItem('activeLotSize', String(resolvedLotSize));
+    }
+    set({ activeSymbol: sym, candles: [], activeLotSize: resolvedLotSize } as any);
+    // Reset order quantity to 1 lot of the new symbol
+    try {
+      const { useTradingStore } = require('@/stores/tradingStore');
+      useTradingStore.getState().setOrderQuantity(resolvedLotSize);
+    } catch {}
     get().fetchHistory();
   },
   setActiveLotSize: (lotSize) => set({ activeLotSize: lotSize }),

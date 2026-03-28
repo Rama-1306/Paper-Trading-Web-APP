@@ -208,6 +208,11 @@ export async function getMarginRequired(
   return calculateFallbackMargin(positions);
 }
 
+export function getLotSizeForSymbol(symbol: string): number {
+  const underlying = extractUnderlying(symbol);
+  return getLotSize(underlying);
+}
+
 export function getMarginPerLot(symbol: string): number {
   const underlying = extractUnderlying(symbol);
 
