@@ -20,6 +20,7 @@ type BottomTab = 'positions' | 'orders' | 'trades' | 'option-chain' | 'watchlist
 
 export default function Dashboard() {
   const [bottomTab, setBottomTab] = useState<BottomTab>('positions');
+  const [sidebarTab, setSidebarTab] = useState<'order' | 'positions'>('order');
   const [chartHeightPercent, setChartHeightPercent] = useState(65);
   const [chartVisible, setChartVisible] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -240,8 +241,50 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="sidebar">
-          <OrderPanel />
+        <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {/* Sidebar tab switcher */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            borderBottom: '1px solid var(--border-primary)',
+            flexShrink: 0,
+          }}>
+            <button
+              onClick={() => setSidebarTab('order')}
+              style={{
+                padding: '8px 0',
+                fontSize: '11px',
+                fontWeight: 600,
+                background: 'transparent',
+                border: 'none',
+                borderBottom: sidebarTab === 'order' ? '2px solid var(--color-accent)' : '2px solid transparent',
+                color: sidebarTab === 'order' ? 'var(--color-accent)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                transition: 'color 0.15s',
+              }}
+            >
+              Place Order
+            </button>
+            <button
+              onClick={() => setSidebarTab('positions')}
+              style={{
+                padding: '8px 0',
+                fontSize: '11px',
+                fontWeight: 600,
+                background: 'transparent',
+                border: 'none',
+                borderBottom: sidebarTab === 'positions' ? '2px solid var(--color-accent)' : '2px solid transparent',
+                color: sidebarTab === 'positions' ? 'var(--color-accent)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                transition: 'color 0.15s',
+              }}
+            >
+              Positions
+            </button>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+            {sidebarTab === 'order' ? <OrderPanel /> : <PositionList />}
+          </div>
         </div>
       </main>
 
