@@ -9,6 +9,7 @@ import { ORDER_TYPES } from '@/lib/utils/constants';
 import { parseSymbolDisplay, getCurrentFuturesSymbol } from '@/lib/utils/symbols';
 import { getQuickMargin } from '@/lib/utils/margins';
 import { MarketDepth } from '@/components/Trading/MarketDepth';
+import { calculateCharges } from '@/lib/utils/charges';
 import type { OrderType } from '@/types/trading';
 
 export function OrderPanel() {
@@ -20,6 +21,7 @@ export function OrderPanel() {
   const [showBracket, setShowBracket] = useState(false);
   const [trailingSL, setTrailingSL] = useState(false);
   const [trailingDistance, setTrailingDistance] = useState<string>('');
+  const [showCharges, setShowCharges] = useState(false);
 
   const orderSide = useTradingStore((s) => s.orderSide);
   const orderQuantity = useTradingStore((s) => s.orderQuantity);
@@ -48,6 +50,7 @@ export function OrderPanel() {
   const marginRequired = getQuickMargin(sym, orderQuantity, sideNum);
   const isOptionBuy = /\d+(CE|PE)$/i.test(sym.replace(/^(NSE:|MCX:|BSE:)/, '')) && orderSide === 'BUY';
   const premiumCost = isOptionBuy ? currentPrice * orderQuantity : 0;
+  const charges = currentPrice > 0 ? calculateCharges(sym, orderQuantity, currentPrice, orderSide) : null;
 
   const handleSubmit = async () => {
     if (orderQuantity < lotSize) {
@@ -406,6 +409,49 @@ export function OrderPanel() {
               <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: '11px' }}>
                 {formatINR(orderValue)}
               </span>
+            </div>
+          )}
+          {charges && (
+            <div>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }}
+                onClick={() => setShowCharges(!showCharges)}
+              >
+                <span style={{ color: 'var(--text-muted)' }}>
+                  {showCharges ? '▾' : '▸'} Est. Charges
+                </span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: '11px' }}>
+                  ~{formatINR(charges.total)}
+                </span>
+              </div>
+              {showCharges && (
+                <div style={{
+                  marginTop: '4px',
+                  padding: '6px 8px',
+                  background: 'rgba(255,255,255,0.03)',
+                  borderRadius: '4px',
+                  fontSize: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px',
+                }}>
+                  {[
+                    { label: 'Brokerage', val: charges.brokerage },
+                    { label: 'STT', val: charges.stt },
+                    { label: 'Exchange', val: charges.exchangeCharges },
+                    { label: 'GST (18%)', val: charges.gst },
+                    { label: 'SEBI', val: charges.sebiCharges },
+                    { label: 'Stamp Duty', val: charges.stampDuty },
+                  ].map(({ label, val }) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary, #aaa)' }}>
+                        ₹{val.toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
