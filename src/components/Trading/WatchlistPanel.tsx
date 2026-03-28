@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { formatINR } from '@/lib/utils/formatters';
@@ -24,6 +24,9 @@ export function WatchlistPanel() {
   const [showNewInput, setShowNewInput] = useState(false);
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [addSymbolInput, setAddSymbolInput] = useState('');
+  const [searchResults, setSearchResults] = useState<{ value: string; label: string; lotSize?: number }[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const ticks = useMarketStore((s) => s.ticks);
@@ -90,6 +93,41 @@ export function WatchlistPanel() {
     }
   };
 
+  const handleSearchInput = (value: string) => {
+    setAddSymbolInput(value);
+    setSearchResults([]);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    const q = value.trim();
+    if (q.length < 2) return;
+    searchTimerRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch(`/api/symbol-search?q=${encodeURIComponent(q)}&limit=8`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data.results || []);
+        }
+      } catch {}
+      setSearchLoading(false);
+    }, 300);
+  };
+
+  const selectSearchResult = (watchlistId: string, result: { value: string; label: string; lotSize?: number }) => {
+    const sym = result.value;
+    const display = result.label;
+    setAddSymbolInput(sym);
+    setSearchResults([]);
+    fetch('/api/watchlists', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ watchlistId, addSymbol: sym, addDisplayName: display }),
+    }).then(() => {
+      setAddSymbolInput('');
+      setAddingTo(null);
+      fetchWatchlists();
+    }).catch(e => console.error('Failed to add symbol:', e));
+  };
+
   const addSymbol = async (watchlistId: string) => {
     if (!addSymbolInput.trim()) return;
     const sym = addSymbolInput.trim().toUpperCase();
@@ -102,6 +140,7 @@ export function WatchlistPanel() {
         body: JSON.stringify({ watchlistId, addSymbol: sym, addDisplayName: display }),
       });
       setAddSymbolInput('');
+      setSearchResults([]);
       setAddingTo(null);
       fetchWatchlists();
     } catch (e) {
@@ -210,16 +249,57 @@ export function WatchlistPanel() {
               {isOpen && (
                 <div className="wl-items">
                   {addingTo === wl.id && (
-                    <div className="wl-add-symbol-form">
+                    <div className="wl-add-symbol-form" style={{ position: 'relative' }}>
                       <input
                         className="wl-input"
                         value={addSymbolInput}
-                        onChange={(e) => setAddSymbolInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && addSymbol(wl.id)}
-                        placeholder="e.g. NSE:BANKNIFTY26MARFUT"
+                        onChange={(e) => handleSearchInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && searchResults.length === 0) addSymbol(wl.id);
+                          if (e.key === 'Escape') { setSearchResults([]); setAddingTo(null); }
+                        }}
+                        placeholder="Search symbol (e.g. BANKNIFTY, GOLD...)"
                         autoFocus
                       />
                       <button className="wl-btn-confirm" onClick={() => addSymbol(wl.id)}>Add</button>
+                      {(searchResults.length > 0 || searchLoading) && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          zIndex: 100,
+                          background: 'var(--bg-secondary, #1a1d23)',
+                          border: '1px solid var(--border-primary, rgba(255,255,255,0.1))',
+                          borderRadius: '4px',
+                          maxHeight: '200px',
+                          overflowY: 'auto',
+                          marginTop: '2px',
+                        }}>
+                          {searchLoading && (
+                            <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                              Searching...
+                            </div>
+                          )}
+                          {searchResults.map((r) => (
+                            <div
+                              key={r.value}
+                              onClick={() => selectSearchResult(wl.id, r)}
+                              style={{
+                                padding: '6px 12px',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.15)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{r.label}</span>
+                              <span style={{ color: 'var(--text-muted)', marginLeft: '8px', fontSize: '10px' }}>{r.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                   {wl.items.length === 0 && addingTo !== wl.id && (
