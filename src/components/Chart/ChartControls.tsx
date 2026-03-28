@@ -17,8 +17,12 @@ function CandleCountdown() {
   const intervalSeconds = tfConfig?.seconds ?? 300;
 
   const calcRemaining = useCallback(() => {
-    const now = Math.floor(Date.now() / 1000);
-    const secondsLeft = intervalSeconds - (now % intervalSeconds);
+    if (candles.length === 0) return '';
+    const nowUTC = Math.floor(Date.now() / 1000);
+    // candles[].time is raw UTC unix seconds from Fyers (no IST offset yet)
+    const lastCandleTime = candles[candles.length - 1].time;
+    const nextClose = lastCandleTime + intervalSeconds;
+    const secondsLeft = nextClose - nowUTC;
 
     if (secondsLeft <= 0 || secondsLeft > intervalSeconds) {
       return '';
@@ -36,7 +40,7 @@ function CandleCountdown() {
       return `${mins}:${String(secs).padStart(2, '0')}`;
     }
     return `0:${String(secs).padStart(2, '0')}`;
-  }, [intervalSeconds]);
+  }, [intervalSeconds, candles]);
 
   useEffect(() => {
     setRemaining(calcRemaining());

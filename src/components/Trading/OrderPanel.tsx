@@ -44,6 +44,8 @@ export function OrderPanel() {
   const sym = selectedSymbol || getCurrentFuturesSymbol();
   const sideNum = orderSide === 'BUY' ? 1 : -1;
   const marginRequired = getQuickMargin(sym, orderQuantity, sideNum);
+  const isOptionBuy = /\d+(CE|PE)$/i.test(sym.replace(/^(NSE:|MCX:|BSE:)/, '')) && orderSide === 'BUY';
+  const premiumCost = isOptionBuy ? currentPrice * orderQuantity : 0;
 
   const handleSubmit = async () => {
     if (orderQuantity < lotSize) {
@@ -361,17 +363,19 @@ export function OrderPanel() {
           fontSize: '12px',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Margin Req.</span>
+            <span style={{ color: 'var(--text-muted)' }}>{isOptionBuy ? 'Premium Cost' : 'Margin Req.'}</span>
             <span style={{ fontFamily: 'var(--font-mono)', color: '#ffeb3b', fontWeight: 600 }}>
-              {formatINR(marginRequired)}
+              {formatINR(isOptionBuy ? premiumCost : marginRequired)}
             </span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Contract Value</span>
-            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: '11px' }}>
-              {formatINR(orderValue)}
-            </span>
-          </div>
+          {!isOptionBuy && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Contract Value</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: '11px' }}>
+                {formatINR(orderValue)}
+              </span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ color: 'var(--text-muted)' }}>Balance</span>
             <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
