@@ -61,7 +61,8 @@ export const useTradingStore = create<TradingState>((set) => ({
       const res = await fetch('/api/account');
       if (res.ok) {
         const data = await res.json();
-        set({ account: data });
+        // /api/account returns { account: {...} }
+        set({ account: data.account ?? data });
       }
     } catch (error) {
       console.error('Failed to fetch account:', error);
