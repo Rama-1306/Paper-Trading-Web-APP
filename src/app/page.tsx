@@ -176,7 +176,7 @@ export default function Dashboard() {
               title="CCC Indicator Backtester"
               style={{ textDecoration: 'none', color: '#58a6ff' }}
             >
-              Back
+              BackTester
             </Link>
           </div>
 

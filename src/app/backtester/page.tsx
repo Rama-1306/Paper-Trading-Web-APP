@@ -1,6 +1,7 @@
 // @ts-nocheck
 'use client';
 import { useState, useCallback, useMemo, useRef } from "react";
+import Link from "next/link";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, ReferenceLine } from "recharts";
 
 const C0="#0d1117",C1="#161b22",C2="#21262d",CT="#cdd9e5";
@@ -418,6 +419,7 @@ export default function BacktesterPage(){
   if(!trades){
     return(
       <div style={{background:C0,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"monospace"}}>
+        <Link href="/" style={{position:"fixed",top:12,left:12,display:"flex",alignItems:"center",gap:6,background:C1,border:`1px solid ${C2}`,color:CT,padding:"6px 12px",borderRadius:6,fontSize:11,textDecoration:"none",fontFamily:"monospace",fontWeight:"bold",zIndex:100}}>← Home</Link>
         <div style={{maxWidth:460,width:"100%",padding:20}}>
           <div style={{textAlign:"center",marginBottom:20}}>
             <div style={{fontSize:40}}>📊</div>
@@ -451,6 +453,7 @@ export default function BacktesterPage(){
   return(
     <div style={{background:C0,minHeight:"100vh",color:CT,fontFamily:"monospace",fontSize:12}}>
       <div style={{background:C1,borderBottom:`1px solid ${C2}`,padding:"8px 14px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <Link href="/" style={{display:"flex",alignItems:"center",gap:4,background:"none",border:`1px solid ${C2}`,color:CT,padding:"3px 8px",borderRadius:4,fontSize:10,textDecoration:"none",fontFamily:"monospace",whiteSpace:"nowrap"}}>← Home</Link>
         <span style={{color:GRN,fontWeight:"bold",fontSize:13}}>📊 CCC Backtester</span>
         <span style={{color:"#888"}}>BankNifty 15m</span>
         <span style={{color:"#888"}}>•</span>
