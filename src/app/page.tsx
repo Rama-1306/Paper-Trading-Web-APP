@@ -16,14 +16,22 @@ import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { Tick } from '@/types/market';
 
-type BottomTab = 'positions' | 'orders' | 'trades' | 'option-chain' | 'watchlist';
+type ActiveView = 'chart' | 'positions' | 'orders' | 'trades' | 'option-chain' | 'watchlist';
+
+const NAV_ITEMS: { id: ActiveView; label: string }[] = [
+  { id: 'chart',        label: 'Chart'    },
+  { id: 'positions',    label: 'Pos'      },
+  { id: 'orders',       label: 'Orders'   },
+  { id: 'trades',       label: 'Trades'   },
+  { id: 'option-chain', label: 'Chain'    },
+  { id: 'watchlist',    label: 'Watch'    },
+];
 
 export default function Dashboard() {
-  const [bottomTab, setBottomTab] = useState<BottomTab>('positions');
+  const [activeView, setActiveView] = useState<ActiveView>('chart');
   const [sidebarTab, setSidebarTab] = useState<'order' | 'positions'>('order');
-  const [chartHeightPercent, setChartHeightPercent] = useState(65);
-  const [chartVisible, setChartVisible] = useState(true);
-  const [isDragging, setIsDragging] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(340);
+  const [isSidebarDragging, setIsSidebarDragging] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const initSocket = useMarketStore(s => s.initSocket);
 
@@ -111,30 +119,27 @@ export default function Dashboard() {
     initSocket();
   }, [initSocket]);
 
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
+  // ── Sidebar horizontal resize ──────────────────────────────
+  const handleSidebarDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    setIsSidebarDragging(true);
   }, []);
 
   useEffect(() => {
-    if (!isDragging) return;
+    if (!isSidebarDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!mainRef.current) return;
       const rect = mainRef.current.getBoundingClientRect();
-      const relativeY = e.clientY - rect.top;
-      const totalHeight = rect.height;
-      const percent = Math.min(85, Math.max(25, (relativeY / totalHeight) * 100));
-      setChartHeightPercent(percent);
+      const newWidth = rect.right - e.clientX;
+      setSidebarWidth(Math.min(600, Math.max(240, newWidth)));
     };
 
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
+    const handleMouseUp = () => setIsSidebarDragging(false);
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = 'row-resize';
+    document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
 
     return () => {
@@ -143,154 +148,123 @@ export default function Dashboard() {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isDragging]);
+  }, [isSidebarDragging]);
 
- return (
+  return (
     <ProtectedRoute>
-    <div className="app-container">
-      <Header />
+      <div className="app-container">
+        <Header />
 
-      <main className="main-content" ref={mainRef}>
-        <div className="left-column" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          {chartVisible && (
-            <>
-              <div className="chart-area" style={{ height: `${chartHeightPercent}%`, minHeight: '100px' }}>
-                <ChartControls onToggleChart={() => setChartVisible(false)} />
+        <main className="main-content" ref={mainRef}>
+          {/* ── Left Vertical Navigation ── */}
+          <div className="left-nav">
+            {NAV_ITEMS.map(item => (
+              <button
+                key={item.id}
+                className={`left-nav-tab ${activeView === item.id ? 'active' : ''}`}
+                onClick={() => setActiveView(item.id)}
+                title={item.id.charAt(0).toUpperCase() + item.id.slice(1).replace('-', ' ')}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Main Area ── */}
+          <div className="main-area">
+            {activeView === 'chart' && (
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <ChartControls />
                 <TradingChart />
               </div>
-
-              <div
-                className="resize-handle"
-                onMouseDown={handleDragStart}
-                style={{
-                  height: '6px',
-                  cursor: 'row-resize',
-                  background: isDragging ? 'rgba(99, 102, 241, 0.4)' : 'transparent',
-                  position: 'relative',
-                  zIndex: 10,
-                  flexShrink: 0,
-                  transition: isDragging ? 'none' : 'background 0.2s',
-                }}
-                onMouseEnter={(e) => { if (!isDragging) (e.target as HTMLElement).style.background = 'rgba(99, 102, 241, 0.3)'; }}
-                onMouseLeave={(e) => { if (!isDragging) (e.target as HTMLElement).style.background = 'transparent'; }}
-              >
-                <div style={{
-                  position: 'absolute',
-                  left: '50%',
-                  top: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '40px',
-                  height: '3px',
-                  borderRadius: '2px',
-                  background: 'rgba(255,255,255,0.15)',
-                }} />
+            )}
+            {activeView === 'positions' && (
+              <div style={{ height: '100%', overflow: 'auto' }}>
+                <PositionList />
               </div>
-            </>
-          )}
+            )}
+            {activeView === 'orders' && (
+              <div style={{ height: '100%', overflow: 'auto' }}>
+                <TradeHistory type="orders" />
+              </div>
+            )}
+            {activeView === 'trades' && (
+              <div style={{ height: '100%', overflow: 'auto' }}>
+                <TradeHistory type="trades" />
+              </div>
+            )}
+            {activeView === 'option-chain' && (
+              <div style={{ height: '100%', overflow: 'auto' }}>
+                <OptionChainTable />
+              </div>
+            )}
+            {activeView === 'watchlist' && (
+              <div style={{ height: '100%', overflow: 'auto' }}>
+                <WatchlistPanel />
+              </div>
+            )}
+          </div>
 
-          <div className="bottom-panel" style={{ flex: 1, minHeight: '60px' }}>
-            <div className="tabs">
-              {!chartVisible && (
-                <button
-                  className="chart-toggle-show"
-                  onClick={() => setChartVisible(true)}
-                  title="Show Chart"
-                >
-                  Show Chart
-                </button>
-              )}
-              <button 
-                className={`tab ${bottomTab === 'positions' ? 'active' : ''}`}
-                onClick={() => setBottomTab('positions')}
+          {/* ── Sidebar Resize Handle ── */}
+          <div
+            className={`sidebar-resize-handle${isSidebarDragging ? ' dragging' : ''}`}
+            onMouseDown={handleSidebarDragStart}
+            title="Drag to resize sidebar"
+          >
+            <div className="sidebar-resize-grip" />
+          </div>
+
+          {/* ── Right Sidebar ── */}
+          <div className="sidebar" style={{ width: `${sidebarWidth}px` }}>
+            {/* Sidebar tab switcher */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              borderBottom: '1px solid var(--border-primary)',
+              flexShrink: 0,
+            }}>
+              <button
+                onClick={() => setSidebarTab('order')}
+                style={{
+                  padding: '8px 0',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: sidebarTab === 'order' ? '2px solid var(--color-accent)' : '2px solid transparent',
+                  color: sidebarTab === 'order' ? 'var(--color-accent)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  transition: 'color 0.15s',
+                }}
+              >
+                Place Order
+              </button>
+              <button
+                onClick={() => setSidebarTab('positions')}
+                style={{
+                  padding: '8px 0',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: sidebarTab === 'positions' ? '2px solid var(--color-accent)' : '2px solid transparent',
+                  color: sidebarTab === 'positions' ? 'var(--color-accent)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  transition: 'color 0.15s',
+                }}
               >
                 Positions
               </button>
-              <button 
-                className={`tab ${bottomTab === 'orders' ? 'active' : ''}`}
-                onClick={() => setBottomTab('orders')}
-              >
-                Orders
-              </button>
-              <button 
-                className={`tab ${bottomTab === 'trades' ? 'active' : ''}`}
-                onClick={() => setBottomTab('trades')}
-              >
-                Trades
-              </button>
-              <button 
-                className={`tab ${bottomTab === 'option-chain' ? 'active' : ''}`}
-                onClick={() => setBottomTab('option-chain')}
-              >
-                Option Chain
-              </button>
-              <button 
-                className={`tab ${bottomTab === 'watchlist' ? 'active' : ''}`}
-                onClick={() => setBottomTab('watchlist')}
-              >
-                Watchlist
-              </button>
             </div>
-
-            <div className="panel-content">
-              {bottomTab === 'positions' && <PositionList />}
-              {bottomTab === 'orders' && <TradeHistory type="orders" />}
-              {bottomTab === 'trades' && <TradeHistory type="trades" />}
-              {bottomTab === 'option-chain' && <OptionChainTable />}
-              {bottomTab === 'watchlist' && <WatchlistPanel />}
+            <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+              {sidebarTab === 'order' ? <OrderPanel /> : <PositionList />}
             </div>
           </div>
-        </div>
+        </main>
 
-        <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          {/* Sidebar tab switcher */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            borderBottom: '1px solid var(--border-primary)',
-            flexShrink: 0,
-          }}>
-            <button
-              onClick={() => setSidebarTab('order')}
-              style={{
-                padding: '8px 0',
-                fontSize: '11px',
-                fontWeight: 600,
-                background: 'transparent',
-                border: 'none',
-                borderBottom: sidebarTab === 'order' ? '2px solid var(--color-accent)' : '2px solid transparent',
-                color: sidebarTab === 'order' ? 'var(--color-accent)' : 'var(--text-muted)',
-                cursor: 'pointer',
-                transition: 'color 0.15s',
-              }}
-            >
-              Place Order
-            </button>
-            <button
-              onClick={() => setSidebarTab('positions')}
-              style={{
-                padding: '8px 0',
-                fontSize: '11px',
-                fontWeight: 600,
-                background: 'transparent',
-                border: 'none',
-                borderBottom: sidebarTab === 'positions' ? '2px solid var(--color-accent)' : '2px solid transparent',
-                color: sidebarTab === 'positions' ? 'var(--color-accent)' : 'var(--text-muted)',
-                cursor: 'pointer',
-                transition: 'color 0.15s',
-              }}
-            >
-              Positions
-            </button>
-          </div>
-          <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-            {sidebarTab === 'order' ? <OrderPanel /> : <PositionList />}
-          </div>
-        </div>
-      </main>
-
-      <StatusBar />
-      <ToastContainer />
-    </div>
+        <StatusBar />
+        <ToastContainer />
+      </div>
     </ProtectedRoute>
   );
 }
