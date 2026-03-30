@@ -463,8 +463,7 @@ export default function BacktesterPage(){
         <div style={{marginLeft:"auto",display:"flex",gap:12,fontSize:10,alignItems:"center"}}>
           <span>WR:<strong style={{color:clrN(allS.wr-0.5),marginLeft:4}}>{pct(allS.wr)}</strong></span>
           <span>P&L:<strong style={{color:clrN(allS.tot),marginLeft:4}}>{fmt(allS.tot,0)} pts</strong></span>
-          <button onClick={()=>fileRef.current.click()} style={{background:"none",border:`1px solid ${BLU}`,color:BLU,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontSize:10,fontFamily:"monospace"}}>↩ Load new</button>
-          <input type="file" accept=".csv" onChange={loadFile} style={{display:"none"}} ref={fileRef}/>
+          <button onClick={()=>{setTrades(null);setBars(null);}} style={{background:"none",border:`1px solid ${BLU}`,color:BLU,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontSize:10,fontFamily:"monospace"}}>↩ Load new</button>
         </div>
       </div>
 
