@@ -7,13 +7,14 @@ import { formatPnL } from '@/lib/utils/formatters';
 import { useUIStore } from '@/stores/uiStore';
 import { getLotSizeForSymbol } from '@/lib/utils/margins';
 
-export function PositionList() {
+export function PositionList({ compact = false }: { compact?: boolean }) {
   const positions = useTradingStore((s) => s.positions);
   const ticks = useMarketStore((s) => s.ticks);
   const addNotification = useUIStore((s) => s.addNotification);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [slInput, setSlInput] = useState('');
   const [tpInput, setTpInput] = useState('');
+  const [modifyQtyInput, setModifyQtyInput] = useState('');
   const [tslEnabled, setTslEnabled] = useState(false);
   const [tslDistance, setTslDistance] = useState('');
   const [exitQtyId, setExitQtyId] = useState<string | null>(null);
@@ -58,12 +59,14 @@ export function PositionList() {
     setEditingId(pos.id);
     setSlInput(pos.stopLoss ? pos.stopLoss.toString() : '');
     setTpInput(pos.targetPrice ? pos.targetPrice.toString() : '');
+    setModifyQtyInput(String(pos.quantity));
     setTslEnabled(pos.trailingSL || false);
     setTslDistance(pos.trailingDistance ? pos.trailingDistance.toString() : '');
   };
 
-  const handleModify = async (positionId: string) => {
+  const handleModify = async (positionId: string, posQty: number) => {
     try {
+      const modQty = modifyQtyInput ? parseInt(modifyQtyInput) : posQty;
       const res = await fetch('/api/positions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -71,6 +74,7 @@ export function PositionList() {
           positionId,
           stopLoss: slInput ? parseFloat(slInput) : null,
           targetPrice: tpInput ? parseFloat(tpInput) : null,
+          targetQty: modQty < posQty ? modQty : null,
           trailingSL: tslEnabled,
           trailingDistance: tslDistance ? parseFloat(tslDistance) : null,
         }),
@@ -121,6 +125,215 @@ export function PositionList() {
     );
   }
 
+  // ── Compact 2-row card layout (used in sidebar) ──────────────────────────
+  if (compact) {
+    return (
+      <div style={{ overflow: 'auto', height: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+          {openPositions.map((pos) => {
+            const liveLtp = ticks[pos.symbol]?.ltp;
+            const currentPrice = liveLtp ?? pos.currentPrice;
+            const livePnl = pos.side === 'BUY'
+              ? (currentPrice - pos.entryPrice) * pos.quantity
+              : (pos.entryPrice - currentPrice) * pos.quantity;
+            const pnlInfo = formatPnL(livePnl);
+            const isEditing = editingId === pos.id;
+            const isExitQtyMode = exitQtyId === pos.id;
+            const lotSize = getLotSizeForSymbol(pos.symbol);
+
+            return (
+              <div key={pos.id} style={{
+                background: 'var(--bg-secondary)',
+                borderBottom: '1px solid var(--border-primary)',
+                padding: '6px 10px',
+              }}>
+                {/* Row 1: Name | Side | Qty */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
+                  <span style={{ fontWeight: 600, fontSize: '12px', color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {pos.displayName || pos.symbol}
+                  </span>
+                  {pos.trailingSL && (
+                    <span style={{ fontSize: '9px', color: '#ff9800' }} title="Trailing SL">TSL</span>
+                  )}
+                  <span style={{ fontSize: '9px', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: '3px' }}>
+                    {pos.instrumentType}
+                  </span>
+                  <span className={pos.side === 'BUY' ? 'buy-side' : 'sell-side'} style={{ fontSize: '11px', fontWeight: 700 }}>
+                    {pos.side}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    {pos.quantity}
+                  </span>
+                </div>
+
+                {/* Row 2: Entry → LTP | P&L */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isEditing || isExitQtyMode ? '4px' : '0' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {pos.entryPrice.toFixed(2)}
+                    <span style={{ margin: '0 3px', color: 'var(--text-muted)' }}>→</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{currentPrice.toFixed(2)}</span>
+                  </span>
+                  <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '12px' }}>
+                    {pnlInfo.text}
+                  </span>
+                </div>
+
+                {/* Edit form */}
+                {isEditing && (
+                  <div style={{ marginTop: '5px', borderTop: '1px solid var(--border-primary)', paddingTop: '5px' }}>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '4px' }}>
+                      <input
+                        className="input"
+                        type="number"
+                        value={slInput}
+                        onChange={(e) => setSlInput(e.target.value)}
+                        placeholder="SL"
+                        style={{ width: '72px', padding: '2px 4px', fontSize: '11px' }}
+                        step="0.05"
+                      />
+                      <input
+                        className="input"
+                        type="number"
+                        value={tpInput}
+                        onChange={(e) => setTpInput(e.target.value)}
+                        placeholder="Target"
+                        style={{ width: '72px', padding: '2px 4px', fontSize: '11px' }}
+                        step="0.05"
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Qty:</span>
+                        <input
+                          className="input"
+                          type="number"
+                          value={modifyQtyInput}
+                          onChange={(e) => setModifyQtyInput(e.target.value)}
+                          min={lotSize}
+                          max={pos.quantity}
+                          step={lotSize}
+                          style={{ width: '55px', padding: '2px 4px', fontSize: '11px' }}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <input type="checkbox" checked={tslEnabled} onChange={(e) => setTslEnabled(e.target.checked)} style={{ width: '12px', height: '12px' }} />
+                        TSL
+                      </label>
+                      {tslEnabled && (
+                        <input
+                          className="input"
+                          type="number"
+                          value={tslDistance}
+                          onChange={(e) => setTslDistance(e.target.value)}
+                          placeholder="Dist"
+                          style={{ width: '50px', padding: '2px 4px', fontSize: '10px' }}
+                          step="0.5"
+                        />
+                      )}
+                      <button className="btn btn-primary btn-sm" onClick={() => handleModify(pos.id, pos.quantity)} style={{ padding: '2px 8px', fontSize: '10px' }}>Save</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setEditingId(null)} style={{ padding: '2px 6px', fontSize: '10px' }}>X</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Partial exit form */}
+                {isExitQtyMode && (
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginTop: '5px', borderTop: '1px solid var(--border-primary)', paddingTop: '5px' }}>
+                    <input
+                      className="input"
+                      type="number"
+                      value={exitQtyInput}
+                      onChange={(e) => setExitQtyInput(e.target.value)}
+                      placeholder="Qty"
+                      min={lotSize}
+                      max={pos.quantity}
+                      step={lotSize}
+                      style={{ width: '60px', padding: '2px 4px', fontSize: '11px' }}
+                    />
+                    <button className="btn btn-danger btn-sm" onClick={() => {
+                      const qty = parseInt(exitQtyInput);
+                      if (qty > 0 && qty <= pos.quantity && qty % lotSize === 0) {
+                        handleClosePosition(pos.id, pos.symbol, qty);
+                      } else {
+                        addNotification({ type: 'error', title: 'Invalid Qty', message: `Must be a multiple of ${lotSize} (1 lot)` });
+                      }
+                    }} style={{ padding: '2px 8px', fontSize: '10px' }}>Go</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => { setExitQtyId(null); setExitQtyInput(''); }} style={{ padding: '2px 6px', fontSize: '10px' }}>X</button>
+                  </div>
+                )}
+
+                {/* Action buttons (only when not in edit/exit mode) */}
+                {!isEditing && !isExitQtyMode && (
+                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginRight: 'auto', alignSelf: 'center' }}>
+                      {pos.stopLoss ? <span style={{ color: '#ef5350' }}>SL {pos.stopLoss.toFixed(2)}</span> : ''}
+                      {pos.stopLoss && pos.targetPrice ? ' · ' : ''}
+                      {pos.targetPrice ? <span style={{ color: '#66bb6a' }}>Tgt {pos.targetPrice.toFixed(2)}{pos.targetQty && pos.targetQty < pos.quantity ? ` (${pos.targetQty})` : ''}</span> : ''}
+                    </span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => startEditing(pos)} style={{ padding: '2px 6px', fontSize: '10px' }} title="Modify SL/Target">Modify</button>
+                    {pos.quantity >= lotSize * 2 && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setExitQtyId(pos.id); setExitQtyInput(String(lotSize)); }} style={{ padding: '2px 6px', fontSize: '10px', color: '#ff9800' }} title={`Partial exit (min 1 lot = ${lotSize})`}>Partial</button>
+                    )}
+                    <button className="btn btn-danger btn-sm" onClick={() => handleClosePosition(pos.id, pos.symbol)} title={pos.side === 'BUY' ? 'Sell to close' : 'Buy to cover'}>
+                      {pos.side === 'BUY' ? 'Sell' : 'Buy'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {todayClosedPositions.length > 0 && (
+          <>
+            <div style={{
+              padding: '4px 10px',
+              fontSize: '10px',
+              fontWeight: 600,
+              color: 'var(--text-muted)',
+              background: 'rgba(255,255,255,0.03)',
+              borderTop: '1px solid var(--border-primary)',
+              borderBottom: '1px solid var(--border-primary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}>
+              Closed Today
+            </div>
+            {todayClosedPositions.map((pos) => {
+              const pnlInfo = formatPnL(pos.pnl);
+              return (
+                <div key={pos.id} style={{
+                  background: 'var(--bg-secondary)',
+                  borderBottom: '1px solid var(--border-primary)',
+                  padding: '5px 10px',
+                  opacity: 0.65,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+                    <span style={{ fontWeight: 600, fontSize: '11px', color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {pos.displayName || pos.symbol}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{pos.side}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{pos.quantity}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                      {pos.entryPrice.toFixed(2)} → {pos.currentPrice.toFixed(2)}
+                      <span style={{ marginLeft: '6px', fontSize: '9px' }}>{pos.exitReason || 'MANUAL'}</span>
+                    </span>
+                    <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '11px' }}>
+                      {pnlInfo.text}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ── Full table layout (used in main area Positions tab) ───────────────────
   return (
     <div style={{ overflow: 'auto', height: '100%', overflowX: 'auto' }}>
       <table className="data-table">
@@ -207,14 +420,30 @@ export function PositionList() {
                     />
                   ) : (
                     <span style={{ color: pos.targetPrice ? '#66bb6a' : 'var(--text-muted)', fontSize: '12px' }}>
-                      {pos.targetPrice ? pos.targetPrice.toFixed(2) : '—'}
+                      {pos.targetPrice
+                        ? `${pos.targetPrice.toFixed(2)}${pos.targetQty && pos.targetQty < pos.quantity ? ` (${pos.targetQty})` : ''}`
+                        : '—'}
                     </span>
                   )}
                 </td>
 
                 <td className="center" style={{ whiteSpace: 'nowrap' }}>
                   {isEditing ? (
-                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Qty:</span>
+                        <input
+                          className="input"
+                          type="number"
+                          value={modifyQtyInput}
+                          onChange={(e) => setModifyQtyInput(e.target.value)}
+                          min={lotSize}
+                          max={pos.quantity}
+                          step={lotSize}
+                          style={{ width: '55px', padding: '2px 4px', fontSize: '11px' }}
+                          title={`Target/SL qty (max ${pos.quantity})`}
+                        />
+                      </div>
                       <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '2px' }}>
                         <input
                           type="checkbox"
@@ -237,7 +466,7 @@ export function PositionList() {
                       )}
                       <button
                         className="btn btn-primary btn-sm"
-                        onClick={() => handleModify(pos.id)}
+                        onClick={() => handleModify(pos.id, pos.quantity)}
                         style={{ padding: '2px 6px', fontSize: '10px' }}
                       >
                         Save

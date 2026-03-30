@@ -53,6 +53,7 @@ model Position {
   targetPrice    Float?
   trailingSL     Boolean   @default(false)
   trailingDistance Float?
+  targetQty      Int?
   marginUsed     Float     @default(0)
   isOpen         Boolean   @default(true)
   exitReason     String?

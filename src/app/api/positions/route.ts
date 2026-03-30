@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { positionId, stopLoss, targetPrice, trailingSL, trailingDistance } = body;
+    const { positionId, stopLoss, targetPrice, targetQty, trailingSL, trailingDistance } = body;
 
     if (!positionId) {
       return NextResponse.json({ error: 'positionId required' }, { status: 400 });
@@ -79,6 +79,7 @@ export async function PUT(request: NextRequest) {
     const updateData: any = {};
     if (stopLoss !== undefined) updateData.stopLoss = stopLoss;
     if (targetPrice !== undefined) updateData.targetPrice = targetPrice;
+    if (targetQty !== undefined) updateData.targetQty = targetQty;
     if (trailingSL !== undefined) updateData.trailingSL = trailingSL;
     if (trailingDistance !== undefined) updateData.trailingDistance = trailingDistance;
 

@@ -236,7 +236,12 @@ async function processPositionSLTarget(tickMap: Record<string, number>) {
     }
 
     if (exitReason) {
-      await closePosition(pos, ltp, exitReason);
+      // Partial exit: if target hit and targetQty < full position qty, only exit that portion
+      if (exitReason === 'TARGET_HIT' && pos.targetQty && pos.targetQty > 0 && pos.targetQty < pos.quantity) {
+        await partialCloseOnTarget(pos, ltp);
+      } else {
+        await closePosition(pos, ltp, exitReason);
+      }
     }
   }
 }
@@ -282,6 +287,90 @@ async function processPendingOrders(tickMap: Record<string, number>) {
     if (shouldFill) {
       await fillPendingOrder(order, fillPrice);
     }
+  }
+}
+
+async function partialCloseOnTarget(position: any, exitPrice: number) {
+  try {
+    const exitQty = position.targetQty as number;
+    const pnl = position.side === 'BUY'
+      ? (exitPrice - position.entryPrice) * exitQty
+      : (position.entryPrice - exitPrice) * exitQty;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const current = await tx.position.findFirst({ where: { id: position.id, isOpen: true } });
+      if (!current) return null;
+
+      const marginPerUnit = current.marginUsed > 0 ? current.marginUsed / current.quantity : 0;
+      const marginToRelease = marginPerUnit * exitQty;
+
+      // Reduce position, clear targetPrice + targetQty so it won't trigger again
+      await tx.position.update({
+        where: { id: position.id },
+        data: {
+          quantity: current.quantity - exitQty,
+          currentPrice: exitPrice,
+          marginUsed: Math.max(0, current.marginUsed - marginToRelease),
+          targetPrice: null,
+          targetQty: null,
+        },
+      });
+
+      await tx.trade.create({
+        data: {
+          accountId: position.accountId,
+          symbol: position.symbol,
+          displayName: position.displayName,
+          side: position.side,
+          quantity: exitQty,
+          entryPrice: position.entryPrice,
+          exitPrice,
+          pnl,
+          exitReason: 'TARGET_HIT',
+          entryTime: position.createdAt,
+        },
+      });
+
+      const isOption = position.instrumentType === 'CE' || position.instrumentType === 'PE';
+      const balanceAdjust = isOption
+        ? (position.side === 'BUY' ? exitPrice * exitQty : -(exitPrice * exitQty))
+        : pnl;
+
+      await tx.account.update({
+        where: { id: position.accountId },
+        data: {
+          balance: { increment: balanceAdjust },
+          realizedPnl: { increment: pnl },
+          usedMargin: { decrement: Math.max(0, marginToRelease) },
+        },
+      });
+
+      return true;
+    });
+
+    if (!result) {
+      console.log(`⚠️ Position ${position.id} already closed, skipping partial target`);
+      return;
+    }
+
+    const pnlStr = pnl >= 0 ? `+${pnl.toFixed(2)}` : pnl.toFixed(2);
+    console.log(`🎯 Partial Target Hit: ${position.displayName} ${position.side} ${exitQty}/${position.quantity} qty @ ${exitPrice.toFixed(2)} | P&L: ${pnlStr}`);
+
+    io.emit('position_closed', {
+      positionId: position.id,
+      symbol: position.symbol,
+      displayName: position.displayName,
+      side: position.side,
+      entryPrice: position.entryPrice,
+      exitPrice,
+      pnl,
+      exitReason: 'TARGET_HIT',
+      isPartial: true,
+      exitQty,
+      remainingQty: position.quantity - exitQty,
+    });
+  } catch (err) {
+    console.error(`Failed to partial-close position ${position.id}:`, err);
   }
 }
 

@@ -257,7 +257,7 @@ export default function Dashboard() {
               </button>
             </div>
             <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-              {sidebarTab === 'order' ? <OrderPanel /> : <PositionList />}
+              {sidebarTab === 'order' ? <OrderPanel /> : <PositionList compact />}
             </div>
           </div>
         </main>

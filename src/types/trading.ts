@@ -49,6 +49,7 @@ export interface PositionData {
   targetPrice: number | null;
   trailingSL: boolean;
   trailingDistance: number | null;
+  targetQty: number | null;
   exitReason: string | null;
   isOpen: boolean;
   createdAt: string;
