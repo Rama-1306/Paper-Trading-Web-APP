@@ -11,11 +11,11 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 const { fyersDataSocket } = require('fyers-api-v3');
 
 const MARGIN_PER_LOT: Record<string, number> = {
-  'BANKNIFTY': 25000, 'NIFTY': 45000, 'FINNIFTY': 20000, 'MIDCPNIFTY': 15000,
-  'CRUDEOIL': 70000, 'CRUDEOILM': 22000, 'NATURALGAS': 50000,
-  'GOLD': 150000, 'GOLDM': 15000, 'GOLDPETAL': 5000,
-  'SILVER': 90000, 'SILVERM': 25000, 'SILVERMIC': 8000,
-  'COPPER': 30000, 'ZINC': 45000, 'LEAD': 30000, 'ALUMINIUM': 40000, 'NICKEL': 55000,
+  'BANKNIFTY': 55000, 'NIFTY': 85000, 'FINNIFTY': 38000, 'MIDCPNIFTY': 26000,
+  'CRUDEOIL': 90000, 'CRUDEOILM': 28000, 'NATURALGAS': 65000, 'NATGAS': 65000,
+  'GOLD': 190000, 'GOLDM': 19000, 'GOLDPETAL': 6000,
+  'SILVER': 120000, 'SILVERM': 28000, 'SILVERMIC': 9000,
+  'COPPER': 38000, 'ZINC': 55000, 'LEAD': 35000, 'ALUMINIUM': 48000, 'NICKEL': 65000,
 };
 const WS_LOT_SIZES: Record<string, number> = {
   'BANKNIFTY': 30, 'NIFTY': 75, 'FINNIFTY': 65, 'MIDCPNIFTY': 120,
@@ -25,7 +25,7 @@ const WS_LOT_SIZES: Record<string, number> = {
   'COPPER': 2500, 'ZINC': 5000, 'LEAD': 5000, 'ALUMINIUM': 5000, 'NICKEL': 1500,
 };
 const OPT_SELL_MARGIN: Record<string, number> = {
-  'BANKNIFTY': 35000, 'NIFTY': 55000, 'FINNIFTY': 25000, 'MIDCPNIFTY': 18000,
+  'BANKNIFTY': 48000, 'NIFTY': 75000, 'FINNIFTY': 32000, 'MIDCPNIFTY': 22000,
 };
 
 function wsExtractUnderlying(symbol: string): string {
@@ -386,13 +386,99 @@ async function fillPendingOrder(order: any, fillPrice: number) {
       });
       if (!current) return null;
 
+      const isOption = instrumentType === 'CE' || instrumentType === 'PE';
+
+      // --- Position netting: check for opposite-side position first ---
+      const oppositeSide = order.side === 'BUY' ? 'SELL' : 'BUY';
+      const oppositePosition = await tx.position.findFirst({
+        where: { accountId: order.accountId, symbol: order.symbol, side: oppositeSide, isOpen: true },
+      });
+
+      if (oppositePosition) {
+        const pnlPerUnit = order.side === 'BUY'
+          ? oppositePosition.entryPrice - fillPrice
+          : fillPrice - oppositePosition.entryPrice;
+        const netQty = Math.min(order.quantity, oppositePosition.quantity);
+        const pnl = pnlPerUnit * netQty;
+        const marginPerUnit = oppositePosition.marginUsed > 0
+          ? oppositePosition.marginUsed / oppositePosition.quantity : 0;
+        const marginToRelease = marginPerUnit * netQty;
+
+        if (netQty < oppositePosition.quantity) {
+          await tx.position.update({
+            where: { id: oppositePosition.id },
+            data: {
+              quantity: oppositePosition.quantity - netQty,
+              currentPrice: fillPrice,
+              marginUsed: Math.max(0, oppositePosition.marginUsed - marginToRelease),
+            },
+          });
+        } else {
+          await tx.position.update({
+            where: { id: oppositePosition.id },
+            data: { isOpen: false, currentPrice: fillPrice, pnl, marginUsed: 0, exitReason: 'NET_OFF', closedAt: new Date() },
+          });
+        }
+
+        await tx.trade.create({
+          data: {
+            accountId: order.accountId,
+            symbol: order.symbol,
+            displayName: order.displayName,
+            side: oppositeSide,
+            quantity: netQty,
+            entryPrice: oppositePosition.entryPrice,
+            exitPrice: fillPrice,
+            pnl,
+            exitReason: 'NET_OFF',
+            entryTime: oppositePosition.createdAt,
+          },
+        });
+
+        await tx.account.update({
+          where: { id: order.accountId },
+          data: {
+            balance: { increment: pnl },
+            realizedPnl: { increment: pnl },
+            usedMargin: { decrement: Math.max(0, marginToRelease) },
+          },
+        });
+
+        let finalPositionId = oppositePosition.id;
+        const remainingQty = order.quantity - netQty;
+        if (remainingQty > 0) {
+          const newMargin = wsGetQuickMargin(order.symbol, remainingQty, order.side);
+          const newPos = await tx.position.create({
+            data: {
+              accountId: order.accountId,
+              symbol: order.symbol,
+              displayName: order.displayName,
+              instrumentType,
+              side: order.side,
+              quantity: remainingQty,
+              entryPrice: fillPrice,
+              currentPrice: fillPrice,
+              marginUsed: newMargin,
+            },
+          });
+          await tx.account.update({
+            where: { id: order.accountId },
+            data: { usedMargin: { increment: newMargin } },
+          });
+          finalPositionId = newPos.id;
+        }
+
+        await tx.order.update({
+          where: { id: order.id },
+          data: { status: 'FILLED', filledPrice: fillPrice, filledAt: new Date(), positionId: finalPositionId },
+        });
+
+        return { positionId: finalPositionId, averaged: false, netted: true };
+      }
+
+      // --- Same-side: average or open new ---
       const existingPosition = await tx.position.findFirst({
-        where: {
-          accountId: order.accountId,
-          symbol: order.symbol,
-          side: order.side,
-          isOpen: true,
-        },
+        where: { accountId: order.accountId, symbol: order.symbol, side: order.side, isOpen: true },
       });
 
       let positionId: string;
@@ -440,7 +526,6 @@ async function fillPendingOrder(order: any, fillPrice: number) {
         },
       });
 
-      const isOption = instrumentType === 'CE' || instrumentType === 'PE';
       const premium = isOption ? fillPrice * order.quantity : 0;
       const balanceChange = isOption ? (order.side === 'BUY' ? -premium : premium) : 0;
 
@@ -452,7 +537,7 @@ async function fillPendingOrder(order: any, fillPrice: number) {
         },
       });
 
-      return { positionId, averaged: !!existingPosition };
+      return { positionId, averaged: !!existingPosition, netted: false };
     });
 
     if (!result) {
@@ -460,7 +545,7 @@ async function fillPendingOrder(order: any, fillPrice: number) {
       return;
     }
 
-    const label = result.averaged ? '✅ Order filled (averaged)' : '✅ Order filled';
+    const label = result.netted ? '✅ Order filled (netted)' : result.averaged ? '✅ Order filled (averaged)' : '✅ Order filled';
     console.log(`${label}: ${order.displayName} ${order.side} ${order.orderType} @ ${fillPrice.toFixed(2)}`);
 
     io.emit('order_filled', {

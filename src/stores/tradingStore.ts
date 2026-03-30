@@ -49,7 +49,14 @@ const initialState = {
   orders: [],
   pendingOrders: [],
   trades: [],
-  selectedSymbol: (typeof window !== 'undefined' ? getCurrentFuturesSymbol() : ''),
+  // On refresh: use whatever activeSymbol was last stored (futures/MCX/index), but
+  // fall back to BNF futures if it was an option (options reset on refresh per QA).
+  selectedSymbol: (() => {
+    if (typeof window === 'undefined') return '';
+    const stored = localStorage.getItem('activeSymbol') || '';
+    const isOption = /\d+(CE|PE)$/i.test(stored.replace(/^(NSE:|MCX:|BSE:)/, ''));
+    return isOption ? getCurrentFuturesSymbol() : (stored || getCurrentFuturesSymbol());
+  })(),
   orderSide: 'BUY' as const,
   orderQuantity: 30,   // 1 lot of Bank Nifty
 };

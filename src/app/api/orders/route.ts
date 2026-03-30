@@ -97,18 +97,123 @@ export async function POST(request: NextRequest) {
 
       const fillPrice = price || 0;
       const sideNum = side === 'BUY' ? 1 : -1;
-
-      const existingPosition = await prisma.position.findFirst({
-        where: {
-          accountId: account.id,
-          symbol,
-          side,
-          isOpen: true,
-        },
-      });
-
       const isOption = instrumentType === 'CE' || instrumentType === 'PE';
       const premium = isOption ? fillPrice * quantity : 0;
+
+      // --- Position netting: check for an opposite-side open position first ---
+      const oppositeSide = side === 'BUY' ? 'SELL' : 'BUY';
+      const oppositePosition = await prisma.position.findFirst({
+        where: { accountId: account.id, symbol, side: oppositeSide, isOpen: true },
+      });
+
+      if (oppositePosition) {
+        // P&L: if we're BUYing against a SELL position, profit = entry(sell) - exit(buy)
+        const pnlPerUnit = side === 'BUY'
+          ? oppositePosition.entryPrice - fillPrice
+          : fillPrice - oppositePosition.entryPrice;
+
+        const netQty = Math.min(quantity, oppositePosition.quantity); // qty actually netted
+        const pnl = pnlPerUnit * netQty;
+
+        const marginPerUnit = oppositePosition.marginUsed > 0
+          ? oppositePosition.marginUsed / oppositePosition.quantity
+          : 0;
+        const marginToRelease = marginPerUnit * netQty;
+
+        if (netQty < oppositePosition.quantity) {
+          // Partial net: shrink the opposite position
+          await prisma.position.update({
+            where: { id: oppositePosition.id },
+            data: {
+              quantity: oppositePosition.quantity - netQty,
+              currentPrice: fillPrice,
+              marginUsed: Math.max(0, oppositePosition.marginUsed - marginToRelease),
+            },
+          });
+        } else {
+          // Full net: close the opposite position
+          await prisma.position.update({
+            where: { id: oppositePosition.id },
+            data: {
+              isOpen: false,
+              currentPrice: fillPrice,
+              pnl,
+              marginUsed: 0,
+              exitReason: 'NET_OFF',
+              closedAt: new Date(),
+            },
+          });
+        }
+
+        // Create trade record for the netted portion
+        await prisma.trade.create({
+          data: {
+            accountId: account.id,
+            symbol,
+            displayName: displayName || symbol,
+            side: oppositeSide,
+            quantity: netQty,
+            entryPrice: oppositePosition.entryPrice,
+            exitPrice: fillPrice,
+            pnl,
+            exitReason: 'NET_OFF',
+            entryTime: oppositePosition.createdAt,
+          },
+        });
+
+        // Release margin and credit P&L
+        await prisma.account.update({
+          where: { id: account.id },
+          data: {
+            balance: { increment: pnl },
+            realizedPnl: { increment: pnl },
+            usedMargin: { decrement: Math.max(0, marginToRelease) },
+          },
+        });
+
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { positionId: oppositePosition.id },
+        });
+
+        // If order qty > opposite position qty, open a new position for the remainder
+        const remainingQty = quantity - netQty;
+        if (remainingQty > 0) {
+          const newMargin = getQuickMargin(symbol, remainingQty, sideNum);
+          const newPosition = await prisma.position.create({
+            data: {
+              accountId: account.id,
+              symbol,
+              displayName: displayName || symbol,
+              instrumentType,
+              side,
+              quantity: remainingQty,
+              entryPrice: fillPrice,
+              currentPrice: fillPrice,
+              marginUsed: newMargin,
+              stopLoss: stopLoss || null,
+              targetPrice: targetPrice || null,
+              trailingSL: trailingSL || false,
+              trailingDistance: trailingDistance || null,
+            },
+          });
+          await prisma.account.update({
+            where: { id: account.id },
+            data: { usedMargin: { increment: newMargin } },
+          });
+          await prisma.order.update({
+            where: { id: order.id },
+            data: { positionId: newPosition.id },
+          });
+        }
+
+        return NextResponse.json(order, { status: 201 });
+      }
+
+      // --- No opposite position: check same-side to average or create new ---
+      const existingPosition = await prisma.position.findFirst({
+        where: { accountId: account.id, symbol, side, isOpen: true },
+      });
 
       if (existingPosition) {
         const oldQty = existingPosition.quantity;

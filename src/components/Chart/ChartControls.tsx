@@ -16,6 +16,7 @@ function CandleCountdown() {
   const hasCandles = useMarketStore((s) => s.candles.length > 0);
   const [remaining, setRemaining] = useState('');
 
+  const activeSymbol = useMarketStore((s) => s.activeSymbol);
   const tfConfig = TIMEFRAMES.find(t => t.value === timeframe);
   const intervalSeconds = tfConfig?.seconds ?? 300;
 
@@ -23,11 +24,13 @@ function CandleCountdown() {
     const calc = (): string => {
       if (!hasCandles) return '';
 
-      // Wall-clock calculation aligned to IST market open (9:15 AM) — same as TradingView.
-      // Uses exchange-synced time via getAccurateNowUTC() so system clock skew is corrected.
+      // Wall-clock calculation aligned to exchange open — same as TradingView.
+      // MCX: 9:00 AM – 11:30 PM IST (continuous session)
+      // NSE/BSE: 9:15 AM – 3:30 PM IST
       const IST_OFFSET = 19800; // +5:30 in seconds
-      const MARKET_OPEN  = 9 * 3600 + 15 * 60;  // 9:15 AM
-      const MARKET_CLOSE = 15 * 3600 + 30 * 60; // 3:30 PM
+      const isMCX = activeSymbol.startsWith('MCX:');
+      const MARKET_OPEN  = isMCX ? 9 * 3600 : 9 * 3600 + 15 * 60;     // 9:00 or 9:15 AM
+      const MARKET_CLOSE = isMCX ? 23 * 3600 + 30 * 60 : 15 * 3600 + 30 * 60; // 11:30 PM or 3:30 PM
 
       const nowUTC = getAccurateNowUTC();
       const nowIST = nowUTC + IST_OFFSET;
@@ -54,7 +57,7 @@ function CandleCountdown() {
     const timer = setInterval(() => setRemaining(calc()), 1000);
     return () => clearInterval(timer);
   // Only restart when timeframe changes or candles first appear — NOT on every tick.
-  }, [intervalSeconds, hasCandles]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [intervalSeconds, hasCandles, activeSymbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!remaining || !hasCandles) return null;
 
