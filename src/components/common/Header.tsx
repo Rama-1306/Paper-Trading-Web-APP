@@ -350,6 +350,20 @@ export function Header() {
           />
         )}
 
+        <Link href="/backtester" style={{
+          padding: '4px 10px',
+          borderRadius: '4px',
+          background: 'rgba(88, 166, 255, 0.12)',
+          color: '#58a6ff',
+          border: '1px solid rgba(88, 166, 255, 0.25)',
+          fontSize: '10px',
+          fontWeight: 600,
+          textDecoration: 'none',
+          whiteSpace: 'nowrap',
+        }} title="CCC Backtester">
+          Backtester
+        </Link>
+
         <Link href="/profile" style={{
           width: '28px',
           height: '28px',
