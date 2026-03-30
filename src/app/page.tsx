@@ -11,6 +11,7 @@ import { TradeHistory } from '@/components/Trading/TradeHistory';
 import { WatchlistPanel } from '@/components/Trading/WatchlistPanel';
 import { ToastContainer } from '@/components/common/ToastContainer';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import { useMarketStore, registerTickPositionUpdater, registerServerEventHandler } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -168,6 +169,15 @@ export default function Dashboard() {
                 {item.label}
               </button>
             ))}
+            <div style={{ flex: 1 }} />
+            <Link
+              href="/backtester"
+              className="left-nav-tab"
+              title="CCC Indicator Backtester"
+              style={{ textDecoration: 'none', color: '#58a6ff' }}
+            >
+              Back
+            </Link>
           </div>
 
           {/* ── Main Area ── */}
