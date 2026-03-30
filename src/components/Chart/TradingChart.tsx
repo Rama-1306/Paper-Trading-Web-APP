@@ -17,6 +17,9 @@ export function TradingChart() {
   const priceLinesRef = useRef<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const positionLinesRef = useRef<any[]>([]);
+  const prevCandleCountRef = useRef(0);
+  const prevLastTimeRef = useRef(0);
+  const prevShowIndicatorsRef = useRef(false);
   const candles = useMarketStore((s) => s.candles);
   const activeSymbol = useMarketStore((s) => s.activeSymbol);
   const positions = useTradingStore((s) => s.positions);
@@ -60,6 +63,7 @@ export function TradingChart() {
         borderColor: 'rgba(255, 255, 255, 0.06)',
         timeVisible: true,
         secondsVisible: false,
+        shiftVisibleRangeOnNewBar: false,
       },
       handleScroll: {
         mouseWheel: true,
@@ -112,7 +116,47 @@ export function TradingChart() {
   useEffect(() => {
     if (!isReady || !candlestickSeriesRef.current || candles.length === 0) return;
 
+    const lastCandle = candles[candles.length - 1];
+    const isTickUpdate =
+      candles.length === prevCandleCountRef.current &&
+      lastCandle.time === prevLastTimeRef.current &&
+      showIndicators === prevShowIndicatorsRef.current;
+
     const cccResults = calculateCCC(candles);
+
+    // --- Tick update: only update the last bar via update() to preserve pan/zoom ---
+    if (isTickUpdate) {
+      const lastCCC = cccResults[cccResults.length - 1];
+      const timeIST = (lastCCC.time + 19800) as Time;
+      let mainColor: string;
+      if (showIndicators) {
+        mainColor = '#8b8f98';
+        if (lastCCC.color === 'GREEN') mainColor = '#00e676';
+        else if (lastCCC.color === 'RED') mainColor = '#ff1744';
+        else if (lastCCC.color === 'ORANGE') mainColor = '#ff9800';
+        else if (lastCCC.color === 'BLUE') mainColor = '#2196F3';
+      } else {
+        mainColor = lastCCC.close >= lastCCC.open ? '#00e676' : '#ff1744';
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (candlestickSeriesRef.current as any).update({
+        time: timeIST,
+        open: lastCCC.open,
+        high: lastCCC.high,
+        low: lastCCC.low,
+        close: lastCCC.close,
+        color: mainColor,
+        borderColor: mainColor,
+        wickColor: mainColor,
+      });
+      return;
+    }
+
+    // --- Full data load: setData + fitContent (symbol/timeframe change, new candle, indicator toggle) ---
+    prevCandleCountRef.current = candles.length;
+    prevLastTimeRef.current = lastCandle.time;
+    prevShowIndicatorsRef.current = showIndicators;
+
     const markers: SeriesMarker<Time>[] = [];
 
     const formattedData: CandlestickData[] = cccResults.map((c) => {
@@ -298,6 +342,8 @@ export function TradingChart() {
   useEffect(() => {
     if (candles.length > 0 || !isReady || !candlestickSeriesRef.current) return;
     candlestickSeriesRef.current.setData([]);
+    prevCandleCountRef.current = 0;
+    prevLastTimeRef.current = 0;
   }, [candles, isReady]);
 
   return (
@@ -306,6 +352,7 @@ export function TradingChart() {
       style={{
         width: '100%',
         height: 'calc(100% - 40px)',
+        touchAction: 'none',
       }}
     />
   );

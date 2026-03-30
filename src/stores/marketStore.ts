@@ -10,6 +10,15 @@ import { getLotSizeForSymbol } from '@/lib/utils/margins';
 let onTickPositionUpdate: ((ticks: Tick[]) => void) | null = null;
 let onServerEvent: ((event: string, data: any) => void) | null = null;
 
+// Clock offset (seconds) between exchange time and local system clock.
+// Positive = local clock is behind, negative = local clock is ahead.
+let clockOffsetSeconds = 0;
+
+/** Returns current UTC epoch seconds corrected by exchange clock offset. */
+export function getAccurateNowUTC(): number {
+  return Math.floor(Date.now() / 1000) + clockOffsetSeconds;
+}
+
 export function registerTickPositionUpdater(fn: (ticks: Tick[]) => void) {
   onTickPositionUpdate = fn;
 }
@@ -183,6 +192,20 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     });
 
     newSocket.on('ticks', (newTicks: Tick[]) => {
+      // Sync local clock offset from exchange timestamps (ltt).
+      // Only trust timestamps that look like valid recent epochs.
+      const refTick = newTicks.find(t => t.timestamp && t.timestamp > 1_700_000_000);
+      if (refTick) {
+        const localNow = Math.floor(Date.now() / 1000);
+        const drift = refTick.timestamp - localNow;
+        // Smooth update: jump immediately if drift > 30s, else nudge by 1s per tick
+        if (Math.abs(drift - clockOffsetSeconds) > 30) {
+          clockOffsetSeconds = drift;
+        } else if (Math.abs(drift - clockOffsetSeconds) > 1) {
+          clockOffsetSeconds += Math.sign(drift - clockOffsetSeconds);
+        }
+      }
+
       set((state) => {
         const nextTicks = { ...state.ticks };
         const nextCandles = [...state.candles];
@@ -192,7 +215,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
           nextTicks[tick.symbol] = tick;
           if (tick.symbol === state.activeSymbol) {
             newSpot = tick.ltp;
-            
+
             if (nextCandles.length > 0) {
               const last = { ...nextCandles[nextCandles.length - 1] };
               last.close = tick.ltp;

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useMarketStore } from '@/stores/marketStore';
+import { useState, useEffect } from 'react';
+import { useMarketStore, getAccurateNowUTC } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
 import { TIMEFRAMES } from '@/lib/utils/constants';
@@ -10,47 +10,53 @@ import type { Timeframe } from '@/types/market';
 
 function CandleCountdown() {
   const timeframe = useMarketStore((s) => s.timeframe);
-  const candles = useMarketStore((s) => s.candles);
+  // Only subscribe to whether candles exist — not the full array.
+  // Using the full array causes this component to re-render (and restart the
+  // interval) on every single tick, which breaks the countdown.
+  const hasCandles = useMarketStore((s) => s.candles.length > 0);
   const [remaining, setRemaining] = useState('');
 
   const tfConfig = TIMEFRAMES.find(t => t.value === timeframe);
   const intervalSeconds = tfConfig?.seconds ?? 300;
 
-  const calcRemaining = useCallback(() => {
-    if (candles.length === 0) return '';
-    const nowUTC = Math.floor(Date.now() / 1000);
-    // candles[].time is raw UTC unix seconds from Fyers (no IST offset yet)
-    const lastCandleTime = candles[candles.length - 1].time;
-    const nextClose = lastCandleTime + intervalSeconds;
-    const secondsLeft = nextClose - nowUTC;
-
-    if (secondsLeft <= 0 || secondsLeft > intervalSeconds) {
-      return '';
-    }
-
-    const mins = Math.floor(secondsLeft / 60);
-    const secs = secondsLeft % 60;
-
-    if (mins >= 60) {
-      const hrs = Math.floor(mins / 60);
-      const remainMins = mins % 60;
-      return `${hrs}:${String(remainMins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    }
-    if (mins > 0) {
-      return `${mins}:${String(secs).padStart(2, '0')}`;
-    }
-    return `0:${String(secs).padStart(2, '0')}`;
-  }, [intervalSeconds, candles]);
-
   useEffect(() => {
-    setRemaining(calcRemaining());
-    const timer = setInterval(() => {
-      setRemaining(calcRemaining());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [calcRemaining]);
+    const calc = (): string => {
+      if (!hasCandles) return '';
 
-  if (!remaining || candles.length === 0) return null;
+      // Wall-clock calculation aligned to IST market open (9:15 AM) — same as TradingView.
+      // Uses exchange-synced time via getAccurateNowUTC() so system clock skew is corrected.
+      const IST_OFFSET = 19800; // +5:30 in seconds
+      const MARKET_OPEN  = 9 * 3600 + 15 * 60;  // 9:15 AM
+      const MARKET_CLOSE = 15 * 3600 + 30 * 60; // 3:30 PM
+
+      const nowUTC = getAccurateNowUTC();
+      const nowIST = nowUTC + IST_OFFSET;
+      const timeOfDayIST = nowIST % 86400;
+
+      if (timeOfDayIST < MARKET_OPEN || timeOfDayIST >= MARKET_CLOSE) return '';
+
+      const elapsed = timeOfDayIST - MARKET_OPEN;
+      const secondsLeft = intervalSeconds - (elapsed % intervalSeconds);
+
+      const mins = Math.floor(secondsLeft / 60);
+      const secs = secondsLeft % 60;
+
+      if (mins >= 60) {
+        const hrs = Math.floor(mins / 60);
+        const remainMins = mins % 60;
+        return `${hrs}:${String(remainMins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+      if (mins > 0) return `${mins}:${String(secs).padStart(2, '0')}`;
+      return `0:${String(secs).padStart(2, '0')}`;
+    };
+
+    setRemaining(calc());
+    const timer = setInterval(() => setRemaining(calc()), 1000);
+    return () => clearInterval(timer);
+  // Only restart when timeframe changes or candles first appear — NOT on every tick.
+  }, [intervalSeconds, hasCandles]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!remaining || !hasCandles) return null;
 
   return (
     <span style={{

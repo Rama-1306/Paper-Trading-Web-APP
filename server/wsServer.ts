@@ -1,7 +1,12 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
+
+// Load .env first, then .env.local (Next.js convention) — later values win
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 const { fyersDataSocket } = require('fyers-api-v3');
 
@@ -89,20 +94,22 @@ function initFyersSocket(token: string) {
   const accessTokenFull = `${appId}:${token}`;
   console.log('🔑 Initializing Fyers Data Socket...');
 
-  skt = fyersDataSocket.getInstance(accessTokenFull);
+  const fyersSocket = fyersDataSocket.getInstance(accessTokenFull);
+  skt = fyersSocket;
 
-  skt.on('connect', () => {
+  fyersSocket.on('connect', () => {
     console.log('🔗 Connected to Fyers Real-time Data WebSocket');
+    skt = fyersSocket; // Reassign in case it was cleared after a previous close
 
     if (activeSymbols.size > 0) {
       const syms = Array.from(activeSymbols);
       console.log('📡 Subscribing to:', syms);
-      skt.subscribe(syms, false, 1);
-      skt.mode(skt.FullMode, 1);
+      fyersSocket.subscribe(syms, false, 1);
+      fyersSocket.mode(fyersSocket.FullMode, 1);
     }
   });
 
-  skt.on('message', (message: any) => {
+  fyersSocket.on('message', (message: any) => {
     const items = Array.isArray(message) ? message : [message];
 
     const ticks: any[] = [];
@@ -130,17 +137,17 @@ function initFyersSocket(token: string) {
     }
   });
 
-  skt.on('error', (err: any) => {
+  fyersSocket.on('error', (err: any) => {
     console.error('❌ Fyers WS Error:', err);
   });
 
-  skt.on('close', () => {
-    console.log('🔌 Fyers WS Closed');
+  fyersSocket.on('close', () => {
+    console.log('🔌 Fyers WS Closed — autoreconnect will retry');
     skt = null;
   });
 
-  skt.connect();
-  skt.autoreconnect();
+  fyersSocket.connect();
+  fyersSocket.autoreconnect();
 }
 
 async function processTicksForOrders(ticks: any[]) {
@@ -539,5 +546,6 @@ io.on('connection', (socket) => {
 
 httpServer.listen(PORT, () => {
   console.log(`🚀 Fyers Live Data Server running on ws://localhost:${PORT}`);
-  console.log(`   FYERS_APP_ID: ${process.env.FYERS_APP_ID ? '✅ loaded' : '❌ missing'}`);
+  console.log(`   FYERS_APP_ID:   ${process.env.FYERS_APP_ID ? '✅ loaded' : '❌ missing — set in .env or .env.local'}`);
+  console.log(`   DATABASE_URL:   ${process.env.DATABASE_URL ? '✅ loaded' : '❌ missing'}`);
 });
