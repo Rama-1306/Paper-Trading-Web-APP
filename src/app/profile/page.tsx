@@ -131,7 +131,9 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     background: "#0d0f14",
     padding: "20px",
+    paddingBottom: "60px",
     overflowY: "auto",
+    boxSizing: "border-box",
   },
   loadingContainer: {
     minHeight: "100vh",

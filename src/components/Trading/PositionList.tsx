@@ -5,6 +5,7 @@ import { useTradingStore } from '@/stores/tradingStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { formatPnL } from '@/lib/utils/formatters';
 import { useUIStore } from '@/stores/uiStore';
+import { getLotSizeForSymbol } from '@/lib/utils/margins';
 
 export function PositionList() {
   const positions = useTradingStore((s) => s.positions);
@@ -91,7 +92,24 @@ export function PositionList() {
 
   const openPositions = positions.filter(p => p.isOpen);
 
-  if (openPositions.length === 0) {
+  // Show today's closed positions (IST calendar day, reset at 11:55 PM IST)
+  const IST_OFFSET_MS = 5.5 * 3600000;
+  const nowIST = new Date(Date.now() + IST_OFFSET_MS);
+  const todayIST = new Date(nowIST);
+  todayIST.setHours(0, 0, 0, 0);
+  const resetTimeIST = new Date(todayIST);
+  resetTimeIST.setHours(23, 55, 0, 0);
+  const isBeforeReset = nowIST < resetTimeIST;
+
+  const todayClosedPositions = isBeforeReset
+    ? positions.filter(p =>
+        !p.isOpen &&
+        p.closedAt &&
+        new Date(new Date(p.closedAt).getTime() + IST_OFFSET_MS) >= todayIST
+      )
+    : [];
+
+  if (openPositions.length === 0 && todayClosedPositions.length === 0) {
     return (
       <div className="empty-state">
         <div className="empty-state-icon">📭</div>
@@ -104,14 +122,14 @@ export function PositionList() {
   }
 
   return (
-    <div style={{ overflow: 'auto', height: '100%' }}>
+    <div style={{ overflow: 'auto', height: '100%', overflowX: 'auto' }}>
       <table className="data-table">
         <thead>
           <tr>
             <th>Instrument</th>
             <th>Side</th>
             <th className="right">Qty</th>
-            <th className="right">Avg. Entry</th>
+            <th className="right">Entry</th>
             <th className="right">LTP</th>
             <th className="right">P&L</th>
             <th className="right">SL</th>
@@ -129,6 +147,7 @@ export function PositionList() {
             const pnlInfo = formatPnL(livePnl);
             const isEditing = editingId === pos.id;
             const isExitQtyMode = exitQtyId === pos.id;
+            const lotSize = getLotSizeForSymbol(pos.symbol);
 
             return (
               <tr key={pos.id}>
@@ -239,16 +258,19 @@ export function PositionList() {
                         value={exitQtyInput}
                         onChange={(e) => setExitQtyInput(e.target.value)}
                         placeholder="Qty"
-                        min="1"
+                        min={lotSize}
                         max={pos.quantity}
+                        step={lotSize}
                         style={{ width: '55px', padding: '2px 4px', fontSize: '11px' }}
                       />
                       <button
                         className="btn btn-danger btn-sm"
                         onClick={() => {
                           const qty = parseInt(exitQtyInput);
-                          if (qty > 0 && qty <= pos.quantity) {
+                          if (qty > 0 && qty <= pos.quantity && qty % lotSize === 0) {
                             handleClosePosition(pos.id, pos.symbol, qty);
+                          } else {
+                            addNotification({ type: 'error', title: 'Invalid Qty', message: `Must be a multiple of ${lotSize} (1 lot)` });
                           }
                         }}
                         style={{ padding: '2px 6px', fontSize: '10px' }}
@@ -273,15 +295,15 @@ export function PositionList() {
                       >
                         Modify
                       </button>
-                      {pos.quantity > 1 && (
+                      {pos.quantity >= lotSize * 2 && (
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => {
                             setExitQtyId(pos.id);
-                            setExitQtyInput(Math.floor(pos.quantity / 2).toString());
+                            setExitQtyInput(String(lotSize));
                           }}
                           style={{ padding: '2px 6px', fontSize: '10px', color: '#ff9800' }}
-                          title="Partial exit - choose quantity"
+                          title={`Partial exit (min 1 lot = ${lotSize})`}
                         >
                           Partial
                         </button>
@@ -289,8 +311,9 @@ export function PositionList() {
                       <button
                         className="btn btn-danger btn-sm"
                         onClick={() => handleClosePosition(pos.id, pos.symbol)}
+                        title={pos.side === 'BUY' ? 'Sell to close position' : 'Buy to cover position'}
                       >
-                        Exit
+                        {pos.side === 'BUY' ? 'Sell' : 'Buy'}
                       </button>
                     </div>
                   )}
@@ -300,6 +323,65 @@ export function PositionList() {
           })}
         </tbody>
       </table>
+
+      {todayClosedPositions.length > 0 && (
+        <>
+          <div style={{
+            padding: '4px 10px',
+            fontSize: '10px',
+            fontWeight: 600,
+            color: 'var(--text-muted)',
+            background: 'rgba(255,255,255,0.03)',
+            borderTop: '1px solid var(--border-primary)',
+            borderBottom: '1px solid var(--border-primary)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}>
+            Closed Today
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Instrument</th>
+                <th>Side</th>
+                <th className="right">Qty</th>
+                <th className="right">Entry</th>
+                <th className="right">Exit</th>
+                <th className="right">P&L</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {todayClosedPositions.map((pos) => {
+                const pnlInfo = formatPnL(pos.pnl);
+                return (
+                  <tr key={pos.id} style={{ opacity: 0.7 }}>
+                    <td>
+                      <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
+                        {pos.displayName || pos.symbol}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+                        {pos.side}
+                      </span>
+                    </td>
+                    <td className="right" style={{ color: 'var(--text-muted)' }}>{pos.quantity}</td>
+                    <td className="right" style={{ color: 'var(--text-muted)' }}>{pos.entryPrice.toFixed(2)}</td>
+                    <td className="right" style={{ color: 'var(--text-muted)' }}>{pos.currentPrice.toFixed(2)}</td>
+                    <td className={`right ${pnlInfo.className}`} style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
+                      {pnlInfo.text}
+                    </td>
+                    <td style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                      {pos.exitReason || 'MANUAL'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
+      )}
     </div>
   );
 }

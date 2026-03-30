@@ -100,10 +100,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       const res = await fetch(`/api/option-chain?symbol=NSE:NIFTYBANK-INDEX&strikecount=10&token=${token}`);
       const data = await res.json();
       if (data.strikes && data.strikes.length > 0) {
-        set({ 
-          optionChain: { 
-            strikes: data.strikes, 
-            underlying: data.underlying, 
+        set({
+          optionChain: {
+            strikes: data.strikes,
+            underlying: data.underlying,
             spotPrice: data.spotPrice,
             expiry: data.expiry || '',
             atmStrike: data.atmStrike || 0,
@@ -112,6 +112,17 @@ export const useMarketStore = create<MarketState>((set, get) => ({
           ...(data.spotPrice ? { spotPrice: data.spotPrice } : {}),
         });
         console.log(`Option Chain: ${data.strikes.length} strikes, spot=${data.spotPrice}, atm=${data.atmStrike}`);
+
+        // Subscribe to all option chain symbols for live prices
+        const { socket } = get();
+        if (socket && socket.connected) {
+          const optionSymbols: string[] = data.strikes.flatMap((s: any) =>
+            [s.ce?.symbol, s.pe?.symbol].filter(Boolean)
+          );
+          if (optionSymbols.length > 0) {
+            socket.emit('subscribe', optionSymbols);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to fetch option chain:', err);

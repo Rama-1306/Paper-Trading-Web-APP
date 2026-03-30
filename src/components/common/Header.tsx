@@ -22,6 +22,9 @@ export function Header() {
   const [mcxSymbols, setMcxSymbols] = useState<SymbolItem[]>([]);
   const [mcxLoading, setMcxLoading] = useState(false);
   const [mcxLoaded, setMcxLoaded] = useState(false);
+  const [liveSearchResults, setLiveSearchResults] = useState<SymbolItem[]>([]);
+  const [liveSearchLoading, setLiveSearchLoading] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { data: session } = useSession();
   const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -77,6 +80,33 @@ export function Header() {
   const bankNiftySymbols = getPredefinedSymbols();
   const allSymbols: SymbolItem[] = [...bankNiftySymbols, ...mcxSymbols];
 
+  // Debounced live search for all instrument types
+  const handleLiveSearch = useCallback((query: string) => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (query.length < 2) {
+      setLiveSearchResults([]);
+      return;
+    }
+    searchTimerRef.current = setTimeout(async () => {
+      setLiveSearchLoading(true);
+      try {
+        const res = await fetch(`/api/symbol-search?q=${encodeURIComponent(query)}&type=all&limit=15`);
+        if (res.ok) {
+          const data = await res.json();
+          setLiveSearchResults((data.results || []).map((s: any) => ({
+            value: s.value,
+            label: s.label,
+            group: s.group || 'Search',
+            lotSize: s.lotSize,
+          })));
+        }
+      } catch {
+        // ignore search errors
+      }
+      setLiveSearchLoading(false);
+    }, 300);
+  }, []);
+
   const handleSymbolSelect = (val: string, lotSize?: number) => {
     setSymbolInput(val);
     setShowDropdown(false);
@@ -111,10 +141,14 @@ export function Header() {
     }, 0);
   const totalPnl = realizedPnl + unrealizedPnl;
 
-  const filtered = allSymbols.filter(s =>
-    s.label.toLowerCase().includes(symbolInput.toLowerCase()) ||
-    s.value.toLowerCase().includes(symbolInput.toLowerCase())
-  );
+  // When user is actively searching (2+ chars), show live API results; otherwise show predefined list
+  const isSearching = symbolInput.length >= 2 && liveSearchResults.length > 0;
+  const filtered = isSearching
+    ? liveSearchResults
+    : allSymbols.filter(s =>
+        s.label.toLowerCase().includes(symbolInput.toLowerCase()) ||
+        s.value.toLowerCase().includes(symbolInput.toLowerCase())
+      );
 
   let lastGroup = '';
 
@@ -133,6 +167,7 @@ export function Header() {
             onChange={(e) => {
               const val = e.target.value.toUpperCase();
               setSymbolInput(val);
+              handleLiveSearch(val);
             }}
             onBlur={() => {
               setTimeout(() => setShowDropdown(false), 200);
@@ -217,12 +252,12 @@ export function Header() {
                   </div>
                 );
               })}
-              {mcxLoading && (
+              {(mcxLoading || liveSearchLoading) && (
                 <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '10px' }}>
-                  Loading MCX symbols...
+                  {liveSearchLoading ? 'Searching...' : 'Loading MCX symbols...'}
                 </div>
               )}
-              {filtered.length === 0 && !mcxLoading && (
+              {filtered.length === 0 && !mcxLoading && !liveSearchLoading && (
                 <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '10px' }}>
                   No matching symbols. Type a Fyers symbol and press Enter.
                 </div>

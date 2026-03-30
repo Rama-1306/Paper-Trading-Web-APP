@@ -31,21 +31,22 @@ export function OrderPanel() {
   const account = useTradingStore((s) => s.account);
   const addNotification = useUIStore((s) => s.addNotification);
 
-  const spotPrice = useMarketStore((s) => s.spotPrice);
   const ticks = useMarketStore((s) => s.ticks);
   const activeLotSize = useMarketStore((s) => s.activeLotSize);
+  const activeSymbol = useMarketStore((s) => s.activeSymbol);
 
   const lotSize = activeLotSize || 30;
 
-  const currentTick = selectedSymbol ? ticks[selectedSymbol] : null;
-  const currentPrice = currentTick?.ltp ?? spotPrice ?? 0;
+  // Use selectedSymbol if set; fall back to activeSymbol (from chart) so price always reflects the instrument shown
+  const sym = selectedSymbol || activeSymbol || getCurrentFuturesSymbol();
+  const currentTick = ticks[sym] ?? null;
+  const currentPrice = currentTick?.ltp ?? 0;
   const priceChange = currentTick?.change ?? 0;
   const priceChangePct = currentTick?.changePercent ?? 0;
 
   const lots = Math.floor(orderQuantity / lotSize);
   const orderValue = currentPrice * orderQuantity;
 
-  const sym = selectedSymbol || getCurrentFuturesSymbol();
   const sideNum = orderSide === 'BUY' ? 1 : -1;
   const marginRequired = getQuickMargin(sym, orderQuantity, sideNum);
   const isOptionBuy = /\d+(CE|PE)$/i.test(sym.replace(/^(NSE:|MCX:|BSE:)/, '')) && orderSide === 'BUY';
@@ -108,8 +109,8 @@ export function OrderPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          symbol: selectedSymbol || getCurrentFuturesSymbol(),
-          displayName: parseSymbolDisplay(selectedSymbol || getCurrentFuturesSymbol()),
+          symbol: sym,
+          displayName: parseSymbolDisplay(sym),
           side: orderSide,
           orderType,
           quantity: orderQuantity,
@@ -200,7 +201,7 @@ export function OrderPanel() {
             gap: '8px',
           }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600 }}>
-              {parseSymbolDisplay(selectedSymbol || getCurrentFuturesSymbol())}
+              {parseSymbolDisplay(sym)}
             </span>
             {currentPrice > 0 && (
               <div style={{ textAlign: 'right', flexShrink: 0 }}>

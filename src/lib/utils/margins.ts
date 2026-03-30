@@ -16,24 +16,30 @@ export interface MarginPosition {
 }
 
 const MARGIN_PER_LOT: Record<string, number> = {
-  'BANKNIFTY': 25000,
-  'NIFTY': 45000,
-  'FINNIFTY': 20000,
-  'MIDCPNIFTY': 15000,
-  'CRUDEOIL': 70000,
-  'CRUDEOILM': 22000,
-  'NATURALGAS': 50000,
-  'GOLD': 150000,
-  'GOLDM': 15000,
-  'GOLDPETAL': 5000,
-  'SILVER': 90000,
-  'SILVERM': 25000,
-  'SILVERMIC': 8000,
-  'COPPER': 30000,
-  'ZINC': 45000,
-  'LEAD': 30000,
-  'ALUMINIUM': 40000,
-  'NICKEL': 55000,
+  'BANKNIFTY': 55000,
+  'NIFTY': 85000,
+  'FINNIFTY': 38000,
+  'MIDCPNIFTY': 26000,
+  'CRUDEOIL': 90000,
+  'CRUDEOILM': 28000,
+  'NATURALGAS': 65000,
+  'NATGAS': 65000,
+  'NATGASMINI': 16000,
+  'GOLD': 190000,
+  'GOLDM': 19000,
+  'GOLDPETAL': 6000,
+  'GOLDTEN': 19000,
+  'GOLDGUINEA': 6000,
+  'SILVER': 120000,
+  'SILVERM': 28000,
+  'SILVERMIC': 9000,
+  'COPPER': 38000,
+  'ZINC': 55000,
+  'LEAD': 35000,
+  'ALUMINIUM': 48000,
+  'NICKEL': 65000,
+  'MENTHAOIL': 30000,
+  'CPO': 12000,
 };
 
 const LOT_SIZES: Record<string, number> = {
@@ -58,10 +64,10 @@ const LOT_SIZES: Record<string, number> = {
 };
 
 const OPTION_SELL_MARGIN_PER_LOT: Record<string, number> = {
-  'BANKNIFTY': 35000,
-  'NIFTY': 55000,
-  'FINNIFTY': 25000,
-  'MIDCPNIFTY': 18000,
+  'BANKNIFTY': 48000,
+  'NIFTY': 75000,
+  'FINNIFTY': 32000,
+  'MIDCPNIFTY': 22000,
 };
 
 function extractUnderlying(symbol: string): string {

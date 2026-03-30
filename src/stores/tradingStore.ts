@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import type { OrderResponse, PositionData, TradeData, AccountSummary } from '@/types/trading';
+import { getCurrentFuturesSymbol } from '@/lib/utils/symbols';
 
 interface TradingState {
   // Account
@@ -48,7 +49,7 @@ const initialState = {
   orders: [],
   pendingOrders: [],
   trades: [],
-  selectedSymbol: '',
+  selectedSymbol: (typeof window !== 'undefined' ? getCurrentFuturesSymbol() : ''),
   orderSide: 'BUY' as const,
   orderQuantity: 30,   // 1 lot of Bank Nifty
 };
@@ -71,7 +72,8 @@ export const useTradingStore = create<TradingState>((set) => ({
 
   fetchPositions: async () => {
     try {
-      const res = await fetch('/api/positions');
+      // Fetch all positions (open + closed) so PositionList can show today's closed ones
+      const res = await fetch('/api/positions?closed=true');
       if (res.ok) {
         const data = await res.json();
         set({ positions: data });

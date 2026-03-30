@@ -102,7 +102,7 @@ export function WatchlistPanel() {
     searchTimerRef.current = setTimeout(async () => {
       setSearchLoading(true);
       try {
-        const res = await fetch(`/api/symbol-search?q=${encodeURIComponent(q)}&limit=8`);
+        const res = await fetch(`/api/symbol-search?q=${encodeURIComponent(q)}&limit=10&type=all`);
         if (res.ok) {
           const data = await res.json();
           setSearchResults(data.results || []);

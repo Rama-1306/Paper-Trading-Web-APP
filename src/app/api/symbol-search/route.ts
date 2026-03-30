@@ -115,6 +115,15 @@ async function fetchAllSymbols(): Promise<ParsedSymbol[]> {
   return allSymbols;
 }
 
+// Predefined index symbols returned for matching queries
+const NSE_INDICES = [
+  { value: 'NSE:NIFTYBANK-INDEX', label: 'Bank Nifty Index', group: 'NSE', lotSize: 30, expiry: 0 },
+  { value: 'NSE:NIFTY50-INDEX', label: 'Nifty 50 Index', group: 'NSE', lotSize: 75, expiry: 0 },
+  { value: 'NSE:FINNIFTY-INDEX', label: 'Fin Nifty Index', group: 'NSE', lotSize: 65, expiry: 0 },
+  { value: 'NSE:MIDCPNIFTY-INDEX', label: 'Mid Cap Nifty Index', group: 'NSE', lotSize: 120, expiry: 0 },
+  { value: 'BSE:SENSEX-INDEX', label: 'Sensex Index', group: 'BSE', lotSize: 10, expiry: 0 },
+];
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -126,8 +135,10 @@ export async function GET(request: NextRequest) {
     const allSymbols = await fetchAllSymbols();
 
     let filtered = allSymbols.filter(s => {
+      // type=all: no instrument-type filter; type=futures: futures only; type=options: options only
       if (type === 'futures' && s.optionType !== 'XX') return false;
       if (type === 'options' && s.optionType !== 'CE' && s.optionType !== 'PE') return false;
+      // type=all: pass through all optionTypes
       if (exchange && s.exchange !== exchange.toUpperCase()) return false;
 
       if (!query || query.length < 2) {
@@ -157,6 +168,15 @@ export async function GET(request: NextRequest) {
       lotSize: s.lotSize,
       expiry: s.expiry,
     }));
+
+    // Prepend matching NSE index symbols when query is provided
+    if (query.length >= 2) {
+      const matchingIndices = NSE_INDICES.filter(idx =>
+        idx.label.toUpperCase().includes(query) ||
+        idx.value.toUpperCase().includes(query)
+      );
+      results.unshift(...matchingIndices);
+    }
 
     return NextResponse.json({ results, total: results.length });
   } catch (error: any) {

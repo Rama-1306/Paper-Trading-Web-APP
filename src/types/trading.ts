@@ -52,6 +52,8 @@ export interface PositionData {
   exitReason: string | null;
   isOpen: boolean;
   createdAt: string;
+  closedAt?: string | null;
+  marginUsed?: number;
 }
 
 export interface TradeData {
