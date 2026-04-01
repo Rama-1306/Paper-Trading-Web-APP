@@ -168,6 +168,23 @@ export async function DELETE(request: NextRequest) {
         entryTime: position.createdAt,
       },
     });
+    const exitSide = position.side === 'BUY' ? 'SELL' : 'BUY';
+
+    await prisma.order.create({
+      data: {
+        accountId: position.accountId,
+        symbol: position.symbol,
+        displayName: position.displayName,
+        side: exitSide,
+        orderType: 'MARKET',
+        quantity: qtyToExit,
+        price: actualExitPrice,
+        status: 'FILLED',
+        filledPrice: actualExitPrice,
+        filledAt: new Date(),
+        positionId: position.id,
+      },
+    });
 
     const isOption = position.instrumentType === 'CE' || position.instrumentType === 'PE';
     let balanceAdjust: number;

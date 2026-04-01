@@ -89,6 +89,18 @@ export async function POST(request: NextRequest) {
         filledAt: orderType === 'MARKET' ? new Date() : null,
       },
     });
+    const rejectOrder = async (reason: string) => {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'REJECTED',
+          rejectedReason: reason,
+          filledPrice: null,
+          filledAt: null,
+        },
+      });
+      return NextResponse.json({ error: reason }, { status: 400 });
+    };
 
     if (orderType === 'MARKET') {
       let instrumentType = 'FUTURES';
@@ -225,10 +237,7 @@ export async function POST(request: NextRequest) {
         const totalCostForAvg = additionalMargin + (isOption && side === 'BUY' ? premium : 0);
         const availForAvg = account.balance - account.usedMargin;
         if (totalCostForAvg > availForAvg) {
-          return NextResponse.json(
-            { error: `Insufficient funds to average. Required: ₹${totalCostForAvg.toLocaleString()}, Available: ₹${Math.floor(availForAvg).toLocaleString()}` },
-            { status: 400 }
-          );
+          return rejectOrder(`Insufficient funds to average. Required: ₹${totalCostForAvg.toLocaleString()}, Available: ₹${Math.floor(availForAvg).toLocaleString()}`);
         }
 
         await prisma.position.update({
@@ -264,10 +273,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (openPositions >= DEFAULT_CONFIG.MAX_POSITIONS) {
-          return NextResponse.json(
-            { error: `Maximum ${DEFAULT_CONFIG.MAX_POSITIONS} positions allowed` },
-            { status: 400 }
-          );
+          return rejectOrder(`Maximum ${DEFAULT_CONFIG.MAX_POSITIONS} positions allowed`);
         }
 
         const marginRequired = getQuickMargin(symbol, quantity, sideNum);
@@ -275,10 +281,7 @@ export async function POST(request: NextRequest) {
 
         const availableBalance = account.balance - account.usedMargin;
         if (totalCost > availableBalance) {
-          return NextResponse.json(
-            { error: `Insufficient funds. Required: ₹${totalCost.toLocaleString()}, Available: ₹${Math.floor(availableBalance).toLocaleString()}` },
-            { status: 400 }
-          );
+          return rejectOrder(`Insufficient funds. Required: ₹${totalCost.toLocaleString()}, Available: ₹${Math.floor(availableBalance).toLocaleString()}`);
         }
 
         const position = await prisma.position.create({

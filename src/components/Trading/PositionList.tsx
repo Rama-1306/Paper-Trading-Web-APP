@@ -9,6 +9,7 @@ import { getLotSizeForSymbol } from '@/lib/utils/margins';
 
 export function PositionList({ compact = false }: { compact?: boolean }) {
   const positions = useTradingStore((s) => s.positions);
+  const trades = useTradingStore((s) => s.trades);
   const ticks = useMarketStore((s) => s.ticks);
   const addNotification = useUIStore((s) => s.addNotification);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -19,7 +20,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
   const [tslDistance, setTslDistance] = useState('');
   const [exitQtyId, setExitQtyId] = useState<string | null>(null);
   const [exitQtyInput, setExitQtyInput] = useState('');
-  const [expandedClosedPositionId, setExpandedClosedPositionId] = useState<string | null>(null);
+  const [expandedClosedTradeId, setExpandedClosedTradeId] = useState<string | null>(null);
 
   const handleClosePosition = async (positionId: string, symbol: string, partialQty?: number) => {
     try {
@@ -48,6 +49,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
         useTradingStore.getState().fetchPositions();
         useTradingStore.getState().fetchAccount();
         useTradingStore.getState().fetchTrades();
+        useTradingStore.getState().fetchOrders();
         setExitQtyId(null);
         setExitQtyInput('');
       }
@@ -55,8 +57,8 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
       console.error('Failed to close position:', err);
     }
   };
-  const toggleClosedPositionDetails = (positionId: string) => {
-    setExpandedClosedPositionId((current) => (current === positionId ? null : positionId));
+  const toggleClosedTradeDetails = (tradeId: string) => {
+    setExpandedClosedTradeId((current) => (current === tradeId ? null : tradeId));
   };
 
   const startEditing = (pos: any) => {
@@ -129,21 +131,15 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
   const isBeforeReset = currentHourIST * 60 + currentMinuteIST < RESET_MINUTES_IST;
   const todayISTKey = getISTDateKey(now);
 
-  const todayClosedPositions = isBeforeReset
-    ? positions
-        .filter(
-          (p) =>
-            !p.isOpen &&
-            p.closedAt &&
-            getISTDateKey(p.closedAt) === todayISTKey
-        )
+  const todayClosedTrades = isBeforeReset
+    ? trades
+        .filter((t) => getISTDateKey(t.exitTime) === todayISTKey)
         .sort(
           (a, b) =>
-            new Date(b.closedAt || 0).getTime() - new Date(a.closedAt || 0).getTime()
+            new Date(b.exitTime).getTime() - new Date(a.exitTime).getTime()
         )
     : [];
-
-  if (openPositions.length === 0 && todayClosedPositions.length === 0) {
+  if (openPositions.length === 0 && todayClosedTrades.length === 0) {
     return (
       <div className="empty-state">
         <div className="empty-state-icon">📭</div>
@@ -314,7 +310,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
           })}
         </div>
 
-        {todayClosedPositions.length > 0 && (
+        {todayClosedTrades.length > 0 && (
           <>
             <div style={{
               padding: '4px 10px',
@@ -329,11 +325,11 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             }}>
               Closed Today
             </div>
-            {todayClosedPositions.map((pos) => {
-              const pnlInfo = formatPnL(pos.pnl);
-              const isExpanded = expandedClosedPositionId === pos.id;
+            {todayClosedTrades.map((trade) => {
+              const pnlInfo = formatPnL(trade.pnl);
+              const isExpanded = expandedClosedTradeId === trade.id;
               return (
-                <div key={pos.id} style={{
+                <div key={trade.id} style={{
                   background: 'var(--bg-secondary)',
                   borderBottom: '1px solid var(--border-primary)',
                   padding: '5px 10px',
@@ -343,29 +339,29 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => toggleClosedPositionDetails(pos.id)}
+                    onClick={() => toggleClosedTradeDetails(trade.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        toggleClosedPositionDetails(pos.id);
+                        toggleClosedTradeDetails(trade.id);
                       }
                     }}
                     title="Click to view entry/exit details"
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
                       <span style={{ fontWeight: 600, fontSize: '11px', color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {pos.displayName || pos.symbol}
+                        {trade.displayName || trade.symbol}
                       </span>
-                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{pos.side}</span>
-                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{pos.quantity}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{trade.side}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{trade.quantity}</span>
                       <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginLeft: '4px' }}>
                         {isExpanded ? '▲' : '▼'}
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                        {pos.entryPrice.toFixed(2)} → {pos.currentPrice.toFixed(2)}
-                        <span style={{ marginLeft: '6px', fontSize: '9px' }}>{pos.exitReason || 'MANUAL'}</span>
+                        {trade.entryPrice.toFixed(2)} → {trade.exitPrice.toFixed(2)}
+                        <span style={{ marginLeft: '6px', fontSize: '9px' }}>{trade.exitReason || 'MANUAL'}</span>
                       </span>
                       <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '11px' }}>
                         {pnlInfo.text}
@@ -382,15 +378,15 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
                         <span>Entry</span>
-                        <span>{pos.entryPrice.toFixed(2)} · {formatDateTime(pos.createdAt)}</span>
+                        <span>{trade.entryPrice.toFixed(2)} · {formatDateTime(trade.entryTime)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
                         <span>Exit</span>
-                        <span>{pos.currentPrice.toFixed(2)} · {pos.closedAt ? formatDateTime(pos.closedAt) : '—'}</span>
+                        <span>{trade.exitPrice.toFixed(2)} · {formatDateTime(trade.exitTime)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
                         <span>Reason</span>
-                        <span>{pos.exitReason || 'MANUAL'}</span>
+                        <span>{trade.exitReason || 'MANUAL'}</span>
                       </div>
                     </div>
                   )}
@@ -623,7 +619,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
         </tbody>
       </table>
 
-      {todayClosedPositions.length > 0 && (
+      {todayClosedTrades.length > 0 && (
         <>
           <div style={{
             padding: '4px 10px',
@@ -651,31 +647,60 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {todayClosedPositions.map((pos) => {
-                const pnlInfo = formatPnL(pos.pnl);
-                return (
-                  <tr key={pos.id} style={{ opacity: 0.7 }}>
+              {todayClosedTrades.map((trade) => {
+                const pnlInfo = formatPnL(trade.pnl);
+                const isExpanded = expandedClosedTradeId === trade.id;
+                return [
+                  <tr
+                    key={`${trade.id}-summary`}
+                    style={{ opacity: 0.7, cursor: 'pointer' }}
+                    onClick={() => toggleClosedTradeDetails(trade.id)}
+                    title="Click to expand entry and exit details"
+                  >
                     <td>
                       <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
-                        {pos.displayName || pos.symbol}
+                        {trade.displayName || trade.symbol}
+                      </span>
+                      <span style={{ marginLeft: '6px', fontSize: '10px', color: 'var(--text-muted)' }}>
+                        {isExpanded ? '▲' : '▼'}
                       </span>
                     </td>
                     <td>
                       <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
-                        {pos.side}
+                        {trade.side}
                       </span>
                     </td>
-                    <td className="right" style={{ color: 'var(--text-muted)' }}>{pos.quantity}</td>
-                    <td className="right" style={{ color: 'var(--text-muted)' }}>{pos.entryPrice.toFixed(2)}</td>
-                    <td className="right" style={{ color: 'var(--text-muted)' }}>{pos.currentPrice.toFixed(2)}</td>
+                    <td className="right" style={{ color: 'var(--text-muted)' }}>{trade.quantity}</td>
+                    <td className="right" style={{ color: 'var(--text-muted)' }}>{trade.entryPrice.toFixed(2)}</td>
+                    <td className="right" style={{ color: 'var(--text-muted)' }}>{trade.exitPrice.toFixed(2)}</td>
                     <td className={`right ${pnlInfo.className}`} style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
                       {pnlInfo.text}
                     </td>
                     <td style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                      {pos.exitReason || 'MANUAL'}
+                      {trade.exitReason || 'MANUAL'}
                     </td>
-                  </tr>
-                );
+                  </tr>,
+                  isExpanded ? (
+                    <tr key={`${trade.id}-details`} style={{ opacity: 0.9 }}>
+                      <td colSpan={7} style={{ background: 'rgba(255,255,255,0.03)' }}>
+                        <div style={{ display: 'grid', gap: '4px', padding: '6px 2px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Entry</span>
+                            <span>{trade.entryPrice.toFixed(2)} · {formatDateTime(trade.entryTime)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Exit</span>
+                            <span>{trade.exitPrice.toFixed(2)} · {formatDateTime(trade.exitTime)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Reason</span>
+                            <span>{trade.exitReason || 'MANUAL'}</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null,
+                ];
               })}
             </tbody>
           </table>

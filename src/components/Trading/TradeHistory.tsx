@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useTradingStore } from '@/stores/tradingStore';
+import { useUIStore } from '@/stores/uiStore';
 import { formatINR, formatPnL, formatDateTime } from '@/lib/utils/formatters';
 import { TradeDetailModal } from './TradeDetailModal';
 import { TradeData } from '@/types/trading';
@@ -121,8 +122,10 @@ function StatPill({ label, value }: { label: string; value: string | number }) {
 export function TradeHistory({ type }: TradeHistoryProps) {
   const orders = useTradingStore((s) => s.orders);
   const trades = useTradingStore((s) => s.trades);
+  const addNotification = useUIStore((s) => s.addNotification);
   const [selectedTrade, setSelectedTrade] = useState<TradeData | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
 
   const toggle = (key: string) => {
     setExpanded(prev => {
@@ -130,6 +133,40 @@ export function TradeHistory({ type }: TradeHistoryProps) {
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
+  };
+  const handleCancelOrder = async (orderId: string) => {
+    try {
+      setCancellingOrderId(orderId);
+      const res = await fetch('/api/orders', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+
+      if (res.ok) {
+        addNotification({
+          type: 'success',
+          title: 'Order Cancelled',
+          message: 'Pending order has been cancelled',
+        });
+        useTradingStore.getState().fetchOrders();
+      } else {
+        const data = await res.json();
+        addNotification({
+          type: 'error',
+          title: 'Cancel Failed',
+          message: data.error || 'Unable to cancel order',
+        });
+      }
+    } catch {
+      addNotification({
+        type: 'error',
+        title: 'Cancel Failed',
+        message: 'Failed to connect to server',
+      });
+    } finally {
+      setCancellingOrderId(null);
+    }
   };
 
   const hierarchy = useMemo((): MonthGroup[] => {
@@ -232,7 +269,9 @@ export function TradeHistory({ type }: TradeHistoryProps) {
               <th>Type</th>
               <th className="right">Qty</th>
               <th className="right">Price</th>
+              <th className="right">Trigger</th>
               <th className="center">Status</th>
+              <th className="center">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -256,26 +295,48 @@ export function TradeHistory({ type }: TradeHistoryProps) {
                     ? order.filledPrice.toFixed(2)
                     : order.price?.toFixed(2) ?? 'MKT'}
                 </td>
+                <td className="right">{order.triggerPrice?.toFixed(2) ?? '—'}</td>
                 <td className="center">
-                  <span style={{
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    ...(order.status === 'FILLED' ? {
-                      color: 'var(--color-profit)',
-                      background: 'var(--color-profit-bg)',
-                    } : order.status === 'REJECTED' || order.status === 'CANCELLED' ? {
-                      color: 'var(--color-loss)',
-                      background: 'var(--color-loss-bg)',
-                    } : {
-                      color: 'var(--color-warning)',
-                      background: 'rgba(255, 171, 0, 0.1)',
-                    }),
-                  }}>
-                    {order.status}
-                  </span>
+                  <div style={{ display: 'grid', justifyItems: 'center', gap: '2px' }}>
+                    <span style={{
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      ...(order.status === 'FILLED' ? {
+                        color: 'var(--color-profit)',
+                        background: 'var(--color-profit-bg)',
+                      } : order.status === 'REJECTED' || order.status === 'CANCELLED' ? {
+                        color: 'var(--color-loss)',
+                        background: 'var(--color-loss-bg)',
+                      } : {
+                        color: 'var(--color-warning)',
+                        background: 'rgba(255, 171, 0, 0.1)',
+                      }),
+                    }}>
+                      {order.status}
+                    </span>
+                    {order.status === 'REJECTED' && order.rejectedReason && (
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', maxWidth: '160px', whiteSpace: 'normal' }}>
+                        {order.rejectedReason}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="center">
+                  {order.status === 'PENDING' ? (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => handleCancelOrder(order.id)}
+                      disabled={cancellingOrderId === order.id}
+                      style={{ padding: '2px 8px', fontSize: '10px', color: '#ef5350' }}
+                    >
+                      {cancellingOrderId === order.id ? '...' : 'Cancel'}
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>—</span>
+                  )}
                 </td>
               </tr>
             ))}

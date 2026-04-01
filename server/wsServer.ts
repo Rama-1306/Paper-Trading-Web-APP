@@ -330,6 +330,22 @@ async function partialCloseOnTarget(position: any, exitPrice: number) {
           entryTime: position.createdAt,
         },
       });
+      const exitSide = position.side === 'BUY' ? 'SELL' : 'BUY';
+      await tx.order.create({
+        data: {
+          accountId: position.accountId,
+          symbol: position.symbol,
+          displayName: position.displayName,
+          side: exitSide,
+          orderType: 'MARKET',
+          quantity: exitQty,
+          price: exitPrice,
+          status: 'FILLED',
+          filledPrice: exitPrice,
+          filledAt: new Date(),
+          positionId: position.id,
+        },
+      });
 
       const isOption = position.instrumentType === 'CE' || position.instrumentType === 'PE';
       const balanceAdjust = isOption
@@ -409,6 +425,22 @@ async function closePosition(position: any, exitPrice: number, exitReason: strin
           pnl,
           exitReason,
           entryTime: position.createdAt,
+        },
+      });
+      const exitSide = position.side === 'BUY' ? 'SELL' : 'BUY';
+      await tx.order.create({
+        data: {
+          accountId: position.accountId,
+          symbol: position.symbol,
+          displayName: position.displayName,
+          side: exitSide,
+          orderType: exitReason === 'SL_HIT' ? 'SL-M' : 'MARKET',
+          quantity: position.quantity,
+          price: exitPrice,
+          status: 'FILLED',
+          filledPrice: exitPrice,
+          filledAt: new Date(),
+          positionId: position.id,
         },
       });
 
