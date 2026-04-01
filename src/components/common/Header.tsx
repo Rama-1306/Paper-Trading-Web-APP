@@ -14,6 +14,7 @@ export function Header() {
   const connectionStatus = useMarketStore((s) => s.connectionStatus);
   const account = useTradingStore((s) => s.account);
   const positions = useTradingStore((s) => s.positions);
+  const trades = useTradingStore((s) => s.trades);
   const ticks = useMarketStore((s) => s.ticks);
   
   const [hasToken, setHasToken] = useState(false);
@@ -129,7 +130,6 @@ export function Header() {
   const changePercent = activeTick?.changePercent ?? 0;
 
   const balance = account?.balance ?? 1000000;
-  const realizedPnl = account?.realizedPnl ?? 0;
   const unrealizedPnl = positions
     .filter(p => p.isOpen)
     .reduce((sum, pos) => {
@@ -139,7 +139,17 @@ export function Header() {
         : (pos.entryPrice - ltp) * pos.quantity;
       return sum + pnl;
     }, 0);
-  const totalPnl = realizedPnl + unrealizedPnl;
+  // Day's P&L = today's closed trades + current open unrealized
+  const todayISTStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  const todayRealizedPnl = trades.reduce((sum, t) => {
+    const exitDay = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date(t.exitTime));
+    return exitDay === todayISTStr ? sum + t.pnl : sum;
+  }, 0);
+  const dayPnl = todayRealizedPnl + unrealizedPnl;
 
   // When user is actively searching (2+ chars), show live API results; otherwise show predefined list
   const isSearching = symbolInput.length >= 2 && liveSearchResults.length > 0;
@@ -153,6 +163,7 @@ export function Header() {
   let lastGroup = '';
 
   return (
+    <>
     <header className="header">
       <div className="header-left">
         <div className="header-logo">
@@ -291,15 +302,15 @@ export function Header() {
       <div className="header-right">
         <div className="header-balance">
           <span className="header-balance-label">Balance</span>
-          <span className={`header-balance-value ${totalPnl >= 0 ? 'profit' : 'loss'}`}>
+          <span className={`header-balance-value ${dayPnl >= 0 ? 'profit' : 'loss'}`}>
             {formatINR(balance)}
           </span>
         </div>
 
         <div className="header-balance">
-          <span className="header-balance-label">P&L</span>
-          <span className={`header-balance-value ${totalPnl >= 0 ? 'profit' : 'loss'}`}>
-            {totalPnl >= 0 ? '+' : ''}{formatINR(totalPnl)}
+          <span className="header-balance-label">Day P&L</span>
+          <span className={`header-balance-value ${dayPnl >= 0 ? 'profit' : 'loss'}`}>
+            {dayPnl >= 0 ? '+' : ''}{formatINR(dayPnl)}
           </span>
         </div>
 
@@ -399,5 +410,20 @@ export function Header() {
         </button>
       </div>
     </header>
+
+    {/* Mobile-only: balance + Day P&L summary strip below header */}
+    <div className="header-mobile-summary">
+      <div className="header-mobile-stat">
+        <span className="hms-label">Balance</span>
+        <span className="hms-value">{formatINR(balance)}</span>
+      </div>
+      <div className="header-mobile-stat">
+        <span className="hms-label">Day P&L</span>
+        <span className={`hms-value ${dayPnl >= 0 ? 'profit' : 'loss'}`}>
+          {dayPnl >= 0 ? '+' : ''}{formatINR(dayPnl)}
+        </span>
+      </div>
+    </div>
+    </>
   );
 }

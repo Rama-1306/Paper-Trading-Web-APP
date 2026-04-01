@@ -1768,6 +1768,45 @@ select.input {
   }
 }
 
+/* ─── Mobile Header Summary Strip ──────────────────────────── */
+.header-mobile-summary {
+  display: none;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-primary);
+  padding: 5px 14px;
+  flex-shrink: 0;
+  z-index: 99;
+}
+
+@media (max-width: 767px) {
+  .header-mobile-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.header-mobile-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hms-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.hms-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
 /* ─── Mobile Bottom Navigation Bar ─────────────────────────── */
 .mobile-bottom-nav {
   display: none;
