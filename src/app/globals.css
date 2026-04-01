@@ -1705,3 +1705,92 @@ select.input {
   opacity: 0.4;
   cursor: default;
 }
+
+
+/* ─── Mobile PWA Styles (< 768px) ──────────────────────────── */
+@media (max-width: 767px) {
+  /* Hide desktop sidebar + left nav — bottom nav replaces them */
+  .left-nav,
+  .sidebar,
+  .sidebar-resize-handle {
+    display: none !important;
+  }
+
+  /* Push content above the fixed bottom nav */
+  .app-container {
+    padding-bottom: 56px;
+  }
+
+  /* Shrink header text on small screens */
+  .header-logo {
+    font-size: 13px;
+  }
+  .header-balance {
+    padding: 4px 8px;
+    gap: 4px;
+  }
+  .header-balance-label {
+    display: none;
+  }
+}
+
+/* ─── Mobile Bottom Navigation Bar ─────────────────────────── */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-secondary);
+  z-index: 200;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+@media (max-width: 767px) {
+  .mobile-bottom-nav {
+    display: flex;
+  }
+}
+
+.mobile-nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-top: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  gap: 3px;
+  padding: 4px 0;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  color: var(--text-muted);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-nav-tab.active {
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
+  border-top-color: var(--color-accent);
+}
+
+.mobile-nav-tab:active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.mobile-nav-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.mobile-nav-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}

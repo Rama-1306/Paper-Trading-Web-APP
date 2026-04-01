@@ -18,7 +18,7 @@ import { useAlertStore } from '@/stores/alertStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { Tick } from '@/types/market';
-type ActiveView = 'chart' | 'positions' | 'orders' | 'trades' | 'option-chain' | 'watchlist' | 'alerts';
+type ActiveView = 'chart' | 'positions' | 'orders' | 'trades' | 'option-chain' | 'watchlist' | 'alerts' | 'place-order';
 
 const NAV_ITEMS: { id: ActiveView; label: string }[] = [
   { id: 'chart',        label: 'Chart'    },
@@ -28,6 +28,14 @@ const NAV_ITEMS: { id: ActiveView; label: string }[] = [
   { id: 'option-chain', label: 'Chain'    },
   { id: 'watchlist',    label: 'Watch'    },
   { id: 'alerts',       label: 'Alerts'   },
+];
+
+const MOBILE_NAV_ITEMS: { id: ActiveView; label: string; icon: string }[] = [
+  { id: 'place-order',  label: 'Dashboard', icon: '🏠' },
+  { id: 'option-chain', label: 'Chain',     icon: '🔗' },
+  { id: 'watchlist',    label: 'Watchlist', icon: '👁' },
+  { id: 'orders',       label: 'Orders',    icon: '📋' },
+  { id: 'positions',    label: 'Positions', icon: '📈' },
 ];
 
 export default function Dashboard() {
@@ -229,6 +237,11 @@ export default function Dashboard() {
                 <AlertsPanel />
               </div>
             )}
+            {activeView === 'place-order' && (
+              <div style={{ height: '100%', overflow: 'auto' }}>
+                <OrderPanel />
+              </div>
+            )}
           </div>
 
           {/* ── Sidebar Resize Handle ── */}
@@ -290,6 +303,20 @@ export default function Dashboard() {
 
         <StatusBar />
         <ToastContainer />
+
+        {/* ── Mobile Bottom Navigation (hidden on md+) ── */}
+        <nav className="mobile-bottom-nav">
+          {MOBILE_NAV_ITEMS.map(item => (
+            <button
+              key={item.id}
+              className={`mobile-nav-tab${activeView === item.id ? ' active' : ''}`}
+              onClick={() => setActiveView(item.id)}
+            >
+              <span className="mobile-nav-icon">{item.icon}</span>
+              <span className="mobile-nav-label">{item.label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
     </ProtectedRoute>
   );

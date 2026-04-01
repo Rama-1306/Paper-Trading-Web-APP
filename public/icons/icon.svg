@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="80" fill="#0f172a"/>
+  <!-- Chart bars -->
+  <rect x="80" y="280" width="60" height="160" rx="6" fill="#22c55e"/>
+  <rect x="160" y="220" width="60" height="220" rx="6" fill="#22c55e"/>
+  <rect x="240" y="160" width="60" height="280" rx="6" fill="#22c55e"/>
+  <rect x="320" y="200" width="60" height="240" rx="6" fill="#f59e0b"/>
+  <rect x="400" y="120" width="60" height="320" rx="6" fill="#22c55e"/>
+  <!-- Trend line -->
+  <polyline points="110,260 190,200 270,140 350,180 430,100"
+    fill="none" stroke="#60a5fa" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- SA label -->
+  <text x="256" y="90" font-family="Arial,sans-serif" font-weight="700" font-size="72"
+    fill="white" text-anchor="middle" dominant-baseline="middle">SA</text>
+</svg>
