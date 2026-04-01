@@ -60,6 +60,10 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
   const toggleClosedTradeDetails = (tradeId: string) => {
     setExpandedClosedTradeId((current) => (current === tradeId ? null : tradeId));
   };
+  const getExitStepSize = (symbol: string, quantity: number) => {
+    const inferredLotSize = Math.max(1, getLotSizeForSymbol(symbol));
+    return quantity % inferredLotSize === 0 ? inferredLotSize : 1;
+  };
 
   const startEditing = (pos: any) => {
     setEditingId(pos.id);
@@ -165,7 +169,8 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             const pnlInfo = formatPnL(livePnl);
             const isEditing = editingId === pos.id;
             const isExitQtyMode = exitQtyId === pos.id;
-            const lotSize = getLotSizeForSymbol(pos.symbol);
+            const lotSize = getExitStepSize(pos.symbol, pos.quantity);
+            const canPartialExit = pos.quantity > lotSize;
 
             return (
               <div key={pos.id} style={{
@@ -281,7 +286,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                       if (qty > 0 && qty <= pos.quantity && qty % lotSize === 0) {
                         handleClosePosition(pos.id, pos.symbol, qty);
                       } else {
-                        addNotification({ type: 'error', title: 'Invalid Qty', message: `Must be a multiple of ${lotSize} (1 lot)` });
+                        addNotification({ type: 'error', title: 'Invalid Qty', message: `Must be a multiple of ${lotSize}${lotSize > 1 ? ' (1 lot)' : ''}` });
                       }
                     }} style={{ padding: '2px 8px', fontSize: '10px' }}>Go</button>
                     <button className="btn btn-ghost btn-sm" onClick={() => { setExitQtyId(null); setExitQtyInput(''); }} style={{ padding: '2px 6px', fontSize: '10px' }}>X</button>
@@ -297,8 +302,8 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                       {pos.targetPrice ? <span style={{ color: '#66bb6a' }}>Tgt {pos.targetPrice.toFixed(2)}{pos.targetQty && pos.targetQty < pos.quantity ? ` (${pos.targetQty})` : ''}</span> : ''}
                     </span>
                     <button className="btn btn-ghost btn-sm" onClick={() => startEditing(pos)} style={{ padding: '2px 6px', fontSize: '10px' }} title="Modify SL/Target">Modify</button>
-                    {pos.quantity >= lotSize * 2 && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => { setExitQtyId(pos.id); setExitQtyInput(String(lotSize)); }} style={{ padding: '2px 6px', fontSize: '10px', color: '#ff9800' }} title={`Partial exit (min 1 lot = ${lotSize})`}>Partial</button>
+                    {canPartialExit && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setExitQtyId(pos.id); setExitQtyInput(String(lotSize)); }} style={{ padding: '2px 6px', fontSize: '10px', color: '#ff9800' }} title={lotSize > 1 ? `Partial exit (min 1 lot = ${lotSize})` : 'Partial exit'}>Partial</button>
                     )}
                     <button className="btn btn-danger btn-sm" onClick={() => handleClosePosition(pos.id, pos.symbol)} title={pos.side === 'BUY' ? 'Sell to close' : 'Buy to cover'}>
                       {pos.side === 'BUY' ? 'Sell' : 'Buy'}
@@ -426,7 +431,8 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             const pnlInfo = formatPnL(livePnl);
             const isEditing = editingId === pos.id;
             const isExitQtyMode = exitQtyId === pos.id;
-            const lotSize = getLotSizeForSymbol(pos.symbol);
+            const lotSize = getExitStepSize(pos.symbol, pos.quantity);
+            const canPartialExit = pos.quantity > lotSize;
 
             return (
               <tr key={pos.id}>
@@ -565,7 +571,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                           if (qty > 0 && qty <= pos.quantity && qty % lotSize === 0) {
                             handleClosePosition(pos.id, pos.symbol, qty);
                           } else {
-                            addNotification({ type: 'error', title: 'Invalid Qty', message: `Must be a multiple of ${lotSize} (1 lot)` });
+                            addNotification({ type: 'error', title: 'Invalid Qty', message: `Must be a multiple of ${lotSize}${lotSize > 1 ? ' (1 lot)' : ''}` });
                           }
                         }}
                         style={{ padding: '2px 6px', fontSize: '10px' }}
@@ -590,7 +596,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                       >
                         Modify
                       </button>
-                      {pos.quantity >= lotSize * 2 && (
+                      {canPartialExit && (
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => {
@@ -598,7 +604,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                             setExitQtyInput(String(lotSize));
                           }}
                           style={{ padding: '2px 6px', fontSize: '10px', color: '#ff9800' }}
-                          title={`Partial exit (min 1 lot = ${lotSize})`}
+                          title={lotSize > 1 ? `Partial exit (min 1 lot = ${lotSize})` : 'Partial exit'}
                         >
                           Partial
                         </button>

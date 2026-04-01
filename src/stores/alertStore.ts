@@ -164,29 +164,68 @@ function persistState(state: Pick<AlertState, 'eventSettings' | 'ltpAlerts' | 'a
     // ignore persistence errors
   }
 }
+let sharedAudioContext: AudioContext | null = null;
+let audioUnlockListenerRegistered = false;
+
+function getSharedAudioContext(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+
+  const AudioContextCtor =
+    window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+  if (!AudioContextCtor) return null;
+  if (!sharedAudioContext) {
+    sharedAudioContext = new AudioContextCtor();
+  }
+
+  return sharedAudioContext;
+}
+
+function ensureAudioUnlockListener() {
+  if (typeof window === 'undefined' || audioUnlockListenerRegistered) return;
+
+  const unlock = () => {
+    const ctx = getSharedAudioContext();
+    if (!ctx || ctx.state === 'running') return;
+    void ctx.resume().catch(() => undefined);
+  };
+
+  window.addEventListener('pointerdown', unlock, true);
+  window.addEventListener('touchstart', unlock, true);
+  window.addEventListener('keydown', unlock, true);
+  audioUnlockListenerRegistered = true;
+}
 
 function playFallbackBeep() {
   if (typeof window === 'undefined') return;
+  ensureAudioUnlockListener();
 
   try {
-    const AudioContextCtor =
-      window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const ctx = getSharedAudioContext();
+    if (!ctx) return;
 
-    if (!AudioContextCtor) return;
-    const ctx = new AudioContextCtor();
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
+    const play = () => {
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
 
-    oscillator.type = 'sine';
-    oscillator.frequency.value = 880;
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
 
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    oscillator.start();
-    oscillator.stop(ctx.currentTime + 0.35);
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.35);
+    };
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(play).catch(() => undefined);
+      return;
+    }
+
+    play();
   } catch {
     // ignore audio errors
   }
@@ -219,9 +258,13 @@ function showDesktopNotification(title: string, message: string): boolean {
 }
 
 const initialPersisted = loadPersistedState();
+if (typeof window !== 'undefined') {
+  ensureAudioUnlockListener();
+}
 
 export const useAlertStore = create<AlertState>((set, get) => {
   const playConfiguredSound = (kind: AlertKind) => {
+    ensureAudioUnlockListener();
     const state = get();
     const repeatDuration = state.repeatDurations[kind];
     const configuredSound = state.customSounds[kind];
@@ -287,7 +330,7 @@ export const useAlertStore = create<AlertState>((set, get) => {
       });
     }
 
-    if (!state.desktopOnlyMode && useUIStore.getState().soundEnabled) {
+    if (useUIStore.getState().soundEnabled && (!state.desktopOnlyMode || !desktopShown)) {
       playConfiguredSound(input.kind);
     }
 

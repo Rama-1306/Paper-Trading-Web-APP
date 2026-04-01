@@ -10,19 +10,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    const now = new Date();
-    const istOffsetMs = 5.5 * 60 * 60 * 1000;
-    const istNow = new Date(now.getTime() + istOffsetMs);
-    const istStartOfDay = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()));
-    const utcStartOfDay = new Date(istStartOfDay.getTime() - istOffsetMs);
 
     const orders = await prisma.order.findMany({
       where: {
         accountId: account.id,
-        createdAt: { gte: utcStartOfDay },
       },
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: 500,
     });
 
     return NextResponse.json(orders);
