@@ -9,15 +9,16 @@ import { PositionList } from '@/components/Trading/PositionList';
 import { OptionChainTable } from '@/components/OptionChain/OptionChainTable';
 import { TradeHistory } from '@/components/Trading/TradeHistory';
 import { WatchlistPanel } from '@/components/Trading/WatchlistPanel';
+import { AlertsPanel } from '@/components/Trading/AlertsPanel';
 import { ToastContainer } from '@/components/common/ToastContainer';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useMarketStore, registerTickPositionUpdater, registerServerEventHandler } from '@/stores/marketStore';
+import { useAlertStore } from '@/stores/alertStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { Tick } from '@/types/market';
-
-type ActiveView = 'chart' | 'positions' | 'orders' | 'trades' | 'option-chain' | 'watchlist';
+type ActiveView = 'chart' | 'positions' | 'orders' | 'trades' | 'option-chain' | 'watchlist' | 'alerts';
 
 const NAV_ITEMS: { id: ActiveView; label: string }[] = [
   { id: 'chart',        label: 'Chart'    },
@@ -26,6 +27,7 @@ const NAV_ITEMS: { id: ActiveView; label: string }[] = [
   { id: 'trades',       label: 'Trades'   },
   { id: 'option-chain', label: 'Chain'    },
   { id: 'watchlist',    label: 'Watch'    },
+  { id: 'alerts',       label: 'Alerts'   },
 ];
 
 export default function Dashboard() {
@@ -35,21 +37,23 @@ export default function Dashboard() {
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const initSocket = useMarketStore(s => s.initSocket);
+  const isSocketConnected = useMarketStore(s => s.connectionStatus.isConnected);
 
   useEffect(() => {
     registerServerEventHandler((event: string, data: any) => {
+      const alertStore = useAlertStore.getState();
       const addNotification = useUIStore.getState().addNotification;
 
       if (event === 'position_closed') {
-        const reason = data.exitReason === 'SL_HIT' ? 'Stop Loss Hit' :
-          data.exitReason === 'TARGET_HIT' ? 'Target Hit' : data.exitReason;
-        const pnlStr = data.pnl >= 0 ? `+₹${data.pnl.toFixed(2)}` : `-₹${Math.abs(data.pnl).toFixed(2)}`;
-
-        addNotification({
-          type: data.pnl >= 0 ? 'success' : 'error',
-          title: reason,
-          message: `${data.displayName} ${data.side} closed @ ${data.exitPrice.toFixed(2)} | P&L: ${pnlStr}`,
-        });
+        alertStore.handlePositionClosed(data);
+        if (data.exitReason !== 'SL_HIT' && data.exitReason !== 'TARGET_HIT') {
+          const pnlStr = data.pnl >= 0 ? `+₹${data.pnl.toFixed(2)}` : `-₹${Math.abs(data.pnl).toFixed(2)}`;
+          addNotification({
+            type: data.pnl >= 0 ? 'success' : 'error',
+            title: data.exitReason || 'Position Closed',
+            message: `${data.displayName} ${data.side} closed @ ${data.exitPrice.toFixed(2)} | P&L: ${pnlStr}`,
+          });
+        }
 
         useTradingStore.getState().fetchPositions();
         useTradingStore.getState().fetchAccount();
@@ -58,11 +62,7 @@ export default function Dashboard() {
       }
 
       if (event === 'order_filled') {
-        addNotification({
-          type: 'success',
-          title: 'Order Filled',
-          message: `${data.displayName} ${data.side} ${data.orderType} filled @ ${data.fillPrice.toFixed(2)}`,
-        });
+        alertStore.handleOrderFilled(data);
 
         useTradingStore.getState().fetchPositions().then(() => {
           const positions = useTradingStore.getState().positions;
@@ -84,7 +84,10 @@ export default function Dashboard() {
     registerTickPositionUpdater((ticks: Tick[]) => {
       const tradingState = useTradingStore.getState();
       const positions = tradingState.positions;
-      if (positions.length === 0) return;
+      if (positions.length === 0) {
+        useAlertStore.getState().processTicks(ticks);
+        return;
+      }
 
       const tickMap: Record<string, number> = {};
       ticks.forEach(t => { tickMap[t.symbol] = t.ltp; });
@@ -105,6 +108,7 @@ export default function Dashboard() {
       if (updated) {
         tradingState.setPositions(updatedPositions);
       }
+      useAlertStore.getState().processTicks(ticks);
     });
 
     useTradingStore.getState().fetchAccount();
@@ -119,6 +123,13 @@ export default function Dashboard() {
     useTradingStore.getState().fetchTrades();
     initSocket();
   }, [initSocket]);
+  useEffect(() => {
+    if (!isSocketConnected) return;
+    const alertSymbols = useAlertStore.getState().getActiveAlertSymbols();
+    if (alertSymbols.length > 0) {
+      useMarketStore.getState().subscribePositionSymbols(alertSymbols);
+    }
+  }, [isSocketConnected]);
 
   // ── Sidebar horizontal resize ──────────────────────────────
   const handleSidebarDragStart = useCallback((e: React.MouseEvent) => {
@@ -211,6 +222,11 @@ export default function Dashboard() {
             {activeView === 'watchlist' && (
               <div style={{ height: '100%', overflow: 'auto' }}>
                 <WatchlistPanel />
+              </div>
+            )}
+            {activeView === 'alerts' && (
+              <div style={{ height: '100%', overflow: 'auto' }}>
+                <AlertsPanel />
               </div>
             )}
           </div>
