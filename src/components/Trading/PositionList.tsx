@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useMarketStore } from '@/stores/marketStore';
-import { formatPnL } from '@/lib/utils/formatters';
+import { formatDateTime, formatPnL } from '@/lib/utils/formatters';
 import { useUIStore } from '@/stores/uiStore';
 import { getLotSizeForSymbol } from '@/lib/utils/margins';
 
@@ -19,6 +19,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
   const [tslDistance, setTslDistance] = useState('');
   const [exitQtyId, setExitQtyId] = useState<string | null>(null);
   const [exitQtyInput, setExitQtyInput] = useState('');
+  const [expandedClosedPositionId, setExpandedClosedPositionId] = useState<string | null>(null);
 
   const handleClosePosition = async (positionId: string, symbol: string, partialQty?: number) => {
     try {
@@ -53,6 +54,9 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
     } catch (err) {
       console.error('Failed to close position:', err);
     }
+  };
+  const toggleClosedPositionDetails = (positionId: string) => {
+    setExpandedClosedPositionId((current) => (current === positionId ? null : positionId));
   };
 
   const startEditing = (pos: any) => {
@@ -97,20 +101,46 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
   const openPositions = positions.filter(p => p.isOpen);
 
   // Show today's closed positions (IST calendar day, reset at 11:55 PM IST)
-  const IST_OFFSET_MS = 5.5 * 3600000;
-  const nowIST = new Date(Date.now() + IST_OFFSET_MS);
-  const todayIST = new Date(nowIST);
-  todayIST.setHours(0, 0, 0, 0);
-  const resetTimeIST = new Date(todayIST);
-  resetTimeIST.setHours(23, 55, 0, 0);
-  const isBeforeReset = nowIST < resetTimeIST;
+  const IST_TIME_ZONE = 'Asia/Kolkata';
+  const RESET_MINUTES_IST = 23 * 60 + 55;
+  const getISTDateKey = (value: string | Date) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: IST_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(value));
+
+  const getISTHourMinute = (value: Date) => {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: IST_TIME_ZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(value);
+
+    const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? '0');
+    const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? '0');
+    return { hour, minute };
+  };
+
+  const now = new Date();
+  const { hour: currentHourIST, minute: currentMinuteIST } = getISTHourMinute(now);
+  const isBeforeReset = currentHourIST * 60 + currentMinuteIST < RESET_MINUTES_IST;
+  const todayISTKey = getISTDateKey(now);
 
   const todayClosedPositions = isBeforeReset
-    ? positions.filter(p =>
-        !p.isOpen &&
-        p.closedAt &&
-        new Date(new Date(p.closedAt).getTime() + IST_OFFSET_MS) >= todayIST
-      )
+    ? positions
+        .filter(
+          (p) =>
+            !p.isOpen &&
+            p.closedAt &&
+            getISTDateKey(p.closedAt) === todayISTKey
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.closedAt || 0).getTime() - new Date(a.closedAt || 0).getTime()
+        )
     : [];
 
   if (openPositions.length === 0 && todayClosedPositions.length === 0) {
@@ -301,29 +331,69 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             </div>
             {todayClosedPositions.map((pos) => {
               const pnlInfo = formatPnL(pos.pnl);
+              const isExpanded = expandedClosedPositionId === pos.id;
               return (
                 <div key={pos.id} style={{
                   background: 'var(--bg-secondary)',
                   borderBottom: '1px solid var(--border-primary)',
                   padding: '5px 10px',
                   opacity: 0.65,
+                  cursor: 'pointer',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
-                    <span style={{ fontWeight: 600, fontSize: '11px', color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {pos.displayName || pos.symbol}
-                    </span>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{pos.side}</span>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{pos.quantity}</span>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleClosedPositionDetails(pos.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleClosedPositionDetails(pos.id);
+                      }
+                    }}
+                    title="Click to view entry/exit details"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+                      <span style={{ fontWeight: 600, fontSize: '11px', color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {pos.displayName || pos.symbol}
+                      </span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{pos.side}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{pos.quantity}</span>
+                      <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                        {isExpanded ? '▲' : '▼'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                        {pos.entryPrice.toFixed(2)} → {pos.currentPrice.toFixed(2)}
+                        <span style={{ marginLeft: '6px', fontSize: '9px' }}>{pos.exitReason || 'MANUAL'}</span>
+                      </span>
+                      <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '11px' }}>
+                        {pnlInfo.text}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                      {pos.entryPrice.toFixed(2)} → {pos.currentPrice.toFixed(2)}
-                      <span style={{ marginLeft: '6px', fontSize: '9px' }}>{pos.exitReason || 'MANUAL'}</span>
-                    </span>
-                    <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '11px' }}>
-                      {pnlInfo.text}
-                    </span>
-                  </div>
+                  {isExpanded && (
+                    <div style={{
+                      marginTop: '6px',
+                      paddingTop: '6px',
+                      borderTop: '1px dashed var(--border-primary)',
+                      display: 'grid',
+                      gap: '3px',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
+                        <span>Entry</span>
+                        <span>{pos.entryPrice.toFixed(2)} · {formatDateTime(pos.createdAt)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
+                        <span>Exit</span>
+                        <span>{pos.currentPrice.toFixed(2)} · {pos.closedAt ? formatDateTime(pos.closedAt) : '—'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
+                        <span>Reason</span>
+                        <span>{pos.exitReason || 'MANUAL'}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
