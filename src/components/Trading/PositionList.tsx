@@ -170,7 +170,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             const isEditing = editingId === pos.id;
             const isExitQtyMode = exitQtyId === pos.id;
             const lotSize = getExitStepSize(pos.symbol, pos.quantity);
-            const canPartialExit = pos.quantity > lotSize;
+            const canPartialExit = pos.quantity > 1;
 
             return (
               <div key={pos.id} style={{
@@ -432,7 +432,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             const isEditing = editingId === pos.id;
             const isExitQtyMode = exitQtyId === pos.id;
             const lotSize = getExitStepSize(pos.symbol, pos.quantity);
-            const canPartialExit = pos.quantity > lotSize;
+            const canPartialExit = pos.quantity > 1;
 
             return (
               <tr key={pos.id}>

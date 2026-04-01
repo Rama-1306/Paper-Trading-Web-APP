@@ -10,16 +10,62 @@ export async function GET() {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
+    const [orders, trades] = await Promise.all([
+      prisma.order.findMany({
+        where: { accountId: account.id },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      }),
+      prisma.trade.findMany({
+        where: { accountId: account.id },
+        orderBy: { exitTime: 'desc' },
+        take: 500,
+      }),
+    ]);
 
-    const orders = await prisma.order.findMany({
-      where: {
-        accountId: account.id,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 500,
-    });
+    const hasMatchingExitOrder = (trade: (typeof trades)[number]) => {
+      const expectedExitSide = trade.side === 'BUY' ? 'SELL' : 'BUY';
+      return orders.some((order) => {
+        if (order.status !== 'FILLED') return false;
+        if (order.symbol !== trade.symbol) return false;
+        if (order.side !== expectedExitSide) return false;
+        if (order.quantity !== trade.quantity) return false;
 
-    return NextResponse.json(orders);
+        const orderTime = order.filledAt || order.createdAt;
+        const timeDiffMs = Math.abs(orderTime.getTime() - trade.exitTime.getTime());
+        if (timeDiffMs > 5 * 60 * 1000) return false;
+
+        const orderPrice = order.filledPrice ?? order.price ?? 0;
+        return Math.abs(orderPrice - trade.exitPrice) <= 0.2;
+      });
+    };
+
+    const syntheticExitOrders = trades
+      .filter((trade) => !hasMatchingExitOrder(trade))
+      .map((trade) => ({
+        id: `synthetic-exit-${trade.id}`,
+        accountId: trade.accountId,
+        symbol: trade.symbol,
+        displayName: trade.displayName,
+        side: trade.side === 'BUY' ? 'SELL' : 'BUY',
+        orderType: trade.exitReason === 'SL_HIT' ? 'SL-M' : 'MARKET',
+        quantity: trade.quantity,
+        price: trade.exitPrice,
+        triggerPrice: null,
+        status: 'FILLED',
+        filledPrice: trade.exitPrice,
+        rejectedReason: null,
+        positionId: null,
+        createdAt: trade.exitTime,
+        updatedAt: trade.exitTime,
+        filledAt: trade.exitTime,
+      }));
+
+    const combinedOrders = [...orders, ...syntheticExitOrders]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 500);
+
+    return NextResponse.json(combinedOrders);
   } catch (error) {
     console.error('Orders GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
