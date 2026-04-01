@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatDateTime } from '@/lib/utils/formatters';
 import { parseSymbolDisplay } from '@/lib/utils/symbols';
-import { useAlertStore, type LtpCondition } from '@/stores/alertStore';
+import {
+  useAlertStore,
+  type AlertKind,
+  type LtpCondition,
+  type RepeatDuration,
+} from '@/stores/alertStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { useUIStore } from '@/stores/uiStore';
 
@@ -12,18 +17,39 @@ type SearchResult = {
   label: string;
 };
 
+const ALERT_KIND_LABELS: Record<AlertKind, string> = {
+  POSITION_FILLED: 'Position Filled',
+  TARGET_HIT: 'Target Hit',
+  SL_TRIGGER: 'SL Trigger',
+  LTP_TRIGGER: 'LTP Trigger',
+};
+
+const SOUND_ROWS: AlertKind[] = [
+  'POSITION_FILLED',
+  'TARGET_HIT',
+  'SL_TRIGGER',
+  'LTP_TRIGGER',
+];
+
 export function AlertsPanel() {
   const eventSettings = useAlertStore((s) => s.eventSettings);
   const ltpAlerts = useAlertStore((s) => s.ltpAlerts);
   const alertHistory = useAlertStore((s) => s.alertHistory);
-  const customSound = useAlertStore((s) => s.customSound);
+  const customSounds = useAlertStore((s) => s.customSounds);
+  const repeatDurations = useAlertStore((s) => s.repeatDurations);
+  const desktopOnlyMode = useAlertStore((s) => s.desktopOnlyMode);
+  const notificationPermission = useAlertStore((s) => s.notificationPermission);
   const setEventAlertEnabled = useAlertStore((s) => s.setEventAlertEnabled);
   const addLtpAlert = useAlertStore((s) => s.addLtpAlert);
   const toggleLtpAlertEnabled = useAlertStore((s) => s.toggleLtpAlertEnabled);
   const resetLtpAlert = useAlertStore((s) => s.resetLtpAlert);
   const removeLtpAlert = useAlertStore((s) => s.removeLtpAlert);
-  const setCustomSound = useAlertStore((s) => s.setCustomSound);
+  const setRepeatDuration = useAlertStore((s) => s.setRepeatDuration);
+  const setCustomSoundForKind = useAlertStore((s) => s.setCustomSoundForKind);
   const playAlertSound = useAlertStore((s) => s.playAlertSound);
+  const setDesktopOnlyMode = useAlertStore((s) => s.setDesktopOnlyMode);
+  const requestDesktopPermission = useAlertStore((s) => s.requestDesktopPermission);
+  const syncNotificationPermission = useAlertStore((s) => s.syncNotificationPermission);
   const clearAlertHistory = useAlertStore((s) => s.clearAlertHistory);
 
   const subscribeSymbols = useMarketStore((s) => s.subscribePositionSymbols);
@@ -37,15 +63,16 @@ export function AlertsPanel() {
   const [condition, setCondition] = useState<LtpCondition>('ABOVE');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [soundError, setSoundError] = useState('');
-  const [soundLoading, setSoundLoading] = useState(false);
+  const [soundErrors, setSoundErrors] = useState<Partial<Record<AlertKind, string>>>({});
+  const [loadingSoundKind, setLoadingSoundKind] = useState<AlertKind | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    syncNotificationPermission();
     return () => {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
-  }, []);
+  }, [syncNotificationPermission]);
 
   const handleSearchInput = (value: string) => {
     setSymbolInput(value.toUpperCase());
@@ -102,15 +129,15 @@ export function AlertsPanel() {
     setSearchResults([]);
   };
 
-  const handleCustomSoundUpload = async (file: File) => {
-    setSoundError('');
+  const handleSoundUploadForKind = async (kind: AlertKind, file: File) => {
+    setSoundErrors((prev) => ({ ...prev, [kind]: '' }));
 
     if (!file.type.startsWith('audio/')) {
-      setSoundError('Select a valid audio file.');
+      setSoundErrors((prev) => ({ ...prev, [kind]: 'Select a valid audio file.' }));
       return;
     }
 
-    setSoundLoading(true);
+    setLoadingSoundKind(kind);
     const objectUrl = URL.createObjectURL(file);
 
     try {
@@ -122,13 +149,13 @@ export function AlertsPanel() {
         audio.onerror = () => reject(new Error('Invalid audio'));
       });
 
-      if (!Number.isFinite(duration) || duration < 60) {
+      if (!Number.isFinite(duration) || duration <= 0 || duration > 60) {
         URL.revokeObjectURL(objectUrl);
-        setSoundError('Custom sound must be at least 1 minute long.');
+        setSoundErrors((prev) => ({ ...prev, [kind]: 'Custom sound should be within 1 minute.' }));
         return;
       }
 
-      setCustomSound({
+      setCustomSoundForKind(kind, {
         name: file.name,
         mimeType: file.type || 'audio/*',
         durationSeconds: duration,
@@ -138,14 +165,27 @@ export function AlertsPanel() {
       addNotification({
         type: 'success',
         title: 'Custom Sound Saved',
-        message: `${file.name} (${Math.round(duration)}s)`,
+        message: `${ALERT_KIND_LABELS[kind]}: ${file.name} (${Math.round(duration)}s)`,
       });
     } catch {
       URL.revokeObjectURL(objectUrl);
-      setSoundError('Could not load audio metadata. Try another file.');
+      setSoundErrors((prev) => ({ ...prev, [kind]: 'Could not load audio metadata. Try another file.' }));
     } finally {
-      setSoundLoading(false);
+      setLoadingSoundKind(null);
     }
+  };
+
+  const requestDesktopAccess = async () => {
+    const permission = await requestDesktopPermission();
+    if (permission === 'granted') {
+      addNotification({ type: 'success', title: 'Desktop Notifications Enabled', message: 'Browser permission granted.' });
+      return;
+    }
+    if (permission === 'denied') {
+      addNotification({ type: 'error', title: 'Desktop Notifications Blocked', message: 'Allow notifications in browser settings.' });
+      return;
+    }
+    addNotification({ type: 'warning', title: 'Desktop Notifications Unavailable', message: 'Notifications are not supported in this browser.' });
   };
 
   return (
@@ -184,44 +224,101 @@ export function AlertsPanel() {
 
       <div className="panel" style={{ padding: '10px' }}>
         <div className="panel-header" style={{ marginBottom: '8px' }}>
-          <span className="panel-title">Sound Settings</span>
+          <span className="panel-title">Notification Mode</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+        <div style={{ display: 'grid', gap: '8px' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-            <input type="checkbox" checked={soundEnabled} onChange={toggleSound} />
-            Enable Alert Sounds
+            <input
+              type="checkbox"
+              checked={desktopOnlyMode}
+              onChange={(e) => setDesktopOnlyMode(e.target.checked)}
+            />
+            Desktop notification only (silent)
           </label>
-          <button className="btn btn-ghost btn-sm" onClick={playAlertSound}>Test Sound</button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Permission: {notificationPermission}
+            </span>
+            <button className="btn btn-ghost btn-sm" onClick={requestDesktopAccess}>
+              Enable Desktop Notifications
+            </button>
+          </div>
+
+          {!desktopOnlyMode && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+              <input type="checkbox" checked={soundEnabled} onChange={toggleSound} />
+              Enable Alert Sounds
+            </label>
+          )}
+        </div>
+      </div>
+
+      <div className="panel" style={{ padding: '10px' }}>
+        <div className="panel-header" style={{ marginBottom: '8px' }}>
+          <span className="panel-title">Sound Profile (Per Alert)</span>
         </div>
 
-        <div style={{ display: 'grid', gap: '6px' }}>
-          <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            Upload Custom Sound (audio/*, minimum 1 minute)
-          </label>
-          <input
-            type="file"
-            accept="audio/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleCustomSoundUpload(file);
-              e.currentTarget.value = '';
-            }}
-            disabled={soundLoading}
-          />
-          {customSound && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                Current: {customSound.name} ({Math.round(customSound.durationSeconds)}s)
-              </span>
-              <button className="btn btn-ghost btn-sm" onClick={() => setCustomSound(null)}>
-                Remove
-              </button>
-            </div>
-          )}
-          {soundError && (
-            <span style={{ fontSize: '11px', color: 'var(--color-loss)' }}>{soundError}</span>
-          )}
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+          Upload custom sound for each alert type (audio/*, within 1 minute).
+        </div>
+
+        <div style={{ display: 'grid', gap: '10px' }}>
+          {SOUND_ROWS.map((kind) => {
+            const current = customSounds[kind];
+            const repeat = repeatDurations[kind];
+            return (
+              <div key={kind} style={{ border: '1px solid var(--border-primary)', borderRadius: '6px', padding: '8px', display: 'grid', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600 }}>{ALERT_KIND_LABELS[kind]}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Repeat:</label>
+                    <select
+                      className="input"
+                      style={{ height: '28px', padding: '2px 8px', fontSize: '11px' }}
+                      value={repeat}
+                      onChange={(e) => setRepeatDuration(kind, Number(e.target.value) as RepeatDuration)}
+                    >
+                      <option value={0}>No Repeat</option>
+                      <option value={30}>30 sec</option>
+                      <option value={60}>1 min</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    disabled={loadingSoundKind === kind}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleSoundUploadForKind(kind, file);
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                  <button className="btn btn-ghost btn-sm" onClick={() => playAlertSound(kind)}>
+                    Test
+                  </button>
+                  {current && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => setCustomSoundForKind(kind, null)}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                {current && (
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                    {current.name} ({Math.round(current.durationSeconds)}s)
+                  </span>
+                )}
+                {soundErrors[kind] && (
+                  <span style={{ fontSize: '11px', color: 'var(--color-loss)' }}>{soundErrors[kind]}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import { useUIStore } from '@/stores/uiStore';
 
 export type LtpCondition = 'ABOVE' | 'BELOW';
 export type AlertKind = 'POSITION_FILLED' | 'TARGET_HIT' | 'SL_TRIGGER' | 'LTP_TRIGGER';
+export type RepeatDuration = 0 | 30 | 60;
 
 export interface EventAlertSettings {
   positionFilled: boolean;
@@ -43,17 +44,25 @@ export interface CustomAlertSound {
   objectUrl: string;
 }
 
+export type AlertRepeatDurations = Record<AlertKind, RepeatDuration>;
+export type AlertCustomSoundMap = Partial<Record<AlertKind, CustomAlertSound>>;
+
 interface PersistedAlertState {
   eventSettings: EventAlertSettings;
   ltpAlerts: LtpAlert[];
   alertHistory: AlertHistoryItem[];
+  repeatDurations: AlertRepeatDurations;
+  desktopOnlyMode: boolean;
 }
 
 interface AlertState {
   eventSettings: EventAlertSettings;
   ltpAlerts: LtpAlert[];
   alertHistory: AlertHistoryItem[];
-  customSound: CustomAlertSound | null;
+  repeatDurations: AlertRepeatDurations;
+  customSounds: AlertCustomSoundMap;
+  desktopOnlyMode: boolean;
+  notificationPermission: NotificationPermission | 'unsupported';
   setEventAlertEnabled: (key: keyof EventAlertSettings, enabled: boolean) => void;
   addLtpAlert: (input: {
     symbol: string;
@@ -68,12 +77,16 @@ interface AlertState {
   handleOrderFilled: (data: any) => boolean;
   handlePositionClosed: (data: any) => boolean;
   processTicks: (ticks: Tick[]) => void;
-  setCustomSound: (sound: CustomAlertSound | null) => void;
-  playAlertSound: () => void;
+  setRepeatDuration: (kind: AlertKind, duration: RepeatDuration) => void;
+  setCustomSoundForKind: (kind: AlertKind, sound: CustomAlertSound | null) => void;
+  playAlertSound: (kind?: AlertKind) => void;
+  setDesktopOnlyMode: (enabled: boolean) => void;
+  requestDesktopPermission: () => Promise<NotificationPermission | 'unsupported'>;
+  syncNotificationPermission: () => void;
   clearAlertHistory: () => void;
 }
 
-const ALERT_STORAGE_KEY = 'paper-trader-alerts-v1';
+const ALERT_STORAGE_KEY = 'paper-trader-alerts-v2';
 
 const defaultEventSettings: EventAlertSettings = {
   positionFilled: true,
@@ -81,11 +94,30 @@ const defaultEventSettings: EventAlertSettings = {
   slTrigger: true,
 };
 
+const defaultRepeatDurations: AlertRepeatDurations = {
+  POSITION_FILLED: 0,
+  TARGET_HIT: 0,
+  SL_TRIGGER: 0,
+  LTP_TRIGGER: 0,
+};
+
 const defaultPersistedState: PersistedAlertState = {
   eventSettings: defaultEventSettings,
   ltpAlerts: [],
   alertHistory: [],
+  repeatDurations: defaultRepeatDurations,
+  desktopOnlyMode: false,
 };
+
+function normalizeRepeatDuration(input: unknown): RepeatDuration {
+  return input === 30 || input === 60 ? input : 0;
+}
+
+function getNotificationPermission(): NotificationPermission | 'unsupported' {
+  if (typeof window === 'undefined') return 'unsupported';
+  if (!('Notification' in window)) return 'unsupported';
+  return Notification.permission;
+}
 
 function loadPersistedState(): PersistedAlertState {
   if (typeof window === 'undefined') return defaultPersistedState;
@@ -95,6 +127,8 @@ function loadPersistedState(): PersistedAlertState {
     if (!raw) return defaultPersistedState;
 
     const parsed = JSON.parse(raw) as Partial<PersistedAlertState>;
+    const parsedRepeat = (parsed.repeatDurations || {}) as Partial<Record<AlertKind, unknown>>;
+
     return {
       eventSettings: {
         ...defaultEventSettings,
@@ -102,23 +136,32 @@ function loadPersistedState(): PersistedAlertState {
       },
       ltpAlerts: Array.isArray(parsed.ltpAlerts) ? parsed.ltpAlerts : [],
       alertHistory: Array.isArray(parsed.alertHistory) ? parsed.alertHistory.slice(0, 200) : [],
+      repeatDurations: {
+        POSITION_FILLED: normalizeRepeatDuration(parsedRepeat.POSITION_FILLED),
+        TARGET_HIT: normalizeRepeatDuration(parsedRepeat.TARGET_HIT),
+        SL_TRIGGER: normalizeRepeatDuration(parsedRepeat.SL_TRIGGER),
+        LTP_TRIGGER: normalizeRepeatDuration(parsedRepeat.LTP_TRIGGER),
+      },
+      desktopOnlyMode: Boolean(parsed.desktopOnlyMode),
     };
   } catch {
     return defaultPersistedState;
   }
 }
 
-function persistState(state: Pick<AlertState, 'eventSettings' | 'ltpAlerts' | 'alertHistory'>) {
+function persistState(state: Pick<AlertState, 'eventSettings' | 'ltpAlerts' | 'alertHistory' | 'repeatDurations' | 'desktopOnlyMode'>) {
   if (typeof window === 'undefined') return;
   try {
     const payload: PersistedAlertState = {
       eventSettings: state.eventSettings,
       ltpAlerts: state.ltpAlerts,
       alertHistory: state.alertHistory.slice(0, 200),
+      repeatDurations: state.repeatDurations,
+      desktopOnlyMode: state.desktopOnlyMode,
     };
     localStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(payload));
   } catch {
-    // ignore persistence errors (e.g., storage full / private mode)
+    // ignore persistence errors
   }
 }
 
@@ -149,9 +192,59 @@ function playFallbackBeep() {
   }
 }
 
+function playFallbackBeepWithRepeat(duration: RepeatDuration) {
+  playFallbackBeep();
+  if (duration === 0 || typeof window === 'undefined') return;
+
+  const endAt = Date.now() + duration * 1000;
+  const intervalId = window.setInterval(() => {
+    playFallbackBeep();
+    if (Date.now() >= endAt) {
+      window.clearInterval(intervalId);
+    }
+  }, 1000);
+}
+
+function showDesktopNotification(title: string, message: string): boolean {
+  if (typeof window === 'undefined') return false;
+  if (!('Notification' in window)) return false;
+  if (Notification.permission !== 'granted') return false;
+
+  try {
+    new Notification(title, { body: message, silent: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const initialPersisted = loadPersistedState();
 
 export const useAlertStore = create<AlertState>((set, get) => {
+  const playConfiguredSound = (kind: AlertKind) => {
+    const state = get();
+    const repeatDuration = state.repeatDurations[kind];
+    const configuredSound = state.customSounds[kind];
+
+    if (!configuredSound?.objectUrl) {
+      playFallbackBeepWithRepeat(repeatDuration);
+      return;
+    }
+
+    const audio = new Audio(configuredSound.objectUrl);
+    if (repeatDuration > 0) {
+      audio.loop = true;
+      audio.play().catch(() => playFallbackBeepWithRepeat(repeatDuration));
+      window.setTimeout(() => {
+        audio.pause();
+        audio.currentTime = 0;
+      }, repeatDuration * 1000);
+      return;
+    }
+
+    audio.play().catch(() => playFallbackBeep());
+  };
+
   const emitAlert = (input: {
     kind: AlertKind;
     title: string;
@@ -182,20 +275,20 @@ export const useAlertStore = create<AlertState>((set, get) => {
     }));
     persistState(get());
 
-    useUIStore.getState().addNotification({
-      type: input.notificationType || 'info',
-      title: input.title,
-      message: input.message,
-    });
+    const state = get();
+    const notificationType = input.notificationType || 'info';
+    const desktopShown = showDesktopNotification(input.title, input.message);
 
-    if (useUIStore.getState().soundEnabled) {
-      const customSound = get().customSound;
-      if (customSound?.objectUrl) {
-        const audio = new Audio(customSound.objectUrl);
-        audio.play().catch(() => playFallbackBeep());
-      } else {
-        playFallbackBeep();
-      }
+    if (!state.desktopOnlyMode || !desktopShown) {
+      useUIStore.getState().addNotification({
+        type: notificationType,
+        title: input.title,
+        message: input.message,
+      });
+    }
+
+    if (!state.desktopOnlyMode && useUIStore.getState().soundEnabled) {
+      playConfiguredSound(input.kind);
     }
 
     return true;
@@ -205,7 +298,10 @@ export const useAlertStore = create<AlertState>((set, get) => {
     eventSettings: initialPersisted.eventSettings,
     ltpAlerts: initialPersisted.ltpAlerts,
     alertHistory: initialPersisted.alertHistory,
-    customSound: null,
+    repeatDurations: initialPersisted.repeatDurations,
+    customSounds: {},
+    desktopOnlyMode: initialPersisted.desktopOnlyMode,
+    notificationPermission: getNotificationPermission(),
 
     setEventAlertEnabled: (key, enabled) => {
       set((state) => ({
@@ -386,23 +482,54 @@ export const useAlertStore = create<AlertState>((set, get) => {
       });
     },
 
-    setCustomSound: (sound) => {
-      const previous = get().customSound;
+    setRepeatDuration: (kind, duration) => {
+      set((state) => ({
+        repeatDurations: { ...state.repeatDurations, [kind]: duration },
+      }));
+      persistState(get());
+    },
+
+    setCustomSoundForKind: (kind, sound) => {
+      const previous = get().customSounds[kind];
       if (previous?.objectUrl && (!sound || previous.objectUrl !== sound.objectUrl)) {
         URL.revokeObjectURL(previous.objectUrl);
       }
-      set({ customSound: sound });
+
+      set((state) => {
+        const next = { ...state.customSounds };
+        if (!sound) {
+          delete next[kind];
+        } else {
+          next[kind] = sound;
+        }
+        return { customSounds: next };
+      });
     },
 
-    playAlertSound: () => {
-      if (!useUIStore.getState().soundEnabled) return;
-      const customSound = get().customSound;
-      if (customSound?.objectUrl) {
-        const audio = new Audio(customSound.objectUrl);
-        audio.play().catch(() => playFallbackBeep());
-      } else {
-        playFallbackBeep();
+    playAlertSound: (kind = 'POSITION_FILLED') => {
+      const state = get();
+      if (state.desktopOnlyMode || !useUIStore.getState().soundEnabled) return;
+      playConfiguredSound(kind);
+    },
+
+    setDesktopOnlyMode: (enabled) => {
+      set({ desktopOnlyMode: enabled });
+      persistState(get());
+    },
+
+    requestDesktopPermission: async () => {
+      if (typeof window === 'undefined' || !('Notification' in window)) {
+        set({ notificationPermission: 'unsupported' });
+        return 'unsupported';
       }
+
+      const permission = await Notification.requestPermission();
+      set({ notificationPermission: permission });
+      return permission;
+    },
+
+    syncNotificationPermission: () => {
+      set({ notificationPermission: getNotificationPermission() });
     },
 
     clearAlertHistory: () => {
