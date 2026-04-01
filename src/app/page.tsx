@@ -30,12 +30,19 @@ const NAV_ITEMS: { id: ActiveView; label: string }[] = [
   { id: 'alerts',       label: 'Alerts'   },
 ];
 
-const MOBILE_NAV_ITEMS: { id: ActiveView; label: string; icon: string }[] = [
-  { id: 'place-order',  label: 'Dashboard', icon: '🏠' },
-  { id: 'option-chain', label: 'Chain',     icon: '🔗' },
-  { id: 'watchlist',    label: 'Watchlist', icon: '👁' },
-  { id: 'orders',       label: 'Orders',    icon: '📋' },
-  { id: 'positions',    label: 'Positions', icon: '📈' },
+type MobileNavItem =
+  | { kind: 'view'; id: ActiveView; label: string; icon: string }
+  | { kind: 'link'; href: string; label: string; icon: string };
+
+const MOBILE_NAV_ITEMS: MobileNavItem[] = [
+  { kind: 'view', id: 'place-order',  label: 'Order',   icon: '🏠' },
+  { kind: 'view', id: 'positions',    label: 'Pos',      icon: '📈' },
+  { kind: 'view', id: 'orders',       label: 'Orders',   icon: '📋' },
+  { kind: 'view', id: 'trades',       label: 'Trades',   icon: '🔄' },
+  { kind: 'view', id: 'watchlist',    label: 'Watch',    icon: '👁' },
+  { kind: 'view', id: 'alerts',       label: 'Alerts',   icon: '🔔' },
+  { kind: 'view', id: 'option-chain', label: 'Chain',    icon: '🔗' },
+  { kind: 'link', href: '/backtester', label: 'BTest',   icon: '🧪' },
 ];
 
 export default function Dashboard() {
@@ -306,16 +313,27 @@ export default function Dashboard() {
 
         {/* ── Mobile Bottom Navigation (hidden on md+) ── */}
         <nav className="mobile-bottom-nav">
-          {MOBILE_NAV_ITEMS.map(item => (
-            <button
-              key={item.id}
-              className={`mobile-nav-tab${activeView === item.id ? ' active' : ''}`}
-              onClick={() => setActiveView(item.id)}
-            >
-              <span className="mobile-nav-icon">{item.icon}</span>
-              <span className="mobile-nav-label">{item.label}</span>
-            </button>
-          ))}
+          {MOBILE_NAV_ITEMS.map(item =>
+            item.kind === 'link' ? (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="mobile-nav-tab"
+              >
+                <span className="mobile-nav-icon">{item.icon}</span>
+                <span className="mobile-nav-label">{item.label}</span>
+              </Link>
+            ) : (
+              <button
+                key={item.id}
+                className={`mobile-nav-tab${activeView === item.id ? ' active' : ''}`}
+                onClick={() => setActiveView(item.id)}
+              >
+                <span className="mobile-nav-icon">{item.icon}</span>
+                <span className="mobile-nav-label">{item.label}</span>
+              </button>
+            )
+          )}
         </nav>
       </div>
     </ProtectedRoute>

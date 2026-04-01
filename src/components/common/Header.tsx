@@ -157,7 +157,7 @@ export function Header() {
       <div className="header-left">
         <div className="header-logo">
           <div className="header-logo-icon">📊</div>
-          BN Paper Trader
+          <span className="header-logo-text">BN Paper Trader</span>
         </div>
 
         <div className="header-spot" style={{ position: 'relative' }} ref={dropdownRef}>
@@ -350,7 +350,7 @@ export function Header() {
           />
         )}
 
-        <Link href="/backtester" style={{
+        <Link href="/backtester" className="header-backtester-link" style={{
           padding: '4px 10px',
           borderRadius: '4px',
           background: 'rgba(88, 166, 255, 0.12)',

@@ -1721,15 +1721,49 @@ select.input {
     padding-bottom: 56px;
   }
 
-  /* Shrink header text on small screens */
-  .header-logo {
-    font-size: 13px;
+  /* ── Compact header so right-side controls stay visible ── */
+  .header {
+    padding: 0 8px;
+    gap: 6px;
   }
-  .header-balance {
-    padding: 4px 8px;
+  .header-left {
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  /* Hide "BN Paper Trader" text — keep only the icon */
+  .header-logo-text {
+    display: none;
+  }
+  .header-spot {
+    padding: 3px 6px;
     gap: 4px;
+    min-width: 0;
   }
-  .header-balance-label {
+  /* Override inline width:220px on the symbol search input */
+  .header-spot input {
+    width: 110px !important;
+    font-size: 10px !important;
+    padding: 4px 6px !important;
+  }
+  .header-spot-price {
+    font-size: 12px;
+    min-width: unset !important;
+  }
+  /* Hide price change badge to save space */
+  .header-spot-change {
+    display: none;
+  }
+  .header-right {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  /* Hide balance/P&L blocks — shown in positions view instead */
+  .header-balance {
+    display: none;
+  }
+  /* Hide Backtester from header — accessible via bottom nav */
+  .header-backtester-link {
     display: none;
   }
 }
@@ -1783,14 +1817,20 @@ select.input {
 }
 
 .mobile-nav-icon {
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
 }
 
 .mobile-nav-label {
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   line-height: 1;
+}
+
+/* Link-based tabs (e.g. Backtester) */
+a.mobile-nav-tab {
+  text-decoration: none;
+  color: var(--text-muted);
 }
