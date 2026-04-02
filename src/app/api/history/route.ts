@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import axios from 'axios';
+import { getSharedFyersToken } from '@/lib/fyers-shared-token';
 
 // GET /api/history?symbol=NSE:NIFTYBANK-INDEX&resolution=5&days=5
 export async function GET(request: NextRequest) {
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
     if (!token) {
       const cookieStore = await cookies();
       token = cookieStore.get('fyers_access_token')?.value || null;
+    }
+    if (!token) {
+      token = getSharedFyersToken();
     }
 
     // Calculate date range in epoch seconds

@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [account, setAccount] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(true);
+  const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -27,7 +28,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (session?.user) {
-      fetch("/api/account")
+      fetch("/api/account", { cache: "no-store" })
         .then((res) => res.json())
         .then((data) => {
           if (data.account) setAccount(data.account);
@@ -36,6 +37,19 @@ export default function ProfilePage() {
         .catch(() => setLoading(false));
     }
   }, [session]);
+
+  const handleLogout = async () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("fyers_access_token");
+      localStorage.removeItem("activeSymbol");
+      localStorage.removeItem("activeLotSize");
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    }
+    await signOut({ callbackUrl: "/auth/signin" });
+  };
 
   if (status === "loading" || loading) {
     return (
@@ -71,6 +85,17 @@ export default function ProfilePage() {
         </div>
 
         <div style={styles.divider} />
+        {isAdmin && (
+          <>
+            <div style={styles.section}>
+              <h3 style={styles.sectionTitle}>Admin</h3>
+              <Link href="/admin" style={styles.adminLink}>
+                Open Admin Dashboard
+              </Link>
+            </div>
+            <div style={styles.divider} />
+          </>
+        )}
 
         <div style={styles.section}>
           <h3 style={styles.sectionTitle}>Trading Account</h3>
@@ -112,7 +137,7 @@ export default function ProfilePage() {
 
         <div style={styles.section}>
           <button
-            onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+            onClick={handleLogout}
             style={styles.logoutButton}
           >
             Sign Out
@@ -251,5 +276,16 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     width: "100%",
     marginTop: "8px",
+  },
+  adminLink: {
+    background: "rgba(255, 183, 77, 0.14)",
+    color: "#ffb74d",
+    border: "1px solid rgba(255, 183, 77, 0.3)",
+    padding: "10px 14px",
+    borderRadius: "10px",
+    fontSize: "13px",
+    fontWeight: 600,
+    textDecoration: "none",
+    display: "inline-flex",
   },
 };

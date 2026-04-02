@@ -94,10 +94,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
   fetchOptionChain: async () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('fyers_access_token') : null;
-    if (!token) return;
 
     try {
-      const res = await fetch(`/api/option-chain?symbol=NSE:NIFTYBANK-INDEX&strikecount=10&token=${token}`);
+      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+      const res = await fetch(`/api/option-chain?symbol=NSE:NIFTYBANK-INDEX&strikecount=10${tokenParam}`);
       const data = await res.json();
       if (data.strikes && data.strikes.length > 0) {
         set({
@@ -131,16 +131,11 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
   fetchHistory: async () => {
     const state = get();
-    // Always read from localStorage — don't gate on isAuthenticated flag
     const token = typeof window !== 'undefined' ? localStorage.getItem('fyers_access_token') : null;
 
-    if (!token) {
-      console.warn('fetchHistory: No Fyers token found in localStorage');
-      return;
-    }
-
     try {
-      const res = await fetch(`/api/history?symbol=${encodeURIComponent(state.activeSymbol)}&resolution=${state.timeframe}&days=5&token=${token}`);
+      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+      const res = await fetch(`/api/history?symbol=${encodeURIComponent(state.activeSymbol)}&resolution=${state.timeframe}&days=5${tokenParam}`);
       const data = await res.json();
       if (res.ok && data.candles && data.candles.length > 0) {
         set({ candles: data.candles, spotPrice: data.candles[data.candles.length - 1].close });
@@ -160,12 +155,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     if (socket) return; // Already initialized
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('fyers_access_token') : null;
-    if (!token) return;
-
-    set({ connectionStatus: { ...connectionStatus, isAuthenticated: true } });
+    set({ connectionStatus: { ...connectionStatus, isAuthenticated: !!token } });
 
     const newSocket: Socket = io(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3002', {
-  auth: { token },
+  auth: token ? { token } : {},
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
   transports: ['polling', 'websocket'],

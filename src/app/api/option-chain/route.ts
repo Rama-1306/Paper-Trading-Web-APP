@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { FyersAPI } from '@/lib/broker/fyers';
+import { getSharedFyersToken } from '@/lib/fyers-shared-token';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,7 +10,10 @@ export async function GET(request: NextRequest) {
     const strikeCount = parseInt(searchParams.get('strikecount') || '10');
 
     const cookieStore = await cookies();
-    const token = cookieStore.get('fyers_access_token')?.value || searchParams.get('token');
+    const token =
+      cookieStore.get('fyers_access_token')?.value ||
+      searchParams.get('token') ||
+      getSharedFyersToken();
 
     if (!token) {
       return NextResponse.json({ error: 'Fyers token not found' }, { status: 401 });

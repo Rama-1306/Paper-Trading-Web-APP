@@ -121,15 +121,6 @@ function SignInForm() {
             </Link>
           </p>
         </div>
-
-        <div className={styles.fyersLink}>
-          <p>
-            Already have a Fyers account?{" "}
-            <Link href="/api/auth/fyers" className={styles.link}>
-              Connect with Fyers
-            </Link>
-          </p>
-        </div>
       </div>
     </div>
   );

@@ -3,6 +3,17 @@
 import { create } from 'zustand';
 import type { OrderResponse, PositionData, TradeData, AccountSummary } from '@/types/trading';
 import { getCurrentFuturesSymbol } from '@/lib/utils/symbols';
+let authRedirectInProgress = false;
+
+function clearClientCache() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('fyers_access_token');
+  localStorage.removeItem('activeSymbol');
+  localStorage.removeItem('activeLotSize');
+  if ('caches' in window) {
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+  }
+}
 
 interface TradingState {
   // Account
@@ -63,54 +74,91 @@ const initialState = {
 
 export const useTradingStore = create<TradingState>((set) => ({
   ...initialState,
-
   fetchAccount: async () => {
+    const handleUnauthorized = () => {
+      clearClientCache();
+      set({ account: null, positions: [], orders: [], pendingOrders: [], trades: [] });
+      if (typeof window !== 'undefined' && !authRedirectInProgress && !window.location.pathname.startsWith('/auth/')) {
+        authRedirectInProgress = true;
+        window.location.href = '/auth/signin';
+      }
+    };
+
     try {
       const res = await fetch('/api/account', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        // /api/account returns { account: {...} }
-        set({ account: data.account ?? data });
+      if (res.status === 401 || res.status === 403) {
+        handleUnauthorized();
+        return;
       }
+      if (!res.ok) {
+        set({ account: null });
+        return;
+      }
+      const data = await res.json();
+      set({ account: data.account ?? data });
     } catch (error) {
       console.error('Failed to fetch account:', error);
+      set({ account: null });
     }
   },
 
   fetchPositions: async () => {
     try {
-      // Fetch all positions (open + closed) so PositionList can show today's closed ones
       const res = await fetch('/api/positions?closed=true', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        set({ positions: data });
+      if (res.status === 401 || res.status === 403) {
+        clearClientCache();
+        set({ positions: [], orders: [], pendingOrders: [], trades: [], account: null });
+        return;
       }
+      if (!res.ok) {
+        set({ positions: [] });
+        return;
+      }
+      const data = await res.json();
+      set({ positions: data });
     } catch (error) {
       console.error('Failed to fetch positions:', error);
+      set({ positions: [] });
     }
   },
 
   fetchOrders: async () => {
     try {
       const res = await fetch('/api/orders', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        set({ orders: data, pendingOrders: data.filter((o: any) => o.status === 'PENDING') });
+      if (res.status === 401 || res.status === 403) {
+        clearClientCache();
+        set({ orders: [], pendingOrders: [], trades: [], positions: [], account: null });
+        return;
       }
+      if (!res.ok) {
+        set({ orders: [], pendingOrders: [] });
+        return;
+      }
+      const data = await res.json();
+      set({ orders: data, pendingOrders: data.filter((o: any) => o.status === 'PENDING') });
     } catch (error) {
       console.error('Failed to fetch orders:', error);
+      set({ orders: [], pendingOrders: [] });
     }
   },
 
   fetchTrades: async () => {
     try {
       const res = await fetch('/api/trades', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        set({ trades: data });
+      if (res.status === 401 || res.status === 403) {
+        clearClientCache();
+        set({ trades: [], orders: [], pendingOrders: [], positions: [], account: null });
+        return;
       }
+      if (!res.ok) {
+        set({ trades: [] });
+        return;
+      }
+      const data = await res.json();
+      set({ trades: data });
     } catch (error) {
       console.error('Failed to fetch trades:', error);
+      set({ trades: [] });
     }
   },
 

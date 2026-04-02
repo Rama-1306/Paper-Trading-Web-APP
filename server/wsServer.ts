@@ -76,13 +76,15 @@ const prisma = new PrismaClient({
   },
 });
 
-const clients = new Map<string, { token: string; symbols: Set<string> }>();
+const clients = new Map<string, { token: string | null; symbols: Set<string> }>();
 const activeSymbols = new Set<string>();
+let primaryBrokerToken: string | null = null;
 
 let skt: any = null;
 let isProcessingOrders = false;
 
 function initFyersSocket(token: string) {
+  if (!token) return;
   if (skt) return;
 
   const appId = process.env.FYERS_APP_ID;
@@ -92,6 +94,7 @@ function initFyersSocket(token: string) {
   }
 
   const accessTokenFull = `${appId}:${token}`;
+  primaryBrokerToken = token;
   console.log('🔑 Initializing Fyers Data Socket...');
 
   const fyersSocket = fyersDataSocket.getInstance(accessTokenFull);
@@ -706,17 +709,17 @@ function handleSymbolSync() {
 
 io.on('connection', (socket) => {
   console.log(`✅ Client connected: ${socket.id}`);
-
-  const token = socket.handshake.auth?.token;
-  if (!token) {
-    socket.emit('error', 'Fyers access token not found. Please connect Fyers.');
-    return;
-  }
+  const rawToken = socket.handshake.auth?.token;
+  const token = typeof rawToken === 'string' && rawToken.trim() ? rawToken.trim() : null;
 
   clients.set(socket.id, { token, symbols: new Set() });
-  socket.emit('authenticated', { success: true });
+  socket.emit('authenticated', { success: true, sharedFeed: !token });
 
-  initFyersSocket(token);
+  if (token) {
+    initFyersSocket(token);
+  } else if (primaryBrokerToken && !skt) {
+    initFyersSocket(primaryBrokerToken);
+  }
 
   socket.on('subscribe', (symbols: string[]) => {
     const client = clients.get(socket.id);
@@ -729,6 +732,9 @@ io.on('connection', (socket) => {
 
     console.log(`📊 Client ${socket.id} subscribed to: ${symbols.join(', ')}`);
     socket.emit('subscribed', Array.from(client.symbols));
+    if (!skt && primaryBrokerToken) {
+      initFyersSocket(primaryBrokerToken);
+    }
 
     handleSymbolSync();
   });

@@ -37,11 +37,26 @@ export function Header() {
   useEffect(() => {
     setSymbolInput(activeSymbol);
   }, [activeSymbol]);
+  const clearBrowserCache = async () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('fyers_access_token');
+    localStorage.removeItem('activeSymbol');
+    localStorage.removeItem('activeLotSize');
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  };
 
   const handleDisconnectFyers = () => {
     localStorage.removeItem('fyers_access_token');
     setHasToken(false);
     window.location.reload();
+  };
+
+  const handleLogout = async () => {
+    await clearBrowserCache();
+    await signOut({ callbackUrl: "/auth/signin" });
   };
 
   const fetchMcxSymbols = useCallback(async () => {
@@ -375,6 +390,22 @@ export function Header() {
           Backtester
         </Link>
 
+        {isAdmin && (
+          <Link href="/admin" className="header-backtester-link" style={{
+            padding: '4px 10px',
+            borderRadius: '4px',
+            background: 'rgba(255, 183, 77, 0.14)',
+            color: '#ffb74d',
+            border: '1px solid rgba(255, 183, 77, 0.3)',
+            fontSize: '10px',
+            fontWeight: 600,
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+          }} title="Admin Dashboard">
+            Admin
+          </Link>
+        )}
+
         <Link href="/profile" style={{
           width: '28px',
           height: '28px',
@@ -393,7 +424,7 @@ export function Header() {
         </Link>
 
         <button
-          onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+          onClick={handleLogout}
           style={{
             background: 'rgba(255, 23, 68, 0.15)',
             color: '#ff1744',

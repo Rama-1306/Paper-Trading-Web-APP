@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { FyersAPI } from '@/lib/broker/fyers';
+import { isAdminEmail } from '@/lib/admin';
+import { setSharedFyersToken } from '@/lib/fyers-shared-token';
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession();
+    if (!isAdminEmail(session?.user?.email)) {
+      return new NextResponse(
+        `<!DOCTYPE html><html><head><title>Access Denied</title></head>
+        <body style="background:#0a0e17;color:#ff4444;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+          <div style="text-align:center">
+            <h2>❌ Admin access required</h2>
+            <p>Only admin can connect Fyers.</p>
+            <script>setTimeout(()=>window.location.href='/',2500)</script>
+          </div>
+        </body></html>`,
+        { headers: { 'Content-Type': 'text/html' } }
+      );
+    }
     const searchParams = request.nextUrl.searchParams;
     const authCode = searchParams.get('auth_code');
     const s = searchParams.get('s');
@@ -25,6 +42,7 @@ export async function GET(request: NextRequest) {
 
     const fyers = new FyersAPI();
     const accessToken = await fyers.validateAuthCode(authCode);
+    setSharedFyersToken(accessToken);
 
     // Instead of cookies, render a page that stores token in localStorage then redirects
     return new NextResponse(
