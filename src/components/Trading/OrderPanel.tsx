@@ -33,6 +33,8 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
   const setOrderSide = useTradingStore((s) => s.setOrderSide);
   const setOrderQuantity = useTradingStore((s) => s.setOrderQuantity);
   const account = useTradingStore((s) => s.account);
+  const positions = useTradingStore((s) => s.positions);
+  const trades = useTradingStore((s) => s.trades);
   const addNotification = useUIStore((s) => s.addNotification);
 
   const ticks = useMarketStore((s) => s.ticks);
