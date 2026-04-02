@@ -27,6 +27,7 @@ export function Header() {
   const [liveSearchLoading, setLiveSearchLoading] = useState(false);
   const [dropdownRect, setDropdownRect] = useState({ top: 0, left: 0, width: 400 });
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const searchBarRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: session } = useSession();
@@ -362,6 +363,10 @@ export function Header() {
       {showDropdown && (
         <div
           id="symbol-dropdown"
+          onTouchStart={(e) => {
+            // Record where this touch started so onTouchEnd can tell tap vs scroll
+            touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+          }}
           style={{
             position: 'fixed',
             top: dropdownRect.top,
@@ -369,6 +374,7 @@ export function Header() {
             width: dropdownRect.width,
             maxHeight: '55vh',
             overflowY: 'auto',
+            overscrollBehavior: 'contain',
             background: '#1a1d23',
             border: '1px solid var(--border-primary)',
             borderTop: 'none',
@@ -401,7 +407,19 @@ export function Header() {
                 )}
                 <div
                   onMouseDown={() => handleSymbolSelect(s.value, s.lotSize)}
-                  onTouchEnd={(e) => { e.preventDefault(); handleSymbolSelect(s.value, s.lotSize); }}
+                  onTouchEnd={(e) => {
+                    // Only select if finger barely moved — distinguishes tap from scroll
+                    const start = touchStartRef.current;
+                    if (start) {
+                      const dx = Math.abs(e.changedTouches[0].clientX - start.x);
+                      const dy = Math.abs(e.changedTouches[0].clientY - start.y);
+                      if (dx < 10 && dy < 10) {
+                        e.preventDefault();
+                        handleSymbolSelect(s.value, s.lotSize);
+                      }
+                    }
+                    touchStartRef.current = null;
+                  }}
                   style={{
                     padding: '10px 14px',
                     cursor: 'pointer',
@@ -410,7 +428,7 @@ export function Header() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    minHeight: '44px',   // 44px min tap target (Apple HIG)
+                    minHeight: '48px',
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99,102,241,0.18)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
