@@ -11,8 +11,12 @@ import { getQuickMargin } from '@/lib/utils/margins';
 import { MarketDepth } from '@/components/Trading/MarketDepth';
 import { calculateCharges } from '@/lib/utils/charges';
 import type { OrderType } from '@/types/trading';
+interface OrderPanelProps {
+  onOrderPlaced?: () => void;
+  isMobile?: boolean;
+}
 
-export function OrderPanel() {
+export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps = {}) {
   const [orderType, setOrderType] = useState<OrderType>('MARKET');
   const [price, setPrice] = useState<string>('');
   const [triggerPrice, setTriggerPrice] = useState<string>('');
@@ -154,6 +158,8 @@ export function OrderPanel() {
         setTargetPrice('');
         setTrailingSL(false);
         setTrailingDistance('');
+        
+        if (onOrderPlaced) onOrderPlaced();
       } else {
         const data = await res.json();
         addNotification({ type: 'error', title: 'Order Rejected', message: data.error || 'Failed to place order' });
@@ -162,6 +168,117 @@ export function OrderPanel() {
       addNotification({ type: 'error', title: 'Error', message: 'Failed to connect to server' });
     }
   };
+
+  if (isMobile) {
+    return (
+      <div style={{ padding: '12px', background: 'var(--bg-panel)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        
+        {/* ROW 1: Instrument | Qty | B/S */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+              {parseSymbolDisplay(sym)}
+            </div>
+            {currentPrice > 0 && (
+              <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: priceChange >= 0 ? 'var(--color-profit)' : 'var(--color-loss)' }}>
+                {currentPrice.toFixed(2)} ({priceChangePct >= 0 ? '+' : ''}{priceChangePct.toFixed(2)}%)
+              </div>
+            )}
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-primary)', borderRadius: '4px', background: 'var(--bg-input)' }}>
+            <button style={{ padding: '4px 8px', color: 'var(--text-muted)', border: 'none', background: 'transparent' }} onClick={() => setOrderQuantity(Math.max(lotSize, orderQuantity - lotSize))}>−</button>
+            <input type="number" value={orderQuantity} onChange={(e) => setOrderQuantity(parseInt(e.target.value) || lotSize)} step={lotSize} min={lotSize} style={{ width: '45px', textAlign: 'center', background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'var(--font-mono)' }} />
+            <button style={{ padding: '4px 8px', color: 'var(--text-muted)', border: 'none', background: 'transparent' }} onClick={() => setOrderQuantity(orderQuantity + lotSize)}>+</button>
+          </div>
+
+          <div style={{ display: 'flex', background: 'var(--bg-input)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-primary)' }}>
+            <button 
+              onClick={() => setOrderSide('BUY')} 
+              style={{ padding: '6px 12px', border: 'none', fontWeight: 'bold', background: orderSide === 'BUY' ? 'rgba(0, 204, 0, 0.2)' : 'transparent', color: orderSide === 'BUY' ? '#00cc00' : 'var(--text-muted)' }}
+            >B</button>
+            <button 
+              onClick={() => setOrderSide('SELL')} 
+              style={{ padding: '6px 12px', border: 'none', fontWeight: 'bold', background: orderSide === 'SELL' ? 'rgba(204, 0, 0, 0.2)' : 'transparent', color: orderSide === 'SELL' ? '#cc0000' : 'var(--text-muted)' }}
+            >S</button>
+          </div>
+        </div>
+
+        {/* ROW 2: M/L switch and Price Input */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flex: 1, background: 'var(--bg-input)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-primary)' }}>
+            <button 
+              onClick={() => setOrderType('MARKET')} 
+              style={{ flex: 1, padding: '8px', border: 'none', fontSize: '12px', background: orderType === 'MARKET' ? 'var(--color-accent-subtle)' : 'transparent', color: orderType === 'MARKET' ? 'var(--text-primary)' : 'var(--text-muted)' }}
+            >M (Market)</button>
+            <button 
+              onClick={() => setOrderType('LIMIT')} 
+              style={{ flex: 1, padding: '8px', border: 'none', fontSize: '12px', background: orderType === 'LIMIT' ? 'var(--color-accent-subtle)' : 'transparent', color: orderType === 'LIMIT' ? 'var(--text-primary)' : 'var(--text-muted)' }}
+            >L (Limit)</button>
+          </div>
+          
+          {(orderType === 'LIMIT' || orderType === 'SL') && (
+            <input
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder={currentPrice > 0 ? currentPrice.toFixed(2) : 'Price'}
+              step="0.05"
+              style={{ flex: 1, padding: '8px', background: 'var(--bg-input)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'var(--font-mono)' }}
+            />
+          )}
+        </div>
+
+        {/* ROW 3: Advanced Settings */}
+        <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-primary)', borderRadius: '4px' }}>
+          <button
+            onClick={() => setShowBracket(!showBracket)}
+            style={{ width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', color: showBracket ? 'var(--color-primary)' : 'var(--text-muted)', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <span>{showBracket ? '▾ Advanced Settings (SL / Target / SL-M)' : '▸ Advanced Settings (SL / Target / SL-M)'}</span>
+          </button>
+          
+          {showBracket && (
+            <div style={{ padding: '10px', borderTop: '1px solid var(--border-primary)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div>
+                <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>SL {orderSide === 'BUY' ? '(below)' : '(above)'}</label>
+                <input type="number" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} placeholder="0.00" style={{ width: '100%', padding: '6px', background: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Target {orderSide === 'BUY' ? '(above)' : '(below)'}</label>
+                <input type="number" value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)} placeholder="0.00" style={{ width: '100%', padding: '6px', background: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }} />
+              </div>
+              
+              <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input type="checkbox" checked={orderType === 'SL-M'} onChange={(e) => setOrderType(e.target.checked ? 'SL-M' : 'MARKET')} />
+                  Place as SL-M Order
+                </label>
+                {(orderType === 'SL-M' || orderType === 'SL') && (
+                  <input type="number" value={triggerPrice} onChange={(e) => setTriggerPrice(e.target.value)} placeholder="Trigger Price" style={{ width: '100px', padding: '4px 6px', background: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }} />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ROW 4: Margin & Submit */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+          <div style={{ fontSize: '11px' }}>
+            <div style={{ color: 'var(--text-muted)' }}>Req. Margin</div>
+            <div style={{ fontFamily: 'var(--font-mono)', color: '#ffeb3b', fontWeight: 'bold' }}>{formatINR(isOptionBuy ? premiumCost : marginRequired)}</div>
+          </div>
+          <button
+            onClick={handleSubmit}
+            style={{ flex: 1, padding: '12px', borderRadius: '4px', border: 'none', background: orderSide === 'BUY' ? 'var(--color-profit)' : 'var(--color-loss)', color: '#fff', fontWeight: 'bold', fontSize: '13px' }}
+          >
+            {orderSide === 'BUY' ? 'BUY' : 'SELL'} {lots} LOT{lots > 1 ? 'S' : ''}
+          </button>
+        </div>
+        
+      </div>
+    );
+  }
 
   return (
     <div className="panel" style={{ height: '100%', overflow: 'auto' }}>

@@ -50,15 +50,16 @@ export default function Dashboard() {
   const [sidebarTab, setSidebarTab] = useState<'order' | 'positions'>('order');
   const [sidebarWidth, setSidebarWidth] = useState(340);
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
+  const [mobileOrderBoxOpen, setMobileOrderBoxOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const initSocket = useMarketStore(s => s.initSocket);
   const isSocketConnected = useMarketStore(s => s.connectionStatus.isConnected);
 
   useEffect(() => {
-    registerServerEventHandler((event: string, data: any) => {
+    registerServerEventHandler((event: string, data: Record<string, unknown>) => {
       const alertStore = useAlertStore.getState();
       const addNotification = useUIStore.getState().addNotification;
-      const currentAccountId = (useTradingStore.getState().account as any)?.id as string | undefined;
+      const currentAccountId = ((useTradingStore.getState().account as unknown) as Record<string, unknown>)?.id as string | undefined;
 
       if (data?.accountId && (!currentAccountId || data.accountId !== currentAccountId)) {
         return;
@@ -66,12 +67,13 @@ export default function Dashboard() {
 
       if (event === 'position_closed') {
         alertStore.handlePositionClosed(data);
+        const pnl = data.pnl as number;
         if (data.exitReason !== 'SL_HIT' && data.exitReason !== 'TARGET_HIT') {
-          const pnlStr = data.pnl >= 0 ? `+₹${data.pnl.toFixed(2)}` : `-₹${Math.abs(data.pnl).toFixed(2)}`;
+          const pnlStr = pnl >= 0 ? `+₹${pnl.toFixed(2)}` : `-₹${Math.abs(pnl).toFixed(2)}`;
           addNotification({
-            type: data.pnl >= 0 ? 'success' : 'error',
-            title: data.exitReason || 'Position Closed',
-            message: `${data.displayName} ${data.side} closed @ ${data.exitPrice.toFixed(2)} | P&L: ${pnlStr}`,
+            type: pnl >= 0 ? 'success' : 'error',
+            title: (data.exitReason as string) || 'Position Closed',
+            message: `${data.displayName} ${data.side} closed @ ${(data.exitPrice as number).toFixed(2)} | P&L: ${pnlStr}`,
           });
         }
 
@@ -220,8 +222,15 @@ export default function Dashboard() {
               </div>
             )}
             {activeView === 'positions' && (
-              <div style={{ height: '100%', overflow: 'auto' }}>
-                <PositionList />
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {mobileOrderBoxOpen && (
+                  <div className="md:hidden" style={{ flex: '0 0 auto', maxHeight: '50%', overflow: 'auto', borderBottom: '1px solid var(--border-primary)' }}>
+                    <OrderPanel onOrderPlaced={() => setMobileOrderBoxOpen(false)} isMobile={true} />
+                  </div>
+                )}
+                <div style={{ flex: 1, overflow: 'auto' }}>
+                  <PositionList />
+                </div>
               </div>
             )}
             {activeView === 'orders' && (
@@ -249,11 +258,7 @@ export default function Dashboard() {
                 <AlertsPanel />
               </div>
             )}
-            {activeView === 'place-order' && (
-              <div style={{ height: '100%', overflow: 'auto' }}>
-                <OrderPanel />
-              </div>
-            )}
+            {/* 'place-order' view acts purely as a trigger for mobile drop-down now */}
           </div>
 
           {/* ── Sidebar Resize Handle ── */}
@@ -331,8 +336,18 @@ export default function Dashboard() {
             ) : (
               <button
                 key={item.id}
-                className={`mobile-nav-tab${activeView === item.id ? ' active' : ''}`}
-                onClick={() => setActiveView(item.id)}
+                className={`mobile-nav-tab${(activeView === item.id || (item.id === 'place-order' && mobileOrderBoxOpen && activeView === 'positions')) ? ' active' : ''}`}
+                onClick={() => {
+                  if (item.id === 'place-order') {
+                    setActiveView('positions');
+                    setMobileOrderBoxOpen(p => !p);
+                  } else {
+                    setActiveView(item.id);
+                    if (item.id === 'positions') {
+                      setMobileOrderBoxOpen(false);
+                    }
+                  }
+                }}
               >
                 <span className="mobile-nav-icon">{item.icon}</span>
                 <span className="mobile-nav-label">{item.label}</span>
