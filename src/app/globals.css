@@ -1727,45 +1727,128 @@ select.input {
     gap: 6px;
   }
   .header-left {
-    gap: 6px;
+    gap: 8px;
     min-width: 0;
-    overflow: visible;
   }
-  /* Hide "BN Paper Trader" text — keep only the icon */
+  /* Hide "BN Paper Trader" text on mobile — keep only icon */
   .header-logo-text {
-    display: none;
-  }
-  .header-spot {
-    padding: 3px 6px;
-    gap: 4px;
-    min-width: 0;
-    overflow: visible;
-  }
-  /* Override inline width:220px on the symbol search input */
-  .header-spot input {
-    width: 110px !important;
-    font-size: 10px !important;
-    padding: 4px 6px !important;
-  }
-  .header-spot-price {
-    font-size: 12px;
-    min-width: unset !important;
-  }
-  /* Hide price change badge to save space */
-  .header-spot-change {
     display: none;
   }
   .header-right {
     gap: 6px;
     flex-shrink: 0;
   }
-  /* Hide balance/P&L blocks — shown in positions view instead */
+  /* Hide balance/P&L in header row — shown in mobile summary strip */
   .header-balance {
     display: none;
   }
-  /* Hide Backtester from header — accessible via bottom nav */
+  /* Hide Backtester link — accessible via bottom nav */
   .header-backtester-link {
     display: none;
+  }
+}
+
+/* ─── Instrument Search Bar (Row 2 of header) ──────────────── */
+.header-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.header-search-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  padding: 0 10px;
+  transition: border-color 0.2s;
+}
+
+.header-search-input-wrap:focus-within {
+  border-color: rgba(99,102,241,0.6);
+}
+
+.header-search-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.header-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 0;
+  min-width: 0;
+}
+
+.header-search-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.header-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.header-search-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  min-width: 90px;
+}
+
+.hsp-price {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1.2;
+}
+
+.hsp-change {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+@media (max-width: 767px) {
+  .header-search-bar {
+    padding: 5px 8px;
+    gap: 8px;
+  }
+  .header-search-input {
+    font-size: 14px;  /* larger for mobile touch */
+    padding: 10px 0;
+  }
+  .hsp-price {
+    font-size: 14px;
+  }
+  .hsp-change {
+    font-size: 10px;
   }
 }
 
