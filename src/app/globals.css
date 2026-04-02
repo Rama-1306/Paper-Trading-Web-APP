@@ -1755,6 +1755,16 @@ select.input {
 }
 
 /* ─── Instrument Search Bar (Row 2 of header) ──────────────── */
+/* When rendered in the header as mobile-only, hide on desktop */
+.header-search-bar.header-search-mobile-only {
+  display: none;
+}
+@media (max-width: 767px) {
+  .header-search-bar.header-search-mobile-only {
+    display: flex;
+  }
+}
+
 .header-search-bar {
   display: flex;
   align-items: center;

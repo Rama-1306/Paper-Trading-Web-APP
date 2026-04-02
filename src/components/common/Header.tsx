@@ -76,20 +76,6 @@ export function Header() {
             <span className="header-logo-text">BN Paper Trader</span>
           </div>
 
-          {/* Hide balance/pnl on desktop in header - moved to Sidebar */}
-          <div className="header-balance md:hidden">
-            <span className="header-balance-label">Balance</span>
-            <span className={`header-balance-value ${dayPnl >= 0 ? 'profit' : 'loss'}`}>
-              {formatINR(balance)}
-            </span>
-          </div>
-
-          <div className="header-balance md:hidden">
-            <span className="header-balance-label">Day P&L</span>
-            <span className={`header-balance-value ${dayPnl >= 0 ? 'profit' : 'loss'}`}>
-              {dayPnl >= 0 ? '+' : ''}{formatINR(dayPnl)}
-            </span>
-          </div>
         </div>
 
         <div className="header-right">
@@ -169,8 +155,8 @@ export function Header() {
         </div>
       </header>
 
-      {/* ── Row 2: Dedicated instrument search bar (Mobile only in header) ── */}
-      <InstrumentSearch className="md:hidden" />
+      {/* ── Row 2: Instrument search bar — mobile only ── */}
+      <InstrumentSearch className="header-search-mobile-only" />
 
       {/* Mobile-only: balance + Day P&L strip */}
       <div className="header-mobile-summary">
