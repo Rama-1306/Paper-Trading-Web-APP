@@ -262,7 +262,7 @@ export default function Dashboard() {
               </div>
             )}
             {activeView === 'trades' && (
-              <div style={{ height: '100%', overflow: 'auto' }}>
+              <div style={{ height: '100%', overflow: 'hidden' }}>
                 <TradeHistory type="trades" />
               </div>
             )}

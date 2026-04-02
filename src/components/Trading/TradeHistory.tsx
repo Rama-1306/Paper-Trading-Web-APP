@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
-import { formatINR, formatPnL } from '@/lib/utils/formatters';
+import { formatINR, formatPnL, formatCompact } from '@/lib/utils/formatters';
 import { TradeDetailModal } from './TradeDetailModal';
 import { TradeData } from '@/types/trading';
 
@@ -340,7 +340,7 @@ export function TradeHistory({ type }: TradeHistoryProps) {
                         </div>
                         {dg ? (
                           <>
-                            {/* P&L */}
+                            {/* P&L — compact so it fits narrow mobile columns */}
                             <div style={{
                               fontSize: '9px',
                               fontWeight: 700,
@@ -352,7 +352,7 @@ export function TradeHistory({ type }: TradeHistoryProps) {
                               whiteSpace: 'nowrap',
                               padding: '0 2px',
                             }}>
-                              {dg.pnl >= 0 ? '+' : ''}{formatINR(Math.abs(dg.pnl))}
+                              {dg.pnl >= 0 ? '+' : '-'}{formatCompact(Math.abs(dg.pnl))}
                             </div>
                             {/* Trade count */}
                             <div style={{ fontSize: '8px', color: 'var(--text-muted)', lineHeight: 1, marginTop: '1px' }}>
@@ -364,24 +364,23 @@ export function TradeHistory({ type }: TradeHistoryProps) {
                     );
                   })}
 
-                  {/* Week P&L chip — shows on right if week has trades */}
+                  {/* Week P&L chip — inside band on right, compact format */}
                   {ws.count > 0 && (
                     <div style={{
                       position: 'absolute',
-                      right: '-2px',
+                      right: '4px',
                       top: '50%',
                       transform: 'translateY(-50%)',
                       fontSize: '8px',
                       fontWeight: 700,
                       color: ws.pnl >= 0 ? '#4caf50' : '#ef5350',
-                      background: 'var(--bg-primary)',
-                      border: `1px solid ${ws.pnl >= 0 ? 'rgba(76,175,80,0.3)' : 'rgba(239,83,80,0.3)'}`,
+                      background: 'rgba(0,0,0,0.35)',
                       borderRadius: '4px',
-                      padding: '1px 3px',
+                      padding: '1px 4px',
                       pointerEvents: 'none',
                       zIndex: 1,
                     }}>
-                      {ws.pnl >= 0 ? '+' : ''}{formatINR(Math.abs(ws.pnl))}
+                      {ws.pnl >= 0 ? '+' : '-'}{formatCompact(Math.abs(ws.pnl))}
                     </div>
                   )}
                 </div>
@@ -409,7 +408,7 @@ export function TradeHistory({ type }: TradeHistoryProps) {
           </div>
 
           {/* Scrollable trade list */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
             {bottomTrades.length === 0 ? (
               <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
                 {selectedDate || selectedWeekIdx !== null
