@@ -254,10 +254,51 @@ const prisma = new PrismaClient({
 const clients = new Map<string, { token: string | null; symbols: Set<string> }>();
 const activeSymbols = new Set<string>();
 let primaryBrokerToken: string | null = null;
+let activeSocketToken: string | null = null;
 let ensureSharedStatePromise: Promise<void> | null = null;
 
 let skt: any = null;
 let isProcessingOrders = false;
+
+function isFyersSocketConnected(): boolean {
+  if (!skt || typeof skt.isConnected !== 'function') return false;
+  try {
+    return !!skt.isConnected();
+  } catch {
+    return false;
+  }
+}
+
+function safelyCloseFyersSocket(instance: any) {
+  if (!instance) return;
+  try {
+    if (typeof instance.close_connection === 'function') {
+      instance.close_connection();
+      return;
+    }
+  } catch {}
+  try {
+    if (typeof instance.disconnect === 'function') {
+      instance.disconnect();
+      return;
+    }
+  } catch {}
+  try {
+    if (typeof instance.close === 'function') {
+      instance.close();
+      return;
+    }
+  } catch {}
+}
+
+function resetFyersSocket(reason: string) {
+  if (skt) {
+    console.log(`♻️ Resetting Fyers socket (${reason})`);
+    safelyCloseFyersSocket(skt);
+  }
+  skt = null;
+  activeSocketToken = null;
+}
 
 async function ensureSharedBrokerStateTable(): Promise<void> {
   if (ensureSharedStatePromise) {
@@ -316,9 +357,9 @@ async function ensurePrimaryBrokerTokenLoaded(): Promise<string | null> {
   return primaryBrokerToken;
 }
 
-function initFyersSocket(token: string) {
-  if (!token) return;
-  if (skt) return;
+function initFyersSocket(token: string, forceReconnect = false) {
+  const normalizedToken = token?.trim();
+  if (!normalizedToken) return;
 
   const appId = process.env.FYERS_APP_ID;
   if (!appId) {
@@ -326,9 +367,20 @@ function initFyersSocket(token: string) {
     return;
   }
 
-  const accessTokenFull = `${appId}:${token}`;
-  primaryBrokerToken = token;
-  void persistSharedBrokerToken(token).catch((error) => {
+  const sameToken = activeSocketToken === normalizedToken;
+  const connected = isFyersSocketConnected();
+
+  if (skt) {
+    if (!forceReconnect && sameToken && connected) {
+      return;
+    }
+    resetFyersSocket(forceReconnect ? 'forced reconnect' : (sameToken ? 'stale socket' : 'token rotation'));
+  }
+
+  const accessTokenFull = `${appId}:${normalizedToken}`;
+  primaryBrokerToken = normalizedToken;
+  activeSocketToken = normalizedToken;
+  void persistSharedBrokerToken(normalizedToken).catch((error) => {
     console.error('Failed to persist shared broker token:', error);
   });
   console.log('🔑 Initializing Fyers Data Socket...');
@@ -339,6 +391,7 @@ function initFyersSocket(token: string) {
   fyersSocket.on('connect', () => {
     console.log('🔗 Connected to Fyers Real-time Data WebSocket');
     skt = fyersSocket; // Reassign in case it was cleared after a previous close
+    activeSocketToken = normalizedToken;
 
     if (activeSymbols.size > 0) {
       const syms = Array.from(activeSymbols);
@@ -378,14 +431,30 @@ function initFyersSocket(token: string) {
 
   fyersSocket.on('error', (err: any) => {
     console.error('❌ Fyers WS Error:', err);
+    const msg = String(err?.message || err || '').toLowerCase();
+    const isAuthError =
+      msg.includes('invalid') ||
+      msg.includes('expired') ||
+      msg.includes('unauthor') ||
+      msg.includes('auth') ||
+      msg.includes('token');
+    if (isAuthError) {
+      resetFyersSocket('authentication error');
+    }
   });
 
   fyersSocket.on('close', () => {
     console.log('🔌 Fyers WS Closed — autoreconnect will retry');
     skt = null;
+    activeSocketToken = null;
   });
-
-  fyersSocket.connect();
+  try {
+    fyersSocket.connect();
+    fyersSocket.autoreconnect();
+  } catch (error) {
+    console.error('Failed to start Fyers socket:', error);
+    resetFyersSocket('startup failure');
+  }
   fyersSocket.autoreconnect();
 }
 
@@ -933,7 +1002,7 @@ async function fillPendingOrder(order: any, fillPrice: number) {
 }
 
 function handleSymbolSync() {
-  if (!skt || !skt.isConnected()) return;
+  if (!skt || !isFyersSocketConnected()) return;
 
   const syms = Array.from(activeSymbols);
   if (syms.length > 0) {
@@ -955,10 +1024,10 @@ io.on('connection', async (socket) => {
     void persistSharedBrokerToken(token).catch((error) => {
       console.error('Failed to persist shared broker token:', error);
     });
-    initFyersSocket(token);
+    initFyersSocket(token, true);
   } else {
     const persistedToken = await ensurePrimaryBrokerTokenLoaded();
-    if (persistedToken && !skt) {
+    if (persistedToken && !isFyersSocketConnected()) {
       initFyersSocket(persistedToken);
     }
   }
@@ -974,11 +1043,9 @@ io.on('connection', async (socket) => {
 
     console.log(`📊 Client ${socket.id} subscribed to: ${symbols.join(', ')}`);
     socket.emit('subscribed', Array.from(client.symbols));
-    if (!skt) {
-      const persistedToken = primaryBrokerToken || (await ensurePrimaryBrokerTokenLoaded());
-      if (persistedToken) {
-        initFyersSocket(persistedToken);
-      }
+    const tokenForFeed = token || primaryBrokerToken || (await ensurePrimaryBrokerTokenLoaded());
+    if (tokenForFeed && !isFyersSocketConnected()) {
+      initFyersSocket(tokenForFeed, !!token);
     }
 
     handleSymbolSync();
@@ -992,7 +1059,7 @@ io.on('connection', async (socket) => {
     activeSymbols.clear();
     clients.forEach(c => c.symbols.forEach(s => activeSymbols.add(s)));
 
-    if (skt && skt.isConnected()) {
+    if (skt && isFyersSocketConnected()) {
       skt.unsubscribe(symbols, false, 1);
     }
   });

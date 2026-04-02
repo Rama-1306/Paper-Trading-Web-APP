@@ -331,11 +331,53 @@ export function Header() {
 
         {connectionStatus.isConnected ? (
           <>
-            <div 
+            <div
               className="status-dot connected"
               title="Connected to Fyers live feed"
             />
             {isAdmin && (
+              <>
+                <a
+                  href="/api/auth/fyers"
+                  className="btn btn-primary"
+                  style={{ padding: '4px 10px', fontSize: '10px', textDecoration: 'none' }}
+                >
+                  Reconnect
+                </a>
+                <button
+                  onClick={handleDisconnectFyers}
+                  style={{
+                    background: 'rgba(255, 152, 0, 0.15)',
+                    color: '#ff9800',
+                    border: '1px solid rgba(255, 152, 0, 0.3)',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '9px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                  title="Clear local Fyers token and refresh"
+                >
+                  Clear Token
+                </button>
+              </>
+            )}
+          </>
+        ) : isAdmin ? (
+          <>
+            <div
+              className="status-dot"
+              style={{ background: '#ff9800' }}
+              title={hasToken ? 'Token found, reconnect if feed is stale' : 'Admin feed not connected'}
+            />
+            <a
+              href="/api/auth/fyers"
+              className="btn btn-primary"
+              style={{ padding: '4px 10px', fontSize: '10px', textDecoration: 'none' }}
+            >
+              {hasToken ? 'Reconnect Fyers' : 'Connect Fyers'}
+            </a>
+            {hasToken && (
               <button
                 onClick={handleDisconnectFyers}
                 style={{
@@ -348,9 +390,9 @@ export function Header() {
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}
-                title="Disconnect Fyers live feed"
+                title="Clear local Fyers token and refresh"
               >
-                Disconnect
+                Clear Token
               </button>
             )}
           </>
@@ -360,14 +402,6 @@ export function Header() {
             style={{ background: '#ff9800' }}
             title="Token found, connecting..."
           />
-        ) : isAdmin ? (
-          <a 
-            href="/api/auth/fyers" 
-            className="btn btn-primary"
-            style={{ padding: '4px 12px', fontSize: '11px', textDecoration: 'none' }}
-          >
-            Connect Fyers
-          </a>
         ) : (
           <div
             className="status-dot"
