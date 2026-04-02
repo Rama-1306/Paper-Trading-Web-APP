@@ -244,7 +244,7 @@ export default function Dashboard() {
           <div className="main-area">
             {activeView === 'chart' && (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <div className="hidden md:block" style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                <div className="desktop-only-search" style={{ borderBottom: '1px solid var(--border-primary)' }}>
                   <InstrumentSearch />
                 </div>
                 <ChartControls />
