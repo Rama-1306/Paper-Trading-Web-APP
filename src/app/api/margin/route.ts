@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/db';
 import { getMarginRequired, getQuickMargin, type MarginPosition } from '@/lib/utils/margins';
+import { getOrCreateAuthenticatedAccount } from '@/lib/account-context';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,19 +29,21 @@ export async function POST(request: NextRequest) {
     ];
 
     if (includeExisting) {
-      const account = await prisma.account.findFirst();
-      if (account) {
-        const openPositions = await prisma.position.findMany({
-          where: { accountId: account.id, isOpen: true },
-        });
+      const context = await getOrCreateAuthenticatedAccount();
+      if (!context) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
+      const { account } = context;
+      const openPositions = await prisma.position.findMany({
+        where: { accountId: account.id, isOpen: true },
+      });
 
-        for (const pos of openPositions) {
-          positions.push({
-            symbol: pos.symbol,
-            qty: pos.quantity,
-            side: pos.side === 'BUY' ? 1 : -1,
-          });
-        }
+      for (const pos of openPositions) {
+        positions.push({
+          symbol: pos.symbol,
+          qty: pos.quantity,
+          side: pos.side === 'BUY' ? 1 : -1,
+        });
       }
     }
 

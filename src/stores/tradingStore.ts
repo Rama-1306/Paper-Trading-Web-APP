@@ -66,7 +66,7 @@ export const useTradingStore = create<TradingState>((set) => ({
 
   fetchAccount: async () => {
     try {
-      const res = await fetch('/api/account');
+      const res = await fetch('/api/account', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         // /api/account returns { account: {...} }
@@ -80,7 +80,7 @@ export const useTradingStore = create<TradingState>((set) => ({
   fetchPositions: async () => {
     try {
       // Fetch all positions (open + closed) so PositionList can show today's closed ones
-      const res = await fetch('/api/positions?closed=true');
+      const res = await fetch('/api/positions?closed=true', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         set({ positions: data });
@@ -92,7 +92,7 @@ export const useTradingStore = create<TradingState>((set) => ({
 
   fetchOrders: async () => {
     try {
-      const res = await fetch('/api/orders');
+      const res = await fetch('/api/orders', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         set({ orders: data, pendingOrders: data.filter((o: any) => o.status === 'PENDING') });
@@ -104,7 +104,7 @@ export const useTradingStore = create<TradingState>((set) => ({
 
   fetchTrades: async () => {
     try {
-      const res = await fetch('/api/trades');
+      const res = await fetch('/api/trades', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         set({ trades: data });

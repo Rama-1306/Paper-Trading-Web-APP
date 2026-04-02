@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { writeFile } from 'fs/promises';
 import path from 'path';
+import { getOrCreateAuthenticatedAccount } from '@/lib/account-context';
 
 export async function POST(request: NextRequest) {
   try {
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const { account } = context;
     const formData = await request.formData();
     const file = formData.get('screenshot') as File;
     const tradeId = formData.get('tradeId') as string;
@@ -13,7 +19,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File and tradeId required' }, { status: 400 });
     }
 
-    const trade = await prisma.trade.findUnique({ where: { id: tradeId } });
+    const trade = await prisma.trade.findFirst({
+      where: {
+        id: tradeId,
+        accountId: account.id,
+      },
+    });
     if (!trade) {
       return NextResponse.json({ error: 'Trade not found' }, { status: 404 });
     }

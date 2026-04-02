@@ -193,6 +193,7 @@ async function processPositionSLTarget(tickMap: Record<string, number>) {
           });
           pos.stopLoss = newSL;
           io.emit('sl_updated', {
+            accountId: pos.accountId,
             positionId: pos.id,
             symbol: pos.symbol,
             stopLoss: newSL,
@@ -208,6 +209,7 @@ async function processPositionSLTarget(tickMap: Record<string, number>) {
           });
           pos.stopLoss = newSL;
           io.emit('sl_updated', {
+            accountId: pos.accountId,
             positionId: pos.id,
             symbol: pos.symbol,
             stopLoss: newSL,
@@ -373,6 +375,7 @@ async function partialCloseOnTarget(position: any, exitPrice: number) {
     console.log(`🎯 Partial Target Hit: ${position.displayName} ${position.side} ${exitQty}/${position.quantity} qty @ ${exitPrice.toFixed(2)} | P&L: ${pnlStr}`);
 
     io.emit('position_closed', {
+      accountId: position.accountId,
       positionId: position.id,
       symbol: position.symbol,
       displayName: position.displayName,
@@ -479,6 +482,7 @@ async function closePosition(position: any, exitPrice: number, exitReason: strin
     console.log(`📍 ${reasonLabel}: ${position.displayName} ${position.side} @ ${exitPrice.toFixed(2)} | P&L: ${pnl.toFixed(2)}`);
 
     io.emit('position_closed', {
+      accountId: position.accountId,
       positionId: position.id,
       symbol: position.symbol,
       displayName: position.displayName,
@@ -670,6 +674,7 @@ async function fillPendingOrder(order: any, fillPrice: number) {
     console.log(`${label}: ${order.displayName} ${order.side} ${order.orderType} @ ${fillPrice.toFixed(2)}`);
 
     io.emit('order_filled', {
+      accountId: order.accountId,
       orderId: order.id,
       positionId: result.positionId,
       symbol: order.symbol,

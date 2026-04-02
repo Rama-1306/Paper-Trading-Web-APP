@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { getOrCreateAuthenticatedAccount } from '@/lib/account-context';
 
 export async function GET() {
   try {
-    const account = await prisma.account.findFirst();
-    if (!account) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const { account } = context;
 
     const trades = await prisma.trade.findMany({
       where: { accountId: account.id },
@@ -23,6 +25,11 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const { account } = context;
     const body = await request.json();
     const { tradeId, notes, screenshotUrl } = body;
 
@@ -30,7 +37,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'tradeId required' }, { status: 400 });
     }
 
-    const trade = await prisma.trade.findUnique({ where: { id: tradeId } });
+    const trade = await prisma.trade.findFirst({
+      where: {
+        id: tradeId,
+        accountId: account.id,
+      },
+    });
     if (!trade) {
       return NextResponse.json({ error: 'Trade not found' }, { status: 404 });
     }

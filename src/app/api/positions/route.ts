@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { getOrCreateAuthenticatedAccount } from '@/lib/account-context';
 
 export async function GET(request: NextRequest) {
   try {
-    const account = await prisma.account.findFirst();
-    if (!account) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const { account } = context;
 
     const searchParams = request.nextUrl.searchParams;
     const showClosed = searchParams.get('closed') === 'true';
@@ -28,6 +30,11 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const { account } = context;
     const body = await request.json();
     const { positionId, stopLoss, targetPrice, targetQty, trailingSL, trailingDistance } = body;
 
@@ -35,8 +42,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'positionId required' }, { status: 400 });
     }
 
-    const position = await prisma.position.findUnique({
-      where: { id: positionId },
+    const position = await prisma.position.findFirst({
+      where: { id: positionId, accountId: account.id },
     });
 
     if (!position || !position.isOpen) {
@@ -97,6 +104,11 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const { account } = context;
     const body = await request.json();
     const { positionId, exitPrice, exitQuantity } = body;
 
@@ -104,8 +116,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'positionId required' }, { status: 400 });
     }
 
-    const position = await prisma.position.findUnique({
-      where: { id: positionId },
+    const position = await prisma.position.findFirst({
+      where: { id: positionId, accountId: account.id },
     });
 
     if (!position || !position.isOpen) {

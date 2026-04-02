@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { getOrCreateAuthenticatedAccount } from '@/lib/account-context';
 
 export async function GET() {
   try {
-    const account = await prisma.account.findFirst();
-    if (!account) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const { account } = context;
 
     const watchlists = await prisma.watchlist.findMany({
       where: { accountId: account.id },
@@ -23,10 +25,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const account = await prisma.account.findFirst();
-    if (!account) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const { account } = context;
 
     const body = await request.json();
     const { name } = body;
@@ -52,6 +55,12 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const { account } = context;
+
     const body = await request.json();
     const { watchlistId, name, addSymbol, addDisplayName, removeItemId } = body;
 
@@ -59,21 +68,32 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'watchlistId required' }, { status: 400 });
     }
 
+    const watchlist = await prisma.watchlist.findFirst({
+      where: {
+        id: watchlistId,
+        accountId: account.id,
+      },
+    });
+
+    if (!watchlist) {
+      return NextResponse.json({ error: 'Watchlist not found' }, { status: 404 });
+    }
+
     if (name !== undefined) {
       await prisma.watchlist.update({
-        where: { id: watchlistId },
+        where: { id: watchlist.id },
         data: { name: name.trim() },
       });
     }
 
     if (addSymbol) {
       const existing = await prisma.watchlistItem.findFirst({
-        where: { watchlistId, symbol: addSymbol },
+        where: { watchlistId: watchlist.id, symbol: addSymbol },
       });
       if (!existing) {
         await prisma.watchlistItem.create({
           data: {
-            watchlistId,
+            watchlistId: watchlist.id,
             symbol: addSymbol,
             displayName: addDisplayName || addSymbol,
           },
@@ -82,13 +102,21 @@ export async function PUT(request: NextRequest) {
     }
 
     if (removeItemId) {
-      await prisma.watchlistItem.delete({
-        where: { id: removeItemId },
+      const item = await prisma.watchlistItem.findFirst({
+        where: {
+          id: removeItemId,
+          watchlistId: watchlist.id,
+        },
       });
+      if (item) {
+        await prisma.watchlistItem.delete({
+          where: { id: item.id },
+        });
+      }
     }
 
     const updated = await prisma.watchlist.findUnique({
-      where: { id: watchlistId },
+      where: { id: watchlist.id },
       include: { items: { orderBy: { createdAt: 'asc' } } },
     });
 
@@ -101,6 +129,12 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const { account } = context;
+
     const body = await request.json();
     const { watchlistId } = body;
 
@@ -108,8 +142,18 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'watchlistId required' }, { status: 400 });
     }
 
+    const watchlist = await prisma.watchlist.findFirst({
+      where: {
+        id: watchlistId,
+        accountId: account.id,
+      },
+    });
+    if (!watchlist) {
+      return NextResponse.json({ error: 'Watchlist not found' }, { status: 404 });
+    }
+
     await prisma.watchlist.delete({
-      where: { id: watchlistId },
+      where: { id: watchlist.id },
     });
 
     return NextResponse.json({ success: true });

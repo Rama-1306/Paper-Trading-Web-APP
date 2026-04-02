@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { DEFAULT_CONFIG } from '@/lib/utils/constants';
 import { getQuickMargin } from '@/lib/utils/margins';
+import { getOrCreateAuthenticatedAccount } from '@/lib/account-context';
 
 export async function GET() {
   try {
-    const account = await prisma.account.findFirst();
-    if (!account) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const { account } = context;
 
     const [orders, trades] = await Promise.all([
       prisma.order.findMany({
@@ -108,10 +110,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const account = await prisma.account.findFirst();
-    if (!account) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const { account } = context;
 
 
     const order = await prisma.order.create({
@@ -367,6 +370,11 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const { account } = context;
     const body = await request.json();
     const { orderId } = body;
 
@@ -374,7 +382,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'orderId required' }, { status: 400 });
     }
 
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        accountId: account.id,
+      },
+    });
     if (!order || order.status !== 'PENDING') {
       return NextResponse.json({ error: 'Order not found or not pending' }, { status: 404 });
     }

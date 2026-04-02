@@ -58,6 +58,11 @@ export default function Dashboard() {
     registerServerEventHandler((event: string, data: any) => {
       const alertStore = useAlertStore.getState();
       const addNotification = useUIStore.getState().addNotification;
+      const currentAccountId = (useTradingStore.getState().account as any)?.id as string | undefined;
+
+      if (data?.accountId && (!currentAccountId || data.accountId !== currentAccountId)) {
+        return;
+      }
 
       if (event === 'position_closed') {
         alertStore.handlePositionClosed(data);
