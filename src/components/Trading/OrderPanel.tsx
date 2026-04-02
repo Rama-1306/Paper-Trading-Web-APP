@@ -26,6 +26,8 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
   const [trailingSL, setTrailingSL] = useState(false);
   const [trailingDistance, setTrailingDistance] = useState<string>('');
   const [showCharges, setShowCharges] = useState(false);
+  // Mobile-only: order form is collapsed by default, opened with +/− toggle
+  const [orderPanelOpen, setOrderPanelOpen] = useState(false);
 
   const orderSide = useTradingStore((s) => s.orderSide);
   const orderQuantity = useTradingStore((s) => s.orderQuantity);
@@ -160,7 +162,8 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
         setTargetPrice('');
         setTrailingSL(false);
         setTrailingDistance('');
-        
+        setOrderPanelOpen(false); // auto-collapse on mobile after order placed
+
         if (onOrderPlaced) onOrderPlaced();
       } else {
         const data = await res.json();
@@ -194,28 +197,68 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
     const dayPnl = todayRealizedPnl + unrealizedPnl;
 
     return (
-      <div style={{ padding: '10px 12px', background: 'var(--bg-panel)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        
-        {/* ROW 1: Instrument & Stats Strip */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid var(--border-primary)', paddingBottom: '8px' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div style={{ background: 'var(--bg-panel)', borderTop: '1px solid var(--border-primary)' }}>
+
+        {/* ── Collapsed header — always visible ── */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            gap: '8px',
+            cursor: 'pointer',
+          }}
+          onClick={() => setOrderPanelOpen(o => !o)}
+        >
+          {/* Left: instrument + price */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {parseSymbolDisplay(sym)}
             </div>
             {currentPrice > 0 && (
               <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 600, color: priceChange >= 0 ? 'var(--color-profit)' : 'var(--color-loss)' }}>
-                {currentPrice.toFixed(2)} ({priceChangePct >= 0 ? '+' : ''}{priceChangePct.toFixed(2)}%)
+                {currentPrice.toFixed(2)}
+                <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> ({priceChangePct >= 0 ? '+' : ''}{priceChangePct.toFixed(2)}%)</span>
               </div>
             )}
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Balance</div>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-bright)', fontFamily: 'var(--font-mono)' }}>{formatINR(balance)}</div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: dayPnl >= 0 ? '#4caf50' : '#f44336', fontFamily: 'var(--font-mono)' }}>
-              {dayPnl >= 0 ? '+' : ''}{formatINR(dayPnl)}
+
+          {/* Right: balance/pnl + toggle button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-bright)', fontFamily: 'var(--font-mono)' }}>{formatINR(balance)}</div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: dayPnl >= 0 ? '#4caf50' : '#f44336', fontFamily: 'var(--font-mono)' }}>
+                {dayPnl >= 0 ? '+' : ''}{formatINR(dayPnl)}
+              </div>
             </div>
+            <button
+              style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '50%',
+                border: '1.5px solid var(--border-primary)',
+                background: orderPanelOpen ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.06)',
+                color: orderPanelOpen ? '#9ab4ff' : 'var(--text-muted)',
+                fontSize: '18px',
+                lineHeight: 1,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+              aria-label={orderPanelOpen ? 'Collapse order form' : 'Open order form'}
+            >
+              {orderPanelOpen ? '−' : '+'}
+            </button>
           </div>
         </div>
+
+        {/* ── Expanded order form ── */}
+        {orderPanelOpen && (
+        <div style={{ padding: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-primary)' }}>
 
         {/* ROW 2: Qty & Side Toggle */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
@@ -317,7 +360,10 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
              {orderSide} {lots}
           </button>
         </div>
-        
+
+        </div> /* end expanded form */
+        )} {/* end orderPanelOpen */}
+
       </div>
     );
   }
