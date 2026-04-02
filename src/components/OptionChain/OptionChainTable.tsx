@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -13,9 +13,37 @@ interface WatchlistModalState {
   position: { x: number; y: number };
 }
 
+function buildFallbackOptionChainStrikes(atmStrike: number) {
+  return Array.from({ length: 21 }, (_, i) => {
+    const strike = atmStrike - 1000 + i * 100;
+    const dist = Math.abs(strike - atmStrike);
+    const baseCePremium = Math.max(20, 800 - dist * 0.6);
+    const basePePremium = Math.max(20, 800 - (1000 - dist) * 0.6);
+
+    return {
+      strikePrice: strike,
+      ce: {
+        symbol: `DEMO:BANKNIFTY${strike}CE`,
+        ltp: +baseCePremium.toFixed(2),
+        change: 0,
+        oi: Math.max(100000, 600000 - dist * 220),
+        volume: Math.max(25000, 300000 - dist * 120),
+      },
+      pe: {
+        symbol: `DEMO:BANKNIFTY${strike}PE`,
+        ltp: +basePePremium.toFixed(2),
+        change: 0,
+        oi: Math.max(100000, 600000 - (1000 - dist) * 220),
+        volume: Math.max(25000, 300000 - (1000 - dist) * 120),
+      },
+    };
+  });
+}
+
 export function OptionChainTable() {
   const optionChain = useMarketStore((s) => s.optionChain);
   const ticks = useMarketStore((s) => s.ticks);
+  const marketSpotPrice = useMarketStore((s) => s.spotPrice);
   const setSelectedSymbol = useTradingStore((s) => s.setSelectedSymbol);
   const addNotification = useUIStore((s) => s.addNotification);
   const [mounted, setMounted] = useState(false);
@@ -25,34 +53,11 @@ export function OptionChainTable() {
     setMounted(true);
   }, []);
 
-  const demoStrikes = Array.from({ length: 21 }, (_, i) => {
-    const atm = 55000;
-    const strike = atm - 1000 + i * 100;
-    const dist = Math.abs(strike - atm);
-    const baseCePremium = Math.max(20, 800 - dist * 0.6 + Math.random() * 40);
-    const basePePremium = Math.max(20, 800 - (1000 - dist) * 0.6 + Math.random() * 40);
-
-    return {
-      strikePrice: strike,
-      ce: {
-        symbol: `DEMO:BANKNIFTY${strike}CE`,
-        ltp: +(baseCePremium + (Math.random() - 0.5) * 20).toFixed(2),
-        change: +(Math.random() * 10 - 5).toFixed(2),
-        oi: Math.floor(Math.random() * 500000 + 100000),
-        volume: Math.floor(Math.random() * 200000 + 50000),
-      },
-      pe: {
-        symbol: `DEMO:BANKNIFTY${strike}PE`,
-        ltp: +(basePePremium + (Math.random() - 0.5) * 20).toFixed(2),
-        change: +(Math.random() * 10 - 5).toFixed(2),
-        oi: Math.floor(Math.random() * 500000 + 100000),
-        volume: Math.floor(Math.random() * 200000 + 50000),
-      },
-    };
-  });
+  const fallbackAtm = Math.round((marketSpotPrice || 55000) / 100) * 100;
+  const demoStrikes = useMemo(() => buildFallbackOptionChainStrikes(fallbackAtm), [fallbackAtm]);
 
   const strikes = optionChain?.strikes ?? demoStrikes;
-  const spotPrice = optionChain?.spotPrice || useMarketStore.getState().spotPrice || 55000;
+  const spotPrice = optionChain?.spotPrice || marketSpotPrice || 55000;
   const atmStrike = optionChain?.atmStrike || Math.round(spotPrice / 100) * 100;
 
   const handleOptionSelect = (symbol: string, strikePrice: number, type: 'CE' | 'PE') => {
@@ -103,6 +108,17 @@ export function OptionChainTable() {
 
   return (
     <div style={{ overflow: 'auto', height: '100%' }}>
+      {!optionChain && (
+        <div style={{
+          padding: '6px 12px',
+          fontSize: '10px',
+          color: 'var(--text-muted)',
+          borderBottom: '1px solid var(--border-primary)',
+          background: 'rgba(255, 152, 0, 0.08)',
+        }}>
+          Live option-chain feed not available. Showing stable fallback values.
+        </div>
+      )}
       {optionChain?.expiry && (
         <div style={{
           padding: '4px 12px',

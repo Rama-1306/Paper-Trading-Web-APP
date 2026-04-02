@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const token =
       cookieStore.get('fyers_access_token')?.value ||
       searchParams.get('token') ||
-      getSharedFyersToken();
+      (await getSharedFyersToken());
 
     if (!token) {
       return NextResponse.json({ error: 'Fyers token not found' }, { status: 401 });

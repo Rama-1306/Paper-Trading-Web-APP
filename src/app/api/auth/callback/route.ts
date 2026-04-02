@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     const fyers = new FyersAPI();
     const accessToken = await fyers.validateAuthCode(authCode);
-    setSharedFyersToken(accessToken);
+    await setSharedFyersToken(accessToken);
 
     // Instead of cookies, render a page that stores token in localStorage then redirects
     return new NextResponse(

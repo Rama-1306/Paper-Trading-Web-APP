@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       token = cookieStore.get('fyers_access_token')?.value || null;
     }
     if (!token) {
-      token = getSharedFyersToken();
+      token = await getSharedFyersToken();
     }
 
     // Calculate date range in epoch seconds

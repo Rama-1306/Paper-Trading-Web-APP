@@ -79,9 +79,67 @@ const prisma = new PrismaClient({
 const clients = new Map<string, { token: string | null; symbols: Set<string> }>();
 const activeSymbols = new Set<string>();
 let primaryBrokerToken: string | null = null;
+let ensureSharedStatePromise: Promise<void> | null = null;
 
 let skt: any = null;
 let isProcessingOrders = false;
+
+async function ensureSharedBrokerStateTable(): Promise<void> {
+  if (ensureSharedStatePromise) {
+    return ensureSharedStatePromise;
+  }
+
+  ensureSharedStatePromise = prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "SharedBrokerState" (
+      "provider" TEXT PRIMARY KEY,
+      "accessToken" TEXT,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).then(() => undefined);
+
+  try {
+    await ensureSharedStatePromise;
+  } catch (error) {
+    ensureSharedStatePromise = null;
+    throw error;
+  }
+}
+
+async function persistSharedBrokerToken(token: string) {
+  const normalized = token?.trim();
+  if (!normalized) return;
+  await ensureSharedBrokerStateTable();
+  await prisma.$executeRaw`
+    INSERT INTO "SharedBrokerState" ("provider", "accessToken", "updatedAt")
+    VALUES ('FYERS', ${normalized}, NOW())
+    ON CONFLICT ("provider")
+    DO UPDATE SET
+      "accessToken" = EXCLUDED."accessToken",
+      "updatedAt" = NOW()
+  `;
+}
+
+async function loadPersistedSharedBrokerToken(): Promise<string | null> {
+  await ensureSharedBrokerStateTable();
+  const rows = await prisma.$queryRaw<Array<{ accessToken: string | null }>>`
+    SELECT "accessToken"
+    FROM "SharedBrokerState"
+    WHERE "provider" = 'FYERS'
+    LIMIT 1
+  `;
+  const token = rows[0]?.accessToken?.trim();
+  return token && token.length > 0 ? token : null;
+}
+
+async function ensurePrimaryBrokerTokenLoaded(): Promise<string | null> {
+  if (primaryBrokerToken) return primaryBrokerToken;
+  try {
+    primaryBrokerToken = await loadPersistedSharedBrokerToken();
+  } catch (error) {
+    console.error('Failed to load shared broker token:', error);
+  }
+  return primaryBrokerToken;
+}
 
 function initFyersSocket(token: string) {
   if (!token) return;
@@ -95,6 +153,9 @@ function initFyersSocket(token: string) {
 
   const accessTokenFull = `${appId}:${token}`;
   primaryBrokerToken = token;
+  void persistSharedBrokerToken(token).catch((error) => {
+    console.error('Failed to persist shared broker token:', error);
+  });
   console.log('🔑 Initializing Fyers Data Socket...');
 
   const fyersSocket = fyersDataSocket.getInstance(accessTokenFull);
@@ -707,7 +768,7 @@ function handleSymbolSync() {
   }
 }
 
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => {
   console.log(`✅ Client connected: ${socket.id}`);
   const rawToken = socket.handshake.auth?.token;
   const token = typeof rawToken === 'string' && rawToken.trim() ? rawToken.trim() : null;
@@ -716,12 +777,18 @@ io.on('connection', (socket) => {
   socket.emit('authenticated', { success: true, sharedFeed: !token });
 
   if (token) {
+    void persistSharedBrokerToken(token).catch((error) => {
+      console.error('Failed to persist shared broker token:', error);
+    });
     initFyersSocket(token);
-  } else if (primaryBrokerToken && !skt) {
-    initFyersSocket(primaryBrokerToken);
+  } else {
+    const persistedToken = await ensurePrimaryBrokerTokenLoaded();
+    if (persistedToken && !skt) {
+      initFyersSocket(persistedToken);
+    }
   }
 
-  socket.on('subscribe', (symbols: string[]) => {
+  socket.on('subscribe', async (symbols: string[]) => {
     const client = clients.get(socket.id);
     if (!client) return;
 
@@ -732,8 +799,11 @@ io.on('connection', (socket) => {
 
     console.log(`📊 Client ${socket.id} subscribed to: ${symbols.join(', ')}`);
     socket.emit('subscribed', Array.from(client.symbols));
-    if (!skt && primaryBrokerToken) {
-      initFyersSocket(primaryBrokerToken);
+    if (!skt) {
+      const persistedToken = primaryBrokerToken || (await ensurePrimaryBrokerTokenLoaded());
+      if (persistedToken) {
+        initFyersSocket(persistedToken);
+      }
     }
 
     handleSymbolSync();
@@ -765,4 +835,11 @@ httpServer.listen(PORT, () => {
   console.log(`🚀 Fyers Live Data Server running on ws://localhost:${PORT}`);
   console.log(`   FYERS_APP_ID:   ${process.env.FYERS_APP_ID ? '✅ loaded' : '❌ missing — set in .env or .env.local'}`);
   console.log(`   DATABASE_URL:   ${process.env.DATABASE_URL ? '✅ loaded' : '❌ missing'}`);
+});
+
+void ensurePrimaryBrokerTokenLoaded().then((token) => {
+  if (token) {
+    console.log('🔑 Loaded shared broker token from DB');
+    initFyersSocket(token);
+  }
 });
