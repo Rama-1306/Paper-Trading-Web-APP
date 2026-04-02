@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
-import { formatINR, formatPnL, formatDateTime } from '@/lib/utils/formatters';
+import { formatINR, formatPnL } from '@/lib/utils/formatters';
 import { TradeDetailModal } from './TradeDetailModal';
 import { TradeData } from '@/types/trading';
 
@@ -13,7 +13,6 @@ interface TradeHistoryProps {
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function toIST(timestamp: number | string | Date) {
@@ -130,7 +129,11 @@ export function TradeHistory({ type }: TradeHistoryProps) {
   const toggle = (key: string) => {
     setExpanded(prev => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
       return next;
     });
   };
@@ -259,72 +262,74 @@ export function TradeHistory({ type }: TradeHistoryProps) {
     }
 
     return (
-      <div style={{ overflow: 'auto', height: '100%' }}>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Instrument</th>
-              <th>Side</th>
-              <th>Type</th>
-              <th className="right">Qty</th>
-              <th className="right">Price</th>
-              <th className="right">Trigger</th>
-              <th className="center">Status</th>
-              <th className="center">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <tr key={order.id}>
-                <td style={{ color: 'var(--text-muted)' }}>
-                  {formatDateTime(order.createdAt)}
-                </td>
-                <td style={{ fontWeight: 600 }}>{order.displayName || order.symbol}</td>
-                <td>
-                  <span className={order.side === 'BUY' ? 'buy-side' : 'sell-side'}
-                    style={{ fontWeight: 600 }}
-                  >
-                    {order.side}
+      <div style={{ overflow: 'auto', height: '100%', padding: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {orders.map((order) => {
+            const sideLabel = order.side === 'BUY' ? 'B' : 'S';
+            const sideClass = order.side === 'BUY' ? 'jnl-side-buy' : 'jnl-side-sell';
+            const typeLabel = order.orderType === 'MARKET' ? 'M' : order.orderType === 'LIMIT' ? 'L' : order.orderType === 'SL' ? 'SL' : 'SM';
+            const statusLabel = order.status === 'FILLED' ? 'F' : order.status === 'PENDING' ? 'P' : order.status === 'REJECTED' ? 'R' : 'C';
+
+            return (
+              <div key={order.id} style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-primary)',
+                borderRadius: 'var(--radius-md)',
+                padding: '8px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px'
+              }}>
+                {/* Row 1: Side | Instrument | Type | Status | Qty */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className={`jnl-trade-side ${sideClass}`} style={{ padding: '2px 6px', fontSize: '11px', minWidth: 'auto' }}>
+                    {sideLabel}
                   </span>
-                </td>
-                <td>{order.orderType}</td>
-                <td className="right">{order.quantity}</td>
-                <td className="right">
-                  {order.filledPrice
-                    ? order.filledPrice.toFixed(2)
-                    : order.price?.toFixed(2) ?? 'MKT'}
-                </td>
-                <td className="right">{order.triggerPrice?.toFixed(2) ?? '—'}</td>
-                <td className="center">
-                  <div style={{ display: 'grid', justifyItems: 'center', gap: '2px' }}>
-                    <span style={{
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      fontSize: '10px',
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      ...(order.status === 'FILLED' ? {
-                        color: 'var(--color-profit)',
-                        background: 'var(--color-profit-bg)',
-                      } : order.status === 'REJECTED' || order.status === 'CANCELLED' ? {
-                        color: 'var(--color-loss)',
-                        background: 'var(--color-loss-bg)',
-                      } : {
-                        color: 'var(--color-warning)',
-                        background: 'rgba(255, 171, 0, 0.1)',
-                      }),
-                    }}>
-                      {order.status}
-                    </span>
-                    {order.status === 'REJECTED' && order.rejectedReason && (
-                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', maxWidth: '160px', whiteSpace: 'normal' }}>
-                        {order.rejectedReason}
-                      </span>
-                    )}
+                  <span style={{ fontWeight: 600, fontSize: '12px', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {order.displayName || order.symbol}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '4px' }}>
+                    {typeLabel}
+                  </span>
+                  <span style={{
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    ...(order.status === 'FILLED' ? {
+                      color: 'var(--color-profit)',
+                      background: 'var(--color-profit-bg)',
+                    } : order.status === 'REJECTED' || order.status === 'CANCELLED' ? {
+                      color: 'var(--color-loss)',
+                      background: 'var(--color-loss-bg)',
+                    } : {
+                      color: 'var(--color-warning)',
+                      background: 'rgba(255, 171, 0, 0.1)',
+                    }),
+                  }}>
+                    {statusLabel}
+                  </span>
+                  <span style={{ fontSize: '12px', fontWeight: 600 }}>{order.quantity}</span>
+                </div>
+
+                {/* Row 2: Price | Trigger | Action */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        P: <span style={{ color: 'var(--text-primary)' }}>
+                           {order.filledPrice ? order.filledPrice.toFixed(2) : order.price?.toFixed(2) ?? 'MKT'}
+                        </span>
+                     </span>
+                     {(order.triggerPrice || order.orderType === 'SL' || order.orderType === 'SL-M') && (
+                       <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          T: <span style={{ color: 'var(--text-primary)' }}>{order.triggerPrice?.toFixed(2) ?? '—'}</span>
+                       </span>
+                     )}
+                     <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                        {formatTimeOnly(order.createdAt)}
+                     </span>
                   </div>
-                </td>
-                <td className="center">
+                  
                   {order.status === 'PENDING' ? (
                     <button
                       className="btn btn-ghost btn-sm"
@@ -334,14 +339,16 @@ export function TradeHistory({ type }: TradeHistoryProps) {
                     >
                       {cancellingOrderId === order.id ? '...' : 'Cancel'}
                     </button>
-                  ) : (
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>—</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  ) : order.status === 'REJECTED' && order.rejectedReason ? (
+                     <span style={{ fontSize: '9px', color: 'var(--color-loss)', maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={order.rejectedReason}>
+                        {order.rejectedReason}
+                     </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }

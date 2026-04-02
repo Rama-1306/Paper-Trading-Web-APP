@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 'use client';
 import { useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
@@ -8,17 +8,101 @@ const C0="#0d1117",C1="#161b22",C2="#21262d",CT="#cdd9e5";
 const GRN="#00CC00",RED="#CC0000",ORG="#ffa500",BLU="#58a6ff";
 const POWER=["11:00","12:30","13:15","13:30","15:00"];
 const AVOID=["9:45","10:15","10:30","10:45","11:45","14:45"];
-const clrN=n=>n>0?GRN:n<0?RED:"#888";
-const fmt=(n,d=0)=>n==null||isNaN(n)?"—":(+n).toFixed(d);
-const pct=n=>n==null||isNaN(n)?"—":(n*100).toFixed(1)+"%";
-const nz=(v,d=0)=>v==null||isNaN(v)?d:v;
+const clrN=(n: number)=>n>0?GRN:n<0?RED:"#888";
+const fmt=(n: number | null | undefined,d=0)=>n==null||isNaN(n)?"—":(+n).toFixed(d);
+const pct=(n: number | null | undefined)=>n==null||isNaN(n)?"—":(n*100).toFixed(1)+"%";
+const nz=(v: number | null | undefined,d=0)=>v==null||isNaN(v)?d:v;
 
-function calcEMA(src,p){
+interface RawBar {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+interface BuiltBar extends RawBar {
+  e5: number;
+  saha: number;
+  st: number;
+  dir: number;
+  isBull: boolean;
+  isBear: boolean;
+  chg: boolean;
+}
+
+interface TradeSetup {
+  d: number;
+  entry: number;
+  sl: number;
+  t1: number;
+  t2: number;
+  t3: number;
+  t4: number;
+  rng: number;
+  risk: number;
+  hr: number;
+  mn: number;
+}
+
+interface SMBar extends BuiltBar {
+  col: string;
+  sig: number;
+  sd: TradeSetup | null;
+}
+
+interface SimulatedTrade {
+  i: number;
+  d: number;
+  entry: number;
+  sl: number;
+  t1: number;
+  t2: number;
+  t3: number;
+  t4: number;
+  ae: number;
+  exitP: number;
+  exitR: string;
+  exitI: number;
+  tHit: number;
+  pnl: number;
+  rr: number;
+  distRatio: number;
+  hr: number;
+  mn: number;
+  win: boolean;
+  timeStr: string;
+  dl: string;
+  date: string;
+  mk: string;
+}
+
+interface Stats {
+  n: number;
+  W: number;
+  L: number;
+  wr: number;
+  tot: number;
+  avg: number;
+  avgW: number;
+  avgL: number;
+  rr: number;
+  tH: number[];
+  dd: number;
+  data: SimulatedTrade[];
+  dist?: number;
+  h0?: number;
+  h1?: number;
+  dir?: string;
+}
+
+function calcEMA(src: number[],p: number): number[]{
   const k=2/(p+1),o=src.map(()=>NaN);let pv=NaN;
   src.forEach((v,i)=>{if(isNaN(v))return;o[i]=isNaN(pv)?v:v*k+pv*(1-k);pv=o[i];});
   return o;
 }
-function calcRMA(src,p){
+function calcRMA(src: number[],p: number): number[]{
   const o=src.map(()=>NaN);let st=false,pv=NaN,cnt=0,s=0;
   for(let i=0;i<src.length;i++){
     if(isNaN(src[i]))continue;
@@ -26,7 +110,7 @@ function calcRMA(src,p){
     else{o[i]=(pv*(p-1)+src[i])/p;pv=o[i];}
   }return o;
 }
-function calcST(H,L,C,p=21,m=1){
+function calcST(H: number[],L: number[],C: number[],p=21,m=1): {st: number[], dir: number[]} {
   const n=C.length;
   const tr=C.map((_,i)=>i===0?H[i]-L[i]:Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])));
   const atr=calcRMA(tr,p);
@@ -43,7 +127,7 @@ function calcST(H,L,C,p=21,m=1){
   }
   return{st,dir};
 }
-function calcSaha(hlc3,tr){
+function calcSaha(hlc3: number[],tr: number[]): number[]{
   const o=Array(hlc3.length).fill(NaN);
   let v1=0,v2=0,v3=nz(hlc3[0]);o[0]=v3;
   for(let i=1;i<hlc3.length;i++){
@@ -54,12 +138,12 @@ function calcSaha(hlc3,tr){
     v3=alp*hlc3[i]+(1-alp)*v3;o[i]=v3;
   }return o;
 }
-function calcShema(src,p){
+function calcShema(src: number[],p: number): number[]{
   const lag=Math.round((p-1)/2);
   const ed=src.map((v,i)=>i>=lag&&!isNaN(v)&&!isNaN(src[i-lag])?v+(v-src[i-lag]):NaN);
   return calcEMA(ed,p);
 }
-function buildBars(raw){
+function buildBars(raw: RawBar[]): BuiltBar[]{
   const H=raw.map(b=>b.high),L=raw.map(b=>b.low),C=raw.map(b=>b.close);
   const hlc3=raw.map(b=>(b.high+b.low+b.close)/3);
   const tr=C.map((_,i)=>i===0?H[i]-L[i]:Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])));
@@ -67,7 +151,7 @@ function buildBars(raw){
   const{st,dir}=calcST(H,L,C,21,1);
   return raw.map((b,i)=>({...b,e5:e5[i],saha:saha[i],st:st[i],dir:dir[i],isBull:dir[i]<0,isBear:dir[i]>0,chg:i>0&&dir[i]!==dir[i-1]}));
 }
-function runSM(bars){
+function runSM(bars: BuiltBar[]): SMBar[]{
   let state="INIT",prevST=NaN,bkH=NaN,bkL=NaN,lBFH=NaN,lBFL=NaN,lSFH=NaN,lSFL=NaN;
   return bars.map((b,i)=>{
     if(i===0)return{...b,col:"GREY",sig:0,sd:null};
@@ -94,7 +178,7 @@ function runSM(bars){
       if(col==="GREEN"&&!isNaN(bars[i-1].low)&&bars[i-1].low>C)col="ORANGE";
       if(col==="RED"&&!isNaN(bars[i-1].high)&&bars[i-1].high<C)col="BLUE";
     }
-    let sd=null;
+    let sd: TradeSetup | null=null;
     if(dBull||dBear){
       const rng=tH-tL,risk=1.618*rng,d=dBull?1:-1;
       const entry=dBull?tH:tL,sl=dBull?entry-risk:entry+risk;
@@ -108,8 +192,8 @@ function runSM(bars){
     return{...b,col,sig:dBull?1:dBear?-1:0,sd};
   });
 }
-function simulate(bars){
-  const trades=[];
+function simulate(bars: SMBar[]): SimulatedTrade[]{
+  const trades: SimulatedTrade[]=[];
   for(let i=0;i<bars.length-1;i++){
     const b=bars[i];if(!b.sd)continue;
     const{d,entry,sl,t1,t2,t3,t4,hr,mn}=b.sd;
@@ -147,10 +231,10 @@ function simulate(bars){
   }
   return trades;
 }
-function calcStats(t){
+function calcStats(t: SimulatedTrade[]): Stats | null{
   if(!t||!t.length)return null;
   const W=t.filter(x=>x.win),L=t.filter(x=>!x.win);
-  const sum=a=>a.reduce((s,x)=>s+x.pnl,0);
+  const sum=(a: SimulatedTrade[])=>a.reduce((s,x)=>s+x.pnl,0);
   let peak=0,dd=0,cum=0;
   t.forEach(x=>{cum+=x.pnl;if(cum>peak)peak=cum;dd=Math.min(dd,cum-peak);});
   return{n:t.length,W:W.length,L:L.length,wr:W.length/t.length,
@@ -158,18 +242,18 @@ function calcStats(t){
     rr:t.reduce((s,x)=>s+x.rr,0)/t.length,
     tH:[0,1,2,3,4].map(n=>t.filter(x=>x.tHit>=n).length),dd,data:t};
 }
-function applyFilt(trades,f){
+function applyFilt(trades: SimulatedTrade[],f: {dist?: number, h0?: number, h1?: number, dir?: string}): SimulatedTrade[]{
   let t=[...trades];
-  if(f.dist!=null)t=t.filter(x=>x.distRatio<=f.dist);
-  if(f.h0!=null)t=t.filter(x=>x.hr>=f.h0);
-  if(f.h1!=null)t=t.filter(x=>x.hr<=f.h1);
+  if(f.dist!=null)t=t.filter(x=>x.distRatio<=f.dist!);
+  if(f.h0!=null)t=t.filter(x=>x.hr>=f.h0!);
+  if(f.h1!=null)t=t.filter(x=>x.hr<=f.h1!);
   if(f.dir&&f.dir!=="ALL")t=t.filter(x=>x.dl===f.dir);
   return t;
 }
-function parseCSV(txt){
+function parseCSV(txt: string): RawBar[]{
   const lines=txt.trim().split("\n").map(l=>l.replace(/\r/g,""));
   const hdr=lines[0].toLowerCase().split(",").map(h=>h.trim().replace(/['"]/g,""));
-  const fi=(...ns)=>{for(const n of ns){const i=hdr.findIndex(h=>h.includes(n));if(i>=0)return i;}return -1;};
+  const fi=(...ns: any[])=>{for(const n of ns){const i=hdr.findIndex(h=>h.includes(n));if(i>=0)return i;}return -1;};
   const tI=fi("time","date"),oI=fi("open"),hI=fi("high"),lI=fi("low"),cI=fi("close");
   if([oI,hI,lI,cI].some(x=>x<0))throw new Error("Cannot find OHLC columns.");
   const bars=[];
@@ -189,15 +273,15 @@ function parseCSV(txt){
 }
 
 /* ── shared UI ── */
-const Card=({label,val,sub,c=CT})=>(
+const Card=({label,val,sub,c=CT}: {label: string, val: React.ReactNode, sub?: string, c?: string})=>(
   <div style={{background:C1,borderRadius:8,padding:"11px 13px",border:`1px solid ${C2}`}}>
     <div style={{color:"#888",fontSize:10,marginBottom:3}}>{label}</div>
     <div style={{color:c,fontSize:17,fontWeight:"bold"}}>{val}</div>
     {sub&&<div style={{color:"#888",fontSize:10,marginTop:3}}>{sub}</div>}
   </div>
 );
-const TT=props=><Tooltip contentStyle={{background:C1,border:`1px solid ${C2}`,fontSize:10,color:CT}} {...props}/>;
-const StatsRow=({s})=>!s?null:(
+const TT=(props: any)=><Tooltip contentStyle={{background:C1,border:`1px solid ${C2}`,fontSize:10,color:CT}} {...props}/>;
+const StatsRow=({s}: {s: Stats | null})=>!s?null:(
   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:6,marginBottom:12}}>
     <Card label="TRADES" val={s.n} sub={`${s.W}W / ${s.L}L`}/>
     <Card label="WIN RATE" val={pct(s.wr)} c={s.wr>=0.5?GRN:RED}/>
@@ -211,7 +295,7 @@ const StatsRow=({s})=>!s?null:(
 );
 
 /* ── Trades Tab ── */
-function TradesTab({trades}){
+function TradesTab({trades}: {trades: SimulatedTrade[]}){
   const[tDir,setTDir]=useState("ALL");
   const[tExit,setTExit]=useState("ALL");
   const[tDist,setTDist]=useState("ALL");
@@ -240,7 +324,14 @@ function TradesTab({trades}){
     else if(tTime==="OPEN")t=t.filter(x=>x.hr>=9&&x.hr<10);
     else if(tTime==="MID")t=t.filter(x=>x.hr>=11&&x.hr<14);
     else if(tTime==="CLOSE")t=t.filter(x=>x.hr>=14);
-    t.sort((a,b)=>sAsc?(a[sKey]>b[sKey]?1:-1):(a[sKey]<b[sKey]?1:-1));
+    t.sort((a,b)=>{
+      const va = a[sKey as keyof SimulatedTrade];
+      const vb = b[sKey as keyof SimulatedTrade];
+      if (typeof va === "number" && typeof vb === "number") {
+          return sAsc ? va - vb : vb - va;
+      }
+      return sAsc ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+    });
     return t;
   },[trades,tDir,tExit,tDist,tTime,sKey,sAsc]);
 
@@ -261,11 +352,11 @@ function TradesTab({trades}){
       setCopied(true);setTimeout(()=>setCopied(false),2500);
     }).catch(()=>{
       const el=document.getElementById("csvTA");
-      if(el){el.select();document.execCommand("copy");setCopied(true);setTimeout(()=>setCopied(false),2500);}
+      if(el){(el as HTMLTextAreaElement).select();document.execCommand("copy");setCopied(true);setTimeout(()=>setCopied(false),2500);}
     });
   },[csvText]);
 
-  const FILTERS=[
+  const FILTERS: {label: string, opts: string[][], val: string, set: (v: string)=>void, ac: (v: string)=>string}[]=[
     {label:"Direction",opts:[["ALL","ALL"],["BULL","▲ BULL"],["BEAR","▼ BEAR"]],val:tDir,set:setTDir,ac:v=>v==="BULL"?GRN:v==="BEAR"?RED:GRN},
     {label:"Exit Type",opts:[["ALL","All"],["SL","SL Hit"],["Trail-T1","Trail-T1"],["Trail-T2","Trail-T2"],["Trail-T3","Trail-T3"],["T4","T4 Full"],["Time","Time"]],val:tExit,set:setTExit,ac:v=>v==="SL"?RED:v==="T4"?GRN:ORG},
     {label:"Entry Dist",opts:[["ALL","All"],["0-25","0-25%"],["25-50","25-50%"],["50-75","50-75%"],["75-100","75-100%"],["100+",">100%"]],val:tDist,set:setTDist,ac:()=>ORG},
@@ -353,15 +444,15 @@ function TradesTab({trades}){
 
 /* ── Main App ── */
 export default function BacktesterPage(){
-  const[trades,setTrades]=useState(null);
-  const[bars,setBars]=useState(null);
+  const[trades,setTrades]=useState<SimulatedTrade[] | null>(null);
+  const[bars,setBars]=useState<SMBar[] | null>(null);
   const[tab,setTab]=useState("overview");
   const[filt,setFilt]=useState({dist:0.75,h0:9,h1:14,dir:"ALL"});
-  const[err,setErr]=useState(null);
+  const[err,setErr]=useState<string | null>(null);
   const[loading,setLoading]=useState(false);
-  const fileRef=useRef();
+  const fileRef=useRef<HTMLInputElement>(null);
 
-  const loadFile=useCallback(async e=>{
+  const loadFile=useCallback(async (e: React.ChangeEvent<HTMLInputElement>)=>{
     const f=e.target.files?.[0];if(!f)return;
     setLoading(true);setErr(null);
     try{
@@ -370,7 +461,7 @@ export default function BacktesterPage(){
       if(raw.length<50)throw new Error("Too few bars — check CSV format.");
       const b2=buildBars(raw),b3=runSM(b2),tr=simulate(b3);
       setBars(b3);setTrades(tr);setTab("overview");
-    }catch(ex){setErr(ex.message);}
+    }catch(ex: any){setErr(ex.message);}
     setLoading(false);e.target.value="";
   },[]);
 
@@ -379,14 +470,14 @@ export default function BacktesterPage(){
 
   const timeData=useMemo(()=>{
     if(!trades)return[];
-    const m={};
+    const m: Record<string, any>={};
     trades.forEach(t=>{if(!m[t.timeStr])m[t.timeStr]={time:t.timeStr,W:0,n:0,pnl:0};m[t.timeStr].n++;if(t.win)m[t.timeStr].W++;m[t.timeStr].pnl+=t.pnl;});
-    return Object.values(m).sort((a,b)=>a.time.localeCompare(b.time)).map(x=>({...x,wr:x.W/x.n}));
+    return Object.values(m).sort((a: any,b: any)=>a.time.localeCompare(b.time)).map((x: any)=>({...x,wr:x.W/x.n}));
   },[trades]);
 
   const monthData=useMemo(()=>{
     if(!trades)return[];
-    const m={};
+    const m: Record<string, any>={};
     trades.forEach(t=>{if(!m[t.mk])m[t.mk]={month:t.mk,pnl:0,n:0,W:0};m[t.mk].n++;m[t.mk].pnl+=t.pnl;if(t.win)m[t.mk].W++;});
     return Object.values(m);
   },[trades]);
@@ -438,7 +529,7 @@ export default function BacktesterPage(){
             <div style={{color:CT,fontWeight:"bold",marginBottom:6}}>📋 How to export from TradingView</div>
             <div>1. Open <span style={{color:ORG}}>BANKNIFTY1!</span> → 15m chart</div>
             <div>2. Right-click anywhere on the chart</div>
-            <div>3. Click <span style={{color:GRN}}>"Download chart data (CSV)"</span></div>
+            <div>3. Click <span style={{color:GRN}}>&quot;Download chart data (CSV)&quot;</span></div>
             <div>4. Upload that file here ↑</div>
           </div>
         </div>
@@ -446,7 +537,7 @@ export default function BacktesterPage(){
     );
   }
 
-  const TB=({id,lbl})=>(
+  const TB=({id,lbl}: {id: string, lbl: string})=>(
     <button onClick={()=>setTab(id)} style={{padding:"7px 11px",borderRadius:5,border:"none",cursor:"pointer",fontSize:10,fontFamily:"monospace",whiteSpace:"nowrap",background:tab===id?GRN:C2,color:tab===id?"#000":CT,fontWeight:tab===id?"bold":"normal"}}>{lbl}</button>
   );
 
@@ -457,12 +548,12 @@ export default function BacktesterPage(){
         <span style={{color:GRN,fontWeight:"bold",fontSize:13}}>📊 CCC Backtester</span>
         <span style={{color:"#888"}}>BankNifty 15m</span>
         <span style={{color:"#888"}}>•</span>
-        <span>{bars.length.toLocaleString()} bars</span>
+        <span>{bars!.length.toLocaleString()} bars</span>
         <span style={{color:"#888"}}>•</span>
         <span style={{color:ORG}}>{trades.length} signals</span>
         <div style={{marginLeft:"auto",display:"flex",gap:12,fontSize:10,alignItems:"center"}}>
-          <span>WR:<strong style={{color:clrN(allS.wr-0.5),marginLeft:4}}>{pct(allS.wr)}</strong></span>
-          <span>P&L:<strong style={{color:clrN(allS.tot),marginLeft:4}}>{fmt(allS.tot,0)} pts</strong></span>
+          <span>WR:<strong style={{color:clrN(allS!.wr-0.5),marginLeft:4}}>{pct(allS!.wr)}</strong></span>
+          <span>P&L:<strong style={{color:clrN(allS!.tot),marginLeft:4}}>{fmt(allS!.tot,0)} pts</strong></span>
           <button onClick={()=>{setTrades(null);setBars(null);}} style={{background:"none",border:`1px solid ${BLU}`,color:BLU,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontSize:10,fontFamily:"monospace"}}>↩ Load new</button>
         </div>
       </div>
@@ -483,7 +574,7 @@ export default function BacktesterPage(){
           <div style={{background:C1,borderRadius:8,padding:12,border:`1px solid ${C2}`,marginBottom:12}}>
             <div style={{color:"#888",fontSize:10,marginBottom:6}}>CUMULATIVE P&L — all {allS.n} signals (unfiltered)</div>
             <ResponsiveContainer width="100%" height={130}>
-              <LineChart data={cumData}><YAxis tick={{fill:"#888",fontSize:9}} width={55}/><TT formatter={v=>[`${fmt(v,0)} pts`]}/><ReferenceLine y={0} stroke="#444"/><Line type="monotone" dataKey="c" dot={false} strokeWidth={1.5} stroke={allS.tot>=0?GRN:RED}/></LineChart>
+              <LineChart data={cumData}><YAxis tick={{fill:"#888",fontSize:9}} width={55}/><TT formatter={(v: any)=>[`${fmt(v,0)} pts`]}/><ReferenceLine y={0} stroke="#444"/><Line type="monotone" dataKey="c" dot={false} strokeWidth={1.5} stroke={allS!.tot>=0?GRN:RED}/></LineChart>
             </ResponsiveContainer>
           </div>
           <div style={{background:C1,borderRadius:8,padding:12,border:`1px solid ${C2}`,marginBottom:12}}>
@@ -527,7 +618,7 @@ export default function BacktesterPage(){
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={distBuckets} barSize={50}>
                 <XAxis dataKey="r" tick={{fill:"#888",fontSize:10}}/><YAxis tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fill:"#888",fontSize:9}} domain={[0,1]}/>
-                <ReferenceLine y={0.5} stroke="#444" strokeDasharray="3 3"/><TT formatter={(v,n)=>n==="wr"?pct(v):fmt(v,0)}/>
+                <ReferenceLine y={0.5} stroke="#444" strokeDasharray="3 3"/><TT formatter={(v: any,n: any)=>n==="wr"?pct(v):fmt(v,0)}/>
                 <Bar dataKey="wr" name="Win Rate" radius={[3,3,0,0]}>{distBuckets.map((b,i)=><Cell key={i} fill={b.wr>=0.5?GRN:b.wr>=0.4?ORG:RED}/>)}</Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -554,13 +645,13 @@ export default function BacktesterPage(){
           <div style={{background:C1,borderRadius:8,padding:12,border:`1px solid ${C2}`,marginBottom:12}}>
             <div style={{color:"#888",fontSize:10,marginBottom:6}}>WIN RATE BY 15-MIN SLOT (IST)</div>
             <ResponsiveContainer width="100%" height={170}>
-              <BarChart data={timeData}><XAxis dataKey="time" tick={{fill:"#888",fontSize:9}} interval={1}/><YAxis tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fill:"#888",fontSize:9}} domain={[0,1]}/><ReferenceLine y={0.5} stroke="#444" strokeDasharray="3 3"/><TT formatter={v=>pct(v)}/><Bar dataKey="wr" name="Win Rate" radius={[2,2,0,0]}>{timeData.map((s,i)=><Cell key={i} fill={s.wr>=0.6?GRN:s.wr>=0.4?ORG:RED}/>)}</Bar></BarChart>
+              <BarChart data={timeData}><XAxis dataKey="time" tick={{fill:"#888",fontSize:9}} interval={1}/><YAxis tickFormatter={(v: any)=>`${(v*100).toFixed(0)}%`} tick={{fill:"#888",fontSize:9}} domain={[0,1]}/><ReferenceLine y={0.5} stroke="#444" strokeDasharray="3 3"/><TT formatter={(v: any)=>pct(v)}/><Bar dataKey="wr" name="Win Rate" radius={[2,2,0,0]}>{timeData.map((s,i)=><Cell key={i} fill={s.wr>=0.6?GRN:s.wr>=0.4?ORG:RED}/>)}</Bar></BarChart>
             </ResponsiveContainer>
           </div>
           <div style={{background:C1,borderRadius:8,padding:12,border:`1px solid ${C2}`,marginBottom:12}}>
             <div style={{color:"#888",fontSize:10,marginBottom:6}}>TOTAL P&L BY TIME SLOT (pts)</div>
             <ResponsiveContainer width="100%" height={150}>
-              <BarChart data={timeData}><XAxis dataKey="time" tick={{fill:"#888",fontSize:9}} interval={1}/><YAxis tick={{fill:"#888",fontSize:9}}/><ReferenceLine y={0} stroke="#444"/><TT formatter={v=>`${fmt(v,0)} pts`}/><Bar dataKey="pnl" name="P&L" radius={[2,2,0,0]}>{timeData.map((s,i)=><Cell key={i} fill={s.pnl>=0?GRN:RED}/>)}</Bar></BarChart>
+              <BarChart data={timeData}><XAxis dataKey="time" tick={{fill:"#888",fontSize:9}} interval={1}/><YAxis tick={{fill:"#888",fontSize:9}}/><ReferenceLine y={0} stroke="#444"/><TT formatter={(v: any)=>`${fmt(v,0)} pts`}/><Bar dataKey="pnl" name="P&L" radius={[2,2,0,0]}>{timeData.map((s,i)=><Cell key={i} fill={s.pnl>=0?GRN:RED}/>)}</Bar></BarChart>
             </ResponsiveContainer>
           </div>
           <div style={{background:C1,borderRadius:8,padding:10,border:`1px solid ${C2}`}}>
@@ -586,7 +677,7 @@ export default function BacktesterPage(){
           <div style={{background:C1,borderRadius:8,padding:12,border:`1px solid ${C2}`,marginBottom:12}}>
             <div style={{color:"#888",fontSize:10,marginBottom:6}}>MONTHLY P&L (pts)</div>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={monthData}><XAxis dataKey="month" tick={{fill:"#888",fontSize:10}}/><YAxis tick={{fill:"#888",fontSize:10}}/><ReferenceLine y={0} stroke="#444"/><TT formatter={v=>`${fmt(v,0)} pts`}/><Bar dataKey="pnl" name="P&L" radius={[2,2,0,0]}>{monthData.map((m,i)=><Cell key={i} fill={m.pnl>=0?GRN:RED}/>)}</Bar></BarChart>
+              <BarChart data={monthData}><XAxis dataKey="month" tick={{fill:"#888",fontSize:10}}/><YAxis tick={{fill:"#888",fontSize:10}}/><ReferenceLine y={0} stroke="#444"/><TT formatter={(v: any)=>`${fmt(v,0)} pts`}/><Bar dataKey="pnl" name="P&L" radius={[2,2,0,0]}>{monthData.map((m,i)=><Cell key={i} fill={m.pnl>=0?GRN:RED}/>)}</Bar></BarChart>
             </ResponsiveContainer>
           </div>
           <div style={{background:C1,borderRadius:8,padding:10,border:`1px solid ${C2}`}}>
@@ -612,10 +703,10 @@ export default function BacktesterPage(){
           <div style={{background:C1,borderRadius:8,padding:14,border:`1px solid ${C2}`,marginBottom:14}}>
             <div style={{color:BLU,fontWeight:"bold",marginBottom:12,fontSize:12}}>🔧 ADJUST FILTERS — stats update live</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
-              {[{label:"Max Entry Distance",key:"dist",step:0.05,min:0.1,max:1.5,disp:v=>`${(v*100).toFixed(0)}%`},{label:"From Hour (IST)",key:"h0",step:1,min:9,max:14,disp:v=>`${v}:15`},{label:"To Hour (IST)",key:"h1",step:1,min:10,max:15,disp:v=>`${v}:30`}].map(({label,key,step,min,max,disp})=>(
+              {[{label:"Max Entry Distance",key:"dist",step:0.05,min:0.1,max:1.5,disp:(v: any)=>`${(v*100).toFixed(0)}%`},{label:"From Hour (IST)",key:"h0",step:1,min:9,max:14,disp:(v: any)=>`${v}:15`},{label:"To Hour (IST)",key:"h1",step:1,min:10,max:15,disp:(v: any)=>`${v}:30`}].map(({label,key,step,min,max,disp})=>(
                 <div key={key}>
-                  <div style={{color:"#888",fontSize:10,marginBottom:4}}>{label}: <strong style={{color:ORG}}>{disp(filt[key])}</strong></div>
-                  <input type="range" min={min} max={max} step={step} value={filt[key]} onChange={e=>setFilt(p=>({...p,[key]:+e.target.value}))} style={{width:"100%",accentColor:GRN}}/>
+                  <div style={{color:"#888",fontSize:10,marginBottom:4}}>{label}: <strong style={{color:ORG}}>{disp((filt as any)[key])}</strong></div>
+                  <input type="range" min={min} max={max} step={step} value={(filt as any)[key]} onChange={e=>setFilt(p=>({...p,[key]:+e.target.value}))} style={{width:"100%",accentColor:GRN}}/>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#555",marginTop:2}}><span>{disp(min)}</span><span>{disp(max)}</span></div>
                 </div>
               ))}
@@ -632,7 +723,7 @@ export default function BacktesterPage(){
             <div style={{background:C1,borderRadius:8,padding:12,border:`1px solid ${C2}`}}>
               <div style={{color:"#888",fontSize:10,marginBottom:6}}>FILTERED CUMULATIVE P&L</div>
               <ResponsiveContainer width="100%" height={130}>
-                <LineChart data={filtCumData}><YAxis tick={{fill:"#888",fontSize:9}} width={55}/><ReferenceLine y={0} stroke="#444"/><TT formatter={v=>[`${fmt(v,0)} pts`]}/><Line type="monotone" dataKey="c" dot={false} strokeWidth={1.5} stroke={filtS.tot>=0?GRN:RED}/></LineChart>
+                <LineChart data={filtCumData}><YAxis tick={{fill:"#888",fontSize:9}} width={55}/><ReferenceLine y={0} stroke="#444"/><TT formatter={(v: any)=>[`${fmt(v,0)} pts`]}/><Line type="monotone" dataKey="c" dot={false} strokeWidth={1.5} stroke={filtS!.tot>=0?GRN:RED}/></LineChart>
               </ResponsiveContainer>
             </div>
           )}
