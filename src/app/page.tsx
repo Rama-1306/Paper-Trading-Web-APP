@@ -50,7 +50,6 @@ export default function Dashboard() {
   const [sidebarTab, setSidebarTab] = useState<'order' | 'positions'>('order');
   const [sidebarWidth, setSidebarWidth] = useState(340);
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
-  const [mobileOrderBoxOpen, setMobileOrderBoxOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const initSocket = useMarketStore(s => s.initSocket);
   const isSocketConnected = useMarketStore(s => s.connectionStatus.isConnected);
@@ -222,15 +221,8 @@ export default function Dashboard() {
               </div>
             )}
             {activeView === 'positions' && (
-              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {mobileOrderBoxOpen && (
-                  <div className="md:hidden" style={{ flex: '0 0 auto', maxHeight: '50%', overflow: 'auto', borderBottom: '1px solid var(--border-primary)' }}>
-                    <OrderPanel onOrderPlaced={() => setMobileOrderBoxOpen(false)} isMobile={true} />
-                  </div>
-                )}
-                <div style={{ flex: 1, overflow: 'auto' }}>
-                  <PositionList />
-                </div>
+              <div style={{ height: '100%', overflow: 'auto' }}>
+                <PositionList />
               </div>
             )}
             {activeView === 'orders' && (
@@ -258,7 +250,16 @@ export default function Dashboard() {
                 <AlertsPanel />
               </div>
             )}
-            {/* 'place-order' view acts purely as a trigger for mobile drop-down now */}
+            {activeView === 'place-order' && (
+              <div style={{ height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+                <div className="md:hidden">
+                  <OrderPanel isMobile={true} />
+                </div>
+                <div className="hidden md:block">
+                  <OrderPanel />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Sidebar Resize Handle ── */}
@@ -336,18 +337,8 @@ export default function Dashboard() {
             ) : (
               <button
                 key={item.id}
-                className={`mobile-nav-tab${(activeView === item.id || (item.id === 'place-order' && mobileOrderBoxOpen && activeView === 'positions')) ? ' active' : ''}`}
-                onClick={() => {
-                  if (item.id === 'place-order') {
-                    setActiveView('positions');
-                    setMobileOrderBoxOpen(p => !p);
-                  } else {
-                    setActiveView(item.id);
-                    if (item.id === 'positions') {
-                      setMobileOrderBoxOpen(false);
-                    }
-                  }
-                }}
+                className={`mobile-nav-tab${activeView === item.id ? ' active' : ''}`}
+                onClick={() => setActiveView(item.id)}
               >
                 <span className="mobile-nav-icon">{item.icon}</span>
                 <span className="mobile-nav-label">{item.label}</span>

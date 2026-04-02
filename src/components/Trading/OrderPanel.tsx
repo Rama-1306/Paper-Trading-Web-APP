@@ -263,16 +263,25 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
         </div>
 
         {/* ROW 4: Margin & Submit */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-          <div style={{ fontSize: '11px' }}>
-            <div style={{ color: 'var(--text-muted)' }}>Req. Margin</div>
-            <div style={{ fontFamily: 'var(--font-mono)', color: '#ffeb3b', fontWeight: 'bold' }}>{formatINR(isOptionBuy ? premiumCost : marginRequired)}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderTop: '1px solid var(--border-primary)', paddingTop: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: '2', gap: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Req. Margin / Premium</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: '#ffeb3b', fontWeight: 'bold' }}>{formatINR(isOptionBuy ? premiumCost : marginRequired)}</span>
+            </div>
+            {charges && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Approx. Charges</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary, #aaa)' }}>~{formatINR(charges.total)}</span>
+              </div>
+            )}
           </div>
+          
           <button
             onClick={handleSubmit}
-            style={{ flex: 1, padding: '12px', borderRadius: '4px', border: 'none', background: orderSide === 'BUY' ? 'var(--color-profit)' : 'var(--color-loss)', color: '#fff', fontWeight: 'bold', fontSize: '13px' }}
+            style={{ flex: '1', maxWidth: '33%', padding: '12px 4px', borderRadius: '4px', border: 'none', background: orderSide === 'BUY' ? 'var(--color-profit)' : 'var(--color-loss)', color: '#fff', fontWeight: 'bold', fontSize: '13px', textAlign: 'center' }}
           >
-            {orderSide === 'BUY' ? 'BUY' : 'SELL'} {lots} LOT{lots > 1 ? 'S' : ''}
+             {orderSide} {lots}
           </button>
         </div>
         
