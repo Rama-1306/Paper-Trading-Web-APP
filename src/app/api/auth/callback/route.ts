@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { FyersAPI } from '@/lib/broker/fyers';
-import { isAdminEmail } from '@/lib/admin';
 import { setSharedFyersToken } from '@/lib/fyers-shared-token';
+import { getAuthenticatedAdminContext } from '@/lib/account-context';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession();
-    if (!isAdminEmail(session?.user?.email)) {
+    const admin = await getAuthenticatedAdminContext();
+    if (!admin) {
       return new NextResponse(
         `<!DOCTYPE html><html><head><title>Access Denied</title></head>
         <body style="background:#0a0e17;color:#ff4444;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">

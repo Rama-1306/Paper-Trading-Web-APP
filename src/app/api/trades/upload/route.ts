@@ -10,7 +10,10 @@ export async function POST(request: NextRequest) {
     if (!context) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    const { account } = context;
+    const { account, access } = context;
+    if (!access.permissions.canViewReports) {
+      return NextResponse.json({ error: 'Report viewing permission is disabled for this user' }, { status: 403 });
+    }
     const formData = await request.formData();
     const file = formData.get('screenshot') as File;
     const tradeId = formData.get('tradeId') as string;

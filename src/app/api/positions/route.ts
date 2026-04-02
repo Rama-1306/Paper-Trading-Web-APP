@@ -34,7 +34,10 @@ export async function PUT(request: NextRequest) {
     if (!context) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    const { account } = context;
+    const { account, access } = context;
+    if (!access.permissions.canModifySLTarget) {
+      return NextResponse.json({ error: 'SL/target modification permission is disabled for this user' }, { status: 403 });
+    }
     const body = await request.json();
     const { positionId, stopLoss, targetPrice, targetQty, trailingSL, trailingDistance } = body;
 
@@ -108,7 +111,10 @@ export async function DELETE(request: NextRequest) {
     if (!context) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    const { account } = context;
+    const { account, access } = context;
+    if (!access.permissions.canExitPosition) {
+      return NextResponse.json({ error: 'Position exit permission is disabled for this user' }, { status: 403 });
+    }
     const body = await request.json();
     const { positionId, exitPrice, exitQuantity } = body;
 

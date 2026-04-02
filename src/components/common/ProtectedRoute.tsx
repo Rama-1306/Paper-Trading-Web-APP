@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -16,7 +16,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     if (status === "unauthenticated") {
       router.push("/auth/signin");
     }
-  }, [status, router]);
+    if (status === "authenticated" && session?.user?.status === "DISABLED") {
+      signOut({ callbackUrl: "/auth/signin" });
+    }
+  }, [status, router, session?.user?.status]);
 
   if (status === "loading") {
     return (

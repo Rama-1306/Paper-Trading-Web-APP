@@ -3,6 +3,19 @@ import prisma from '@/lib/db';
 import { DEFAULT_CONFIG } from '@/lib/utils/constants';
 import { getQuickMargin } from '@/lib/utils/margins';
 import { getOrCreateAuthenticatedAccount } from '@/lib/account-context';
+function getISTDayBounds(date = new Date()) {
+  const istDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+
+  return {
+    start: new Date(`${istDate}T00:00:00+05:30`),
+    end: new Date(`${istDate}T23:59:59.999+05:30`),
+  };
+}
 
 export async function GET() {
   try {
@@ -114,8 +127,49 @@ export async function POST(request: NextRequest) {
     if (!context) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    const { account } = context;
+    const { account, access } = context;
 
+    if (!access.permissions.canPlaceOrder) {
+      return NextResponse.json({ error: 'Order placement permission is disabled for this user' }, { status: 403 });
+    }
+
+    const userMaxOrderQty = Math.max(1, Math.floor(access.riskLimits.maxOrderQuantity));
+    if (quantity > userMaxOrderQty) {
+      return NextResponse.json(
+        { error: `Order quantity exceeds user limit (${userMaxOrderQty})` },
+        { status: 400 }
+      );
+    }
+
+    const orderPriceForRisk = Number(price || 0);
+    if (orderPriceForRisk > 0) {
+      const notional = orderPriceForRisk * quantity;
+      if (notional > access.riskLimits.maxOrderNotional) {
+        return NextResponse.json(
+          { error: `Order notional exceeds user limit (₹${Math.floor(access.riskLimits.maxOrderNotional).toLocaleString('en-IN')})` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const { start, end } = getISTDayBounds();
+    const dailyPnL = await prisma.trade.aggregate({
+      where: {
+        accountId: account.id,
+        exitTime: {
+          gte: start,
+          lte: end,
+        },
+      },
+      _sum: { pnl: true },
+    });
+    const realizedToday = dailyPnL._sum.pnl ?? 0;
+    if (realizedToday <= -Math.abs(access.riskLimits.maxDailyLoss)) {
+      return NextResponse.json(
+        { error: `Daily loss limit reached (₹${Math.floor(access.riskLimits.maxDailyLoss).toLocaleString('en-IN')})` },
+        { status: 400 }
+      );
+    }
 
     const order = await prisma.order.create({
       data: {
@@ -314,9 +368,11 @@ export async function POST(request: NextRequest) {
         const openPositions = await prisma.position.count({
           where: { accountId: account.id, isOpen: true },
         });
+        const userMaxOpenPositions = Math.max(1, Math.floor(access.riskLimits.maxOpenPositions));
+        const maxAllowedPositions = Math.min(DEFAULT_CONFIG.MAX_POSITIONS, userMaxOpenPositions);
 
-        if (openPositions >= DEFAULT_CONFIG.MAX_POSITIONS) {
-          return rejectOrder(`Maximum ${DEFAULT_CONFIG.MAX_POSITIONS} positions allowed`);
+        if (openPositions >= maxAllowedPositions) {
+          return rejectOrder(`Maximum ${maxAllowedPositions} positions allowed for this user`);
         }
 
         const marginRequired = getQuickMargin(symbol, quantity, sideNum);
@@ -374,7 +430,10 @@ export async function DELETE(request: NextRequest) {
     if (!context) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    const { account } = context;
+    const { account, access } = context;
+    if (!access.permissions.canCancelOrder) {
+      return NextResponse.json({ error: 'Order cancellation permission is disabled for this user' }, { status: 403 });
+    }
     const body = await request.json();
     const { orderId } = body;
 

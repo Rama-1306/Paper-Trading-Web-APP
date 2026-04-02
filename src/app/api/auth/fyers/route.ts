@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { FyersAPI } from '@/lib/broker/fyers';
-import { isAdminEmail } from '@/lib/admin';
+import { getAuthenticatedAdminContext } from '@/lib/account-context';
 
 export async function GET() {
   try {
-    const session = await getServerSession();
-    if (!isAdminEmail(session?.user?.email)) {
+    const admin = await getAuthenticatedAdminContext();
+    if (!admin) {
       return NextResponse.json({ error: 'Only admin can connect Fyers' }, { status: 403 });
     }
     const fyers = new FyersAPI();

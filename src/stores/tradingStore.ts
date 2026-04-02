@@ -86,7 +86,7 @@ export const useTradingStore = create<TradingState>((set) => ({
 
     try {
       const res = await fetch('/api/account', { cache: 'no-store' });
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         handleUnauthorized();
         return;
       }
@@ -105,7 +105,7 @@ export const useTradingStore = create<TradingState>((set) => ({
   fetchPositions: async () => {
     try {
       const res = await fetch('/api/positions?closed=true', { cache: 'no-store' });
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         clearClientCache();
         set({ positions: [], orders: [], pendingOrders: [], trades: [], account: null });
         return;
@@ -125,7 +125,7 @@ export const useTradingStore = create<TradingState>((set) => ({
   fetchOrders: async () => {
     try {
       const res = await fetch('/api/orders', { cache: 'no-store' });
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         clearClientCache();
         set({ orders: [], pendingOrders: [], trades: [], positions: [], account: null });
         return;
@@ -145,9 +145,13 @@ export const useTradingStore = create<TradingState>((set) => ({
   fetchTrades: async () => {
     try {
       const res = await fetch('/api/trades', { cache: 'no-store' });
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         clearClientCache();
         set({ trades: [], orders: [], pendingOrders: [], positions: [], account: null });
+        return;
+      }
+      if (res.status === 403) {
+        set({ trades: [] });
         return;
       }
       if (!res.ok) {

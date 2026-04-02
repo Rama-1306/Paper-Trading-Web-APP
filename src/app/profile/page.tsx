@@ -18,7 +18,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [account, setAccount] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(true);
-  const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const isAdmin = session?.user?.role === "ADMIN";
 
   useEffect(() => {
     if (status === "unauthenticated") {

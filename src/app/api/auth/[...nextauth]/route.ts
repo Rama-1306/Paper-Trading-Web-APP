@@ -1,9 +1,8 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaClient } from "@prisma/client";
 import { compare } from "bcryptjs";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/db";
+import { getOrCreateUserAccess } from "@/lib/user-access";
 
 const handler = NextAuth({
   providers: [
@@ -31,11 +30,17 @@ const handler = NextAuth({
         if (!isPasswordValid) {
           return null;
         }
+        const access = await getOrCreateUserAccess(user.id, user.email);
+        if (access.status === "DISABLED") {
+          return null;
+        }
 
         return {
           id: user.id,
           email: user.email,
           name: user.name,
+          role: access.role,
+          status: access.status,
         };
       },
     }),
@@ -46,14 +51,37 @@ const handler = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
+      const userId = (user?.id as string | undefined) ?? (token.id as string | undefined);
+      if (!userId) {
+        return token;
       }
+
+      token.id = userId;
+
+      const emailFromUser = typeof user?.email === "string" ? user.email : null;
+      const dbUser = emailFromUser
+        ? { email: emailFromUser }
+        : await prisma.user.findUnique({
+            where: { id: userId },
+            select: { email: true },
+          });
+
+      if (!dbUser) {
+        token.role = "USER";
+        token.status = "DISABLED";
+        return token;
+      }
+
+      const access = await getOrCreateUserAccess(userId, dbUser?.email ?? null);
+      token.role = access.role;
+      token.status = access.status;
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id as string;
+        (session.user as any).role = (token.role as string) || "USER";
+        (session.user as any).status = (token.status as string) || "ACTIVE";
       }
       return session;
     },

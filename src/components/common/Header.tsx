@@ -27,7 +27,7 @@ export function Header() {
   const [liveSearchLoading, setLiveSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { data: session } = useSession();
-  const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const isAdmin = session?.user?.role === 'ADMIN';
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

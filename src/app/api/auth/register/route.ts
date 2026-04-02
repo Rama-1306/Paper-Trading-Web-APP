@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/db";
+import { getOrCreateUserAccess } from "@/lib/user-access";
 
 export async function POST(request: NextRequest) {
   try {
@@ -56,6 +55,7 @@ export async function POST(request: NextRequest) {
         accounts: true,
       },
     });
+    await getOrCreateUserAccess(user.id, user.email);
 
     return NextResponse.json(
       {

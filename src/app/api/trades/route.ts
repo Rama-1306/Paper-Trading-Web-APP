@@ -8,7 +8,10 @@ export async function GET() {
     if (!context) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    const { account } = context;
+    const { account, access } = context;
+    if (!access.permissions.canViewReports) {
+      return NextResponse.json({ error: 'Report viewing permission is disabled for this user' }, { status: 403 });
+    }
 
     const trades = await prisma.trade.findMany({
       where: { accountId: account.id },
@@ -29,7 +32,10 @@ export async function PUT(request: NextRequest) {
     if (!context) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    const { account } = context;
+    const { account, access } = context;
+    if (!access.permissions.canViewReports) {
+      return NextResponse.json({ error: 'Report viewing permission is disabled for this user' }, { status: 403 });
+    }
     const body = await request.json();
     const { tradeId, notes, screenshotUrl } = body;
 
