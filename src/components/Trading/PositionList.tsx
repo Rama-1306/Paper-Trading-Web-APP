@@ -772,44 +772,48 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             Closed Today
           </div>
 
-          {/* Mobile: compact card layout for closed trades */}
+          {/* Mobile: card layout for closed trades — font sizes match open position cards */}
           {isMobile && todayClosedTrades.map((trade) => {
             const pnlInfo = formatPnL(trade.pnl);
             const isExpanded = expandedClosedTradeId === trade.id;
             return (
-              <div key={trade.id} style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-primary)', padding: '5px 12px', opacity: 0.65, cursor: 'pointer' }}>
+              <div key={trade.id} style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-primary)', padding: '10px 12px', opacity: 0.7, cursor: 'pointer' }}>
                 <div
                   role="button"
                   tabIndex={0}
                   onClick={() => toggleClosedTradeDetails(trade.id)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleClosedTradeDetails(trade.id); } }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
-                    <span style={{ fontWeight: 600, fontSize: '11px', color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {/* Row 1: symbol | side | qty | chevron */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {trade.displayName || trade.symbol}
                     </span>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{trade.side}</span>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{trade.quantity}</span>
-                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginLeft: '4px' }}>{isExpanded ? '▲' : '▼'}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 700 }}>{trade.side}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>{trade.quantity}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '2px' }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
+                  {/* Row 2: entry → exit | P&L */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                      {trade.entryPrice.toFixed(2)} → {trade.exitPrice.toFixed(2)}
-                      <span style={{ marginLeft: '6px', fontSize: '9px' }}>{trade.exitReason || 'MANUAL'}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                      {trade.entryPrice.toFixed(2)}
+                      <span style={{ margin: '0 5px' }}>→</span>
+                      {trade.exitPrice.toFixed(2)}
+                      <span style={{ marginLeft: '8px', fontSize: '11px' }}>{trade.exitReason || 'MANUAL'}</span>
                     </span>
-                    <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '11px' }}>{pnlInfo.text}</span>
+                    <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '16px' }}>{pnlInfo.text}</span>
                   </div>
                 </div>
                 {isExpanded && (
-                  <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed var(--border-primary)', display: 'grid', gap: '3px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
-                      <span>Entry</span><span>{trade.entryPrice.toFixed(2)} · {formatDateTime(trade.entryTime)}</span>
+                  <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border-primary)', display: 'grid', gap: '5px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      <span>Entry</span><span style={{ color: 'var(--text-primary)' }}>{trade.entryPrice.toFixed(2)} · {formatDateTime(trade.entryTime)}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
-                      <span>Exit</span><span>{trade.exitPrice.toFixed(2)} · {formatDateTime(trade.exitTime)}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      <span>Exit</span><span style={{ color: 'var(--text-primary)' }}>{trade.exitPrice.toFixed(2)} · {formatDateTime(trade.exitTime)}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
-                      <span>Reason</span><span>{trade.exitReason || 'MANUAL'}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      <span>Reason</span><span style={{ color: 'var(--text-primary)' }}>{trade.exitReason || 'MANUAL'}</span>
                     </div>
                   </div>
                 )}
