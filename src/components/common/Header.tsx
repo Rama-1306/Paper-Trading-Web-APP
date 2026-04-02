@@ -140,6 +140,24 @@ export function Header() {
     fetchMcxSymbols();
   };
 
+  // Close dropdown when user taps/clicks outside the search container.
+  // Using capture-phase listeners so this fires before blur, which is critical
+  // on mobile/PWA where touchstart → blur fires before touchend can select an item.
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside, true);
+    document.addEventListener('touchstart', handleOutside, true);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside, true);
+      document.removeEventListener('touchstart', handleOutside, true);
+    };
+  }, [showDropdown]);
+
   const activeTick = ticks[activeSymbol];
   const change = activeTick?.change ?? 0;
   const changePercent = activeTick?.changePercent ?? 0;
@@ -196,10 +214,14 @@ export function Header() {
               handleLiveSearch(val);
             }}
             onBlur={() => {
-              setTimeout(() => setShowDropdown(false), 200);
+              // Don't close dropdown on blur — handled by outside-click detector above.
+              // Blur fires before touchend on mobile, so closing here kills the selection.
               handleSymbolChange();
             }}
-            onKeyDown={(e) => e.key === 'Enter' && handleSymbolChange()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSymbolChange();
+              if (e.key === 'Escape') setShowDropdown(false);
+            }}
             placeholder="Search Fyers Symbol..."
             style={{
               background: 'rgba(0,0,0,0.2)',
