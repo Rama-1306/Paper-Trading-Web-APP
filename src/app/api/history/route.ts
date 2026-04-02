@@ -2,6 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import axios from 'axios';
 import { getSharedFyersToken } from '@/lib/fyers-shared-token';
+function getWsHttpBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3002';
+  return raw.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://').replace(/\/$/, '');
+}
+
+async function fetchHistoryFromWsProxy(symbol: string, resolution: string, days: number) {
+  try {
+    const wsBase = getWsHttpBaseUrl();
+    const proxyUrl = `${wsBase}/history?symbol=${encodeURIComponent(symbol)}&resolution=${encodeURIComponent(resolution)}&days=${days}`;
+    const response = await fetch(proxyUrl, { cache: 'no-store' });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (Array.isArray(data?.candles)) {
+      return data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 // GET /api/history?symbol=NSE:NIFTYBANK-INDEX&resolution=5&days=5
 export async function GET(request: NextRequest) {
@@ -28,22 +48,34 @@ export async function GET(request: NextRequest) {
 
     const appId = process.env.FYERS_APP_ID;
     if (!appId || !token) {
+      const wsFallback = await fetchHistoryFromWsProxy(symbol, resolution, days);
+      if (wsFallback) {
+        return NextResponse.json(wsFallback);
+      }
       return NextResponse.json({ error: 'Missing API credentials or token' }, { status: 401 });
     }
-
-    const response = await axios.get('https://api-t1.fyers.in/data/history', {
-      headers: {
-        Authorization: `${appId}:${token}`,
-      },
-      params: {
-        symbol,
-        resolution,
-        date_format: '0', // 0 = epoch timestamp
-        range_from: dateFrom,
-        range_to: dateTo,
-        cont_flag: '1',
-      },
-    });
+    let response;
+    try {
+      response = await axios.get('https://api-t1.fyers.in/data/history', {
+        headers: {
+          Authorization: `${appId}:${token}`,
+        },
+        params: {
+          symbol,
+          resolution,
+          date_format: '0', // 0 = epoch timestamp
+          range_from: dateFrom,
+          range_to: dateTo,
+          cont_flag: '1',
+        },
+      });
+    } catch (error) {
+      const wsFallback = await fetchHistoryFromWsProxy(symbol, resolution, days);
+      if (wsFallback) {
+        return NextResponse.json(wsFallback);
+      }
+      throw error;
+    }
 
     if (response.data?.s !== 'ok') {
       return NextResponse.json({ error: response.data?.message || 'Failed to fetch history' }, { status: 400 });

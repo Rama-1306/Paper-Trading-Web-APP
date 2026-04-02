@@ -2,6 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { FyersAPI } from '@/lib/broker/fyers';
 import { getSharedFyersToken } from '@/lib/fyers-shared-token';
+function getWsHttpBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3002';
+  return raw.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://').replace(/\/$/, '');
+}
+
+async function fetchOptionChainFromWsProxy(symbol: string, strikeCount: number) {
+  try {
+    const wsBase = getWsHttpBaseUrl();
+    const proxyUrl = `${wsBase}/option-chain?symbol=${encodeURIComponent(symbol)}&strikecount=${strikeCount}`;
+    const response = await fetch(proxyUrl, { cache: 'no-store' });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (Array.isArray(data?.strikes)) {
+      return data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,11 +36,23 @@ export async function GET(request: NextRequest) {
       (await getSharedFyersToken());
 
     if (!token) {
+      const wsFallback = await fetchOptionChainFromWsProxy(symbol, strikeCount);
+      if (wsFallback) {
+        return NextResponse.json(wsFallback);
+      }
       return NextResponse.json({ error: 'Fyers token not found' }, { status: 401 });
     }
-
-    const fyers = new FyersAPI(token);
-    const data = await fyers.getOptionChain(symbol, strikeCount);
+    let data: any;
+    try {
+      const fyers = new FyersAPI(token);
+      data = await fyers.getOptionChain(symbol, strikeCount);
+    } catch (error) {
+      const wsFallback = await fetchOptionChainFromWsProxy(symbol, strikeCount);
+      if (wsFallback) {
+        return NextResponse.json(wsFallback);
+      }
+      throw error;
+    }
 
     const allOptions = data.data?.optionsChain || data.data?.options_chain || data.options_chain || [];
 

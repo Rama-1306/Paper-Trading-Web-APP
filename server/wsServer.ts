@@ -3,6 +3,7 @@ import path from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
+import axios from 'axios';
 
 // Load .env first, then .env.local (Next.js convention) — later values win
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -51,7 +52,181 @@ function wsGetQuickMargin(symbol: string, qty: number, side: string): number {
 const PORT = 3002;
 const globalTickCache: Record<string, number> = {};
 
+function sendJson(res: any, status: number, payload: any) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(payload));
+}
+
+function toSafeInt(value: string | null, fallback: number, min: number, max: number) {
+  const parsed = Number.parseInt(value || '', 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+async function proxyHistoryFromSharedFeed(reqUrl: string, res: any) {
+  try {
+    const url = new URL(reqUrl, `http://localhost:${PORT}`);
+    const symbol = url.searchParams.get('symbol') || 'NSE:NIFTYBANK-INDEX';
+    const resolution = url.searchParams.get('resolution') || '5';
+    const days = toSafeInt(url.searchParams.get('days'), 5, 1, 30);
+    const appId = process.env.FYERS_APP_ID;
+    const token = await ensurePrimaryBrokerTokenLoaded();
+
+    if (!appId || !token) {
+      return sendJson(res, 401, { error: 'Shared broker token not available' });
+    }
+
+    const nowSecs = Math.floor(Date.now() / 1000);
+    const dateTo = nowSecs;
+    const dateFrom = nowSecs - (days * 24 * 60 * 60);
+
+    const response = await axios.get('https://api-t1.fyers.in/data/history', {
+      headers: {
+        Authorization: `${appId}:${token}`,
+      },
+      params: {
+        symbol,
+        resolution,
+        date_format: '0',
+        range_from: dateFrom,
+        range_to: dateTo,
+        cont_flag: '1',
+      },
+      timeout: 10000,
+    });
+
+    if (response.data?.s !== 'ok') {
+      return sendJson(res, 400, { error: response.data?.message || 'Failed to fetch history' });
+    }
+
+    const candles = (response.data.candles || []).map((c: number[]) => ({
+      time: c[0],
+      open: c[1],
+      high: c[2],
+      low: c[3],
+      close: c[4],
+      volume: c[5],
+    }));
+
+    return sendJson(res, 200, { candles, symbol, resolution });
+  } catch (error: any) {
+    console.error('WS history proxy error:', error.response?.data || error.message);
+    return sendJson(res, 500, { error: 'Failed to fetch historical data' });
+  }
+}
+
+async function proxyOptionChainFromSharedFeed(reqUrl: string, res: any) {
+  try {
+    const url = new URL(reqUrl, `http://localhost:${PORT}`);
+    const symbol = url.searchParams.get('symbol') || 'NSE:NIFTYBANK-INDEX';
+    const strikeCount = toSafeInt(url.searchParams.get('strikecount'), 10, 1, 50);
+    const appId = process.env.FYERS_APP_ID;
+    const token = await ensurePrimaryBrokerTokenLoaded();
+
+    if (!appId || !token) {
+      return sendJson(res, 401, { error: 'Shared broker token not available' });
+    }
+
+    const response = await axios.get('https://api-t1.fyers.in/data/options-chain-v3', {
+      params: {
+        symbol,
+        strikecount: strikeCount,
+        timestamp: '',
+      },
+      headers: {
+        Authorization: `${appId}:${token}`,
+      },
+      timeout: 10000,
+    });
+
+    if (response.data?.s !== 'ok') {
+      return sendJson(res, 400, { error: response.data?.message || 'Failed to fetch option chain' });
+    }
+
+    const data = response.data;
+    const allOptions = data.data?.optionsChain || data.data?.options_chain || data.options_chain || [];
+    let spotPrice = 0;
+    let expiryDate = '';
+    const options: any[] = [];
+
+    for (const opt of allOptions) {
+      if (opt.strike_price === -1 || opt.strike_price <= 0 || !opt.option_type || opt.option_type === '') {
+        if (opt.ltp > 0) spotPrice = opt.ltp;
+        continue;
+      }
+      options.push(opt);
+    }
+
+    if (!spotPrice && data.data?.underlying_ltp) {
+      spotPrice = data.data.underlying_ltp;
+    }
+
+    const strikesMap: Record<number, any> = {};
+    for (const opt of options) {
+      const strike = opt.strike_price || opt.strikePrice;
+      if (!strike || strike <= 0) continue;
+      if (!strikesMap[strike]) {
+        strikesMap[strike] = { strikePrice: strike };
+      }
+
+      const optType = (opt.option_type || opt.optionType || '').toUpperCase();
+      const info = {
+        symbol: opt.symbol || '',
+        ltp: opt.ltp || 0,
+        change: opt.ltpch || opt.ch || 0,
+        changePercent: opt.ltpchp || opt.chp || 0,
+        volume: opt.v || opt.volume || 0,
+        oi: opt.oi || 0,
+        prevOi: opt.prev_oi || opt.poi || 0,
+        oiChange: opt.oich || 0,
+        bid: opt.bid || 0,
+        ask: opt.ask || 0,
+      };
+
+      if (optType === 'CE') {
+        strikesMap[strike].ce = info;
+      } else if (optType === 'PE') {
+        strikesMap[strike].pe = info;
+      }
+
+      if (!expiryDate && opt.symbol) {
+        const m = opt.symbol.match(/\d{2}[A-Z]{3}\d{2}/);
+        if (m) expiryDate = m[0];
+      }
+    }
+
+    const sortedStrikes = Object.values(strikesMap).sort((a: any, b: any) => a.strikePrice - b.strikePrice);
+    const atmStrike = Math.round(spotPrice / 100) * 100;
+
+    const expiryData = data.data?.expiryData;
+    if (expiryData && Array.isArray(expiryData) && expiryData.length > 0) {
+      expiryDate = expiryData[0]?.date || expiryData[0] || expiryDate;
+    }
+
+    return sendJson(res, 200, {
+      strikes: sortedStrikes,
+      underlying: data.data?.underlying_symbol || symbol,
+      spotPrice,
+      atmStrike,
+      expiry: expiryDate,
+    });
+  } catch (error: any) {
+    console.error('WS option-chain proxy error:', error.response?.data || error.message);
+    return sendJson(res, 500, { error: 'Failed to fetch option chain' });
+  }
+}
+
 const httpServer = createServer((req, res) => {
+  const reqUrl = req.url;
+  if (req.method === 'GET' && reqUrl?.startsWith('/history')) {
+    void proxyHistoryFromSharedFeed(reqUrl, res);
+    return;
+  }
+  if (req.method === 'GET' && reqUrl?.startsWith('/option-chain')) {
+    void proxyOptionChainFromSharedFeed(reqUrl, res);
+    return;
+  }
   if (req.method === 'GET' && req.url?.startsWith('/ltp')) {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const symbol = url.searchParams.get('symbol');

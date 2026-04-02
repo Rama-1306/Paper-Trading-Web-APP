@@ -34,31 +34,38 @@ async function ensureSharedBrokerStateTable(): Promise<void> {
 export async function setSharedFyersToken(token: string | null | undefined) {
   const normalized = normalizeToken(token);
   sharedFyersToken = normalized;
-  await ensureSharedBrokerStateTable();
-  await prisma.$executeRaw`
-    INSERT INTO "SharedBrokerState" ("provider", "accessToken", "updatedAt")
-    VALUES (${SHARED_PROVIDER}, ${normalized}, NOW())
-    ON CONFLICT ("provider")
-    DO UPDATE SET
-      "accessToken" = EXCLUDED."accessToken",
-      "updatedAt" = NOW()
-  `;
+  try {
+    await ensureSharedBrokerStateTable();
+    await prisma.$executeRaw`
+      INSERT INTO "SharedBrokerState" ("provider", "accessToken", "updatedAt")
+      VALUES (${SHARED_PROVIDER}, ${normalized}, NOW())
+      ON CONFLICT ("provider")
+      DO UPDATE SET
+        "accessToken" = EXCLUDED."accessToken",
+        "updatedAt" = NOW()
+    `;
+  } catch (error) {
+    console.error('Shared Fyers token persistence failed:', error);
+  }
 }
 
 export async function getSharedFyersToken(): Promise<string | null> {
   if (sharedFyersToken) {
     return sharedFyersToken;
   }
-
-  await ensureSharedBrokerStateTable();
-  const rows = await prisma.$queryRaw<Array<{ accessToken: string | null }>>`
-    SELECT "accessToken"
-    FROM "SharedBrokerState"
-    WHERE "provider" = ${SHARED_PROVIDER}
-    LIMIT 1
-  `;
-
-  const token = normalizeToken(rows[0]?.accessToken);
-  sharedFyersToken = token;
-  return token;
+  try {
+    await ensureSharedBrokerStateTable();
+    const rows = await prisma.$queryRaw<Array<{ accessToken: string | null }>>`
+      SELECT "accessToken"
+      FROM "SharedBrokerState"
+      WHERE "provider" = ${SHARED_PROVIDER}
+      LIMIT 1
+    `;
+    const token = normalizeToken(rows[0]?.accessToken);
+    sharedFyersToken = token;
+    return token;
+  } catch (error) {
+    console.error('Shared Fyers token load failed:', error);
+    return null;
+  }
 }
