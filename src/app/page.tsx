@@ -11,6 +11,8 @@ import { TradeHistory } from '@/components/Trading/TradeHistory';
 import { WatchlistPanel } from '@/components/Trading/WatchlistPanel';
 import { AlertsPanel } from '@/components/Trading/AlertsPanel';
 import { ToastContainer } from '@/components/common/ToastContainer';
+import { InstrumentSearch } from '@/components/Trading/InstrumentSearch';
+import { formatINR } from '@/lib/utils/formatters';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useMarketStore, registerTickPositionUpdater, registerServerEventHandler } from '@/stores/marketStore';
@@ -152,6 +154,32 @@ export default function Dashboard() {
     }
   }, [isSocketConnected]);
 
+  const account = useTradingStore(s => s.account);
+  const positions = useTradingStore(s => s.positions);
+  const trades = useTradingStore(s => s.trades);
+  const ticks = useMarketStore(s => s.ticks);
+
+  const balance = account?.balance ?? 1000000;
+  const unrealizedPnl = positions
+    .filter(p => p.isOpen)
+    .reduce((sum, pos) => {
+      const ltp = ticks[pos.symbol]?.ltp ?? pos.currentPrice;
+      const pnl = pos.side === 'BUY'
+        ? (ltp - pos.entryPrice) * pos.quantity
+        : (pos.entryPrice - ltp) * pos.quantity;
+      return sum + pnl;
+    }, 0);
+  const todayISTStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  const todayRealizedPnl = trades.reduce((sum, t) => {
+    const exitDay = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date(t.exitTime));
+    return exitDay === todayISTStr ? sum + t.pnl : sum;
+  }, 0);
+  const dayPnl = todayRealizedPnl + unrealizedPnl;
+
   // ── Sidebar horizontal resize ──────────────────────────────
   const handleSidebarDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -216,6 +244,9 @@ export default function Dashboard() {
           <div className="main-area">
             {activeView === 'chart' && (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div className="hidden md:block" style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                  <InstrumentSearch />
+                </div>
                 <ChartControls />
                 <TradingChart />
               </div>
@@ -251,12 +282,24 @@ export default function Dashboard() {
               </div>
             )}
             {activeView === 'place-order' && (
-              <div style={{ height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-                <div className="md:hidden">
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flexShrink: 0 }}>
                   <OrderPanel isMobile={true} />
                 </div>
-                <div className="hidden md:block">
-                  <OrderPanel />
+                <div style={{ flex: 1, minHeight: 0, overflow: 'auto', borderTop: '4px solid var(--bg-card)' }}>
+                  <div style={{
+                    padding: '8px 12px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--text-muted)',
+                    background: 'var(--bg-secondary)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    borderBottom: '1px solid var(--border-primary)'
+                  }}>
+                    Positions
+                  </div>
+                  <PositionList compact={true} />
                 </div>
               </div>
             )}
@@ -273,6 +316,26 @@ export default function Dashboard() {
 
           {/* ── Right Sidebar ── */}
           <div className="sidebar" style={{ width: `${sidebarWidth}px` }}>
+            {/* Desktop-only Sidebar Stats Summary */}
+            <div className="hidden md:flex" style={{
+              padding: '12px 16px',
+              borderBottom: '1px solid var(--border-primary)',
+              background: 'var(--bg-secondary)',
+              gap: '20px',
+              alignItems: 'center'
+            }}>
+              <div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Balance</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-bright)' }}>{formatINR(balance)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Day P&L</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: dayPnl >= 0 ? '#4caf50' : '#f44336' }}>
+                  {dayPnl >= 0 ? '+' : ''}{formatINR(dayPnl)}
+                </div>
+              </div>
+            </div>
+
             {/* Sidebar tab switcher */}
             <div style={{
               display: 'grid',

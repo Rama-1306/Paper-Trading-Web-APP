@@ -170,37 +170,68 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
   };
 
   if (isMobile) {
+    const balance = account?.balance ?? 1000000;
+    const unrealizedPnl = positions
+      .filter(p => p.isOpen)
+      .reduce((sum, pos) => {
+        const ltp = ticks[pos.symbol]?.ltp ?? pos.currentPrice;
+        const pnl = pos.side === 'BUY'
+          ? (ltp - pos.entryPrice) * pos.quantity
+          : (pos.entryPrice - ltp) * pos.quantity;
+        return sum + pnl;
+      }, 0);
+    const todayISTStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const todayRealizedPnl = trades.reduce((sum, t) => {
+      const exitDay = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date(t.exitTime));
+      return exitDay === todayISTStr ? sum + t.pnl : sum;
+    }, 0);
+    const dayPnl = todayRealizedPnl + unrealizedPnl;
+
     return (
-      <div style={{ padding: '12px', background: 'var(--bg-panel)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ padding: '10px 12px', background: 'var(--bg-panel)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         
-        {/* ROW 1: Instrument | Qty | B/S */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+        {/* ROW 1: Instrument & Stats Strip */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid var(--border-primary)', paddingBottom: '8px' }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {parseSymbolDisplay(sym)}
             </div>
             {currentPrice > 0 && (
-              <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: priceChange >= 0 ? 'var(--color-profit)' : 'var(--color-loss)' }}>
+              <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', fontWeight: 600, color: priceChange >= 0 ? 'var(--color-profit)' : 'var(--color-loss)' }}>
                 {currentPrice.toFixed(2)} ({priceChangePct >= 0 ? '+' : ''}{priceChangePct.toFixed(2)}%)
               </div>
             )}
           </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-primary)', borderRadius: '4px', background: 'var(--bg-input)' }}>
-            <button style={{ padding: '4px 8px', color: 'var(--text-muted)', border: 'none', background: 'transparent' }} onClick={() => setOrderQuantity(Math.max(lotSize, orderQuantity - lotSize))}>−</button>
-            <input type="number" value={orderQuantity} onChange={(e) => setOrderQuantity(parseInt(e.target.value) || lotSize)} step={lotSize} min={lotSize} style={{ width: '45px', textAlign: 'center', background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'var(--font-mono)' }} />
-            <button style={{ padding: '4px 8px', color: 'var(--text-muted)', border: 'none', background: 'transparent' }} onClick={() => setOrderQuantity(orderQuantity + lotSize)}>+</button>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Balance</div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-bright)', fontFamily: 'var(--font-mono)' }}>{formatINR(balance)}</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: dayPnl >= 0 ? '#4caf50' : '#f44336', fontFamily: 'var(--font-mono)' }}>
+              {dayPnl >= 0 ? '+' : ''}{formatINR(dayPnl)}
+            </div>
+          </div>
+        </div>
+
+        {/* ROW 2: Qty & Side Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-primary)', borderRadius: '4px', background: 'var(--bg-input)', flexShrink: 0 }}>
+            <button style={{ padding: '6px 12px', color: 'var(--text-muted)', border: 'none', background: 'transparent' }} onClick={() => setOrderQuantity(Math.max(lotSize, orderQuantity - lotSize))}>−</button>
+            <input type="number" value={orderQuantity} onChange={(e) => setOrderQuantity(parseInt(e.target.value) || lotSize)} step={lotSize} min={lotSize} style={{ width: '50px', textAlign: 'center', background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '14px', fontFamily: 'var(--font-mono)', fontWeight: 700 }} />
+            <button style={{ padding: '6px 12px', color: 'var(--text-muted)', border: 'none', background: 'transparent' }} onClick={() => setOrderQuantity(orderQuantity + lotSize)}>+</button>
           </div>
 
-          <div style={{ display: 'flex', background: 'var(--bg-input)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-primary)' }}>
+          <div style={{ display: 'flex', background: 'var(--bg-input)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-primary)', flex: 1 }}>
             <button 
               onClick={() => setOrderSide('BUY')} 
-              style={{ padding: '6px 12px', border: 'none', fontWeight: 'bold', background: orderSide === 'BUY' ? 'rgba(0, 204, 0, 0.2)' : 'transparent', color: orderSide === 'BUY' ? '#00cc00' : 'var(--text-muted)' }}
-            >B</button>
+              style={{ flex: 1, padding: '8px', border: 'none', fontWeight: 700, fontSize: '12px', background: orderSide === 'BUY' ? 'rgba(0, 204, 0, 0.2)' : 'transparent', color: orderSide === 'BUY' ? '#00cc00' : 'var(--text-muted)', transition: 'all 0.15s' }}
+            >BUY</button>
             <button 
               onClick={() => setOrderSide('SELL')} 
-              style={{ padding: '6px 12px', border: 'none', fontWeight: 'bold', background: orderSide === 'SELL' ? 'rgba(204, 0, 0, 0.2)' : 'transparent', color: orderSide === 'SELL' ? '#cc0000' : 'var(--text-muted)' }}
-            >S</button>
+              style={{ flex: 1, padding: '8px', border: 'none', fontWeight: 700, fontSize: '12px', background: orderSide === 'SELL' ? 'rgba(204, 0, 0, 0.2)' : 'transparent', color: orderSide === 'SELL' ? '#cc0000' : 'var(--text-muted)', transition: 'all 0.15s' }}
+            >SELL</button>
           </div>
         </div>
 

@@ -373,6 +373,12 @@ body {
   max-width: 600px;
 }
 
+@media (max-width: 767px) {
+  .sidebar {
+    display: none;
+  }
+}
+
 .bottom-panel {
   background: var(--bg-secondary);
   overflow: hidden;
