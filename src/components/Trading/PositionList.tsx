@@ -772,7 +772,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             Closed Today
           </div>
 
-          {/* Mobile: card layout for closed trades — font sizes match open position cards */}
+          {/* Mobile: card layout for closed trades */}
           {isMobile && todayClosedTrades.map((trade) => {
             const pnlInfo = formatPnL(trade.pnl);
             const isExpanded = expandedClosedTradeId === trade.id;
@@ -786,33 +786,33 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                 >
                   {/* Row 1: symbol | side | qty | chevron */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span className="pos-closed-symbol" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {trade.displayName || trade.symbol}
                     </span>
-                    <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 700 }}>{trade.side}</span>
-                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>{trade.quantity}</span>
+                    <span className="pos-closed-side" style={{ color: 'var(--text-muted)' }}>{trade.side}</span>
+                    <span className="pos-closed-qty" style={{ color: 'var(--text-secondary)' }}>{trade.quantity}</span>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '2px' }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
                   {/* Row 2: entry → exit | P&L */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                    <span className="pos-closed-price" style={{ color: 'var(--text-muted)' }}>
                       {trade.entryPrice.toFixed(2)}
                       <span style={{ margin: '0 5px' }}>→</span>
                       {trade.exitPrice.toFixed(2)}
                       <span style={{ marginLeft: '8px', fontSize: '11px' }}>{trade.exitReason || 'MANUAL'}</span>
                     </span>
-                    <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '16px' }}>{pnlInfo.text}</span>
+                    <span className={`pos-closed-pnl ${pnlInfo.className}`}>{pnlInfo.text}</span>
                   </div>
                 </div>
                 {isExpanded && (
                   <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border-primary)', display: 'grid', gap: '5px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    <div className="pos-closed-detail" style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                       <span>Entry</span><span style={{ color: 'var(--text-primary)' }}>{trade.entryPrice.toFixed(2)} · {formatDateTime(trade.entryTime)}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    <div className="pos-closed-detail" style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                       <span>Exit</span><span style={{ color: 'var(--text-primary)' }}>{trade.exitPrice.toFixed(2)} · {formatDateTime(trade.exitTime)}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    <div className="pos-closed-detail" style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                       <span>Reason</span><span style={{ color: 'var(--text-primary)' }}>{trade.exitReason || 'MANUAL'}</span>
                     </div>
                   </div>

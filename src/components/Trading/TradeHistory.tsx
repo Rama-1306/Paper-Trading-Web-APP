@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
 import { formatINR, formatPnL, formatCompact } from '@/lib/utils/formatters';
@@ -54,14 +54,6 @@ export function TradeHistory({ type }: TradeHistoryProps) {
 
   const [selectedTrade, setSelectedTrade] = useState<TradeData | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-
   // Calendar state
   const _today = new Date();
   const [calYear, setCalYear] = useState(_today.getFullYear());
@@ -203,33 +195,29 @@ export function TradeHistory({ type }: TradeHistoryProps) {
             const sideClass = order.side === 'BUY' ? 'jnl-side-buy' : 'jnl-side-sell';
             const typeLabel = order.orderType === 'MARKET' ? 'M' : order.orderType === 'LIMIT' ? 'L' : order.orderType === 'SL' ? 'SL' : 'SM';
             const statusLabel = order.status === 'FILLED' ? 'F' : order.status === 'PENDING' ? 'P' : order.status === 'REJECTED' ? 'R' : 'C';
-            // Mobile: larger fonts matching Positions tab card style
-            const fs = isMobile
-              ? { name: '14px', badge: '13px', meta: '12px', price: '13px', time: '11px', btn: '12px' }
-              : { name: '12px', badge: '11px', meta: '11px', price: '11px', time: '10px', btn: '10px' };
             return (
-              <div key={order.id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: 'var(--radius-md)', padding: isMobile ? '10px 14px' : '8px 12px', display: 'flex', flexDirection: 'column', gap: isMobile ? '8px' : '6px' }}>
+              <div key={order.id} className="ord-card" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className={`jnl-trade-side ${sideClass}`} style={{ padding: isMobile ? '3px 8px' : '2px 6px', fontSize: fs.badge, minWidth: 'auto', fontWeight: 700 }}>{sideLabel}</span>
-                  <span style={{ fontWeight: 700, fontSize: fs.name, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-bright)' }}>{order.displayName || order.symbol}</span>
-                  <span style={{ fontSize: fs.meta, color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '2px 5px', borderRadius: '4px' }}>{typeLabel}</span>
-                  <span style={{ padding: isMobile ? '3px 8px' : '2px 6px', borderRadius: '4px', fontSize: fs.meta, fontWeight: 600, ...(order.status === 'FILLED' ? { color: 'var(--color-profit)', background: 'var(--color-profit-bg)' } : order.status === 'REJECTED' || order.status === 'CANCELLED' ? { color: 'var(--color-loss)', background: 'var(--color-loss-bg)' } : { color: 'var(--color-warning)', background: 'rgba(255,171,0,0.1)' }) }}>{statusLabel}</span>
-                  <span style={{ fontSize: fs.badge, fontWeight: 700, color: 'var(--text-secondary)' }}>{order.quantity}</span>
+                  <span className={`ord-side-badge jnl-trade-side ${sideClass}`}>{sideLabel}</span>
+                  <span className="ord-symbol" style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-bright)', fontWeight: 700 }}>{order.displayName || order.symbol}</span>
+                  <span className="ord-meta" style={{ color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '2px 5px', borderRadius: '4px' }}>{typeLabel}</span>
+                  <span className="ord-meta" style={{ borderRadius: '4px', fontWeight: 600, ...(order.status === 'FILLED' ? { color: 'var(--color-profit)', background: 'var(--color-profit-bg)' } : order.status === 'REJECTED' || order.status === 'CANCELLED' ? { color: 'var(--color-loss)', background: 'var(--color-loss-bg)' } : { color: 'var(--color-warning)', background: 'rgba(255,171,0,0.1)' }), padding: '2px 5px' }}>{statusLabel}</span>
+                  <span className="ord-qty" style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>{order.quantity}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: fs.price, color: 'var(--text-muted)' }}>P: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{order.filledPrice ? order.filledPrice.toFixed(2) : order.price?.toFixed(2) ?? 'MKT'}</span></span>
+                    <span className="ord-price" style={{ color: 'var(--text-muted)' }}>P: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{order.filledPrice ? order.filledPrice.toFixed(2) : order.price?.toFixed(2) ?? 'MKT'}</span></span>
                     {(order.triggerPrice || order.orderType === 'SL' || order.orderType === 'SL-M') && (
-                      <span style={{ fontSize: fs.price, color: 'var(--text-muted)' }}>T: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{order.triggerPrice?.toFixed(2) ?? '—'}</span></span>
+                      <span className="ord-price" style={{ color: 'var(--text-muted)' }}>T: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{order.triggerPrice?.toFixed(2) ?? '—'}</span></span>
                     )}
-                    <span style={{ fontSize: fs.time, color: 'var(--text-muted)' }}>{formatTimeOnly(order.createdAt)}</span>
+                    <span className="ord-time" style={{ color: 'var(--text-muted)' }}>{formatTimeOnly(order.createdAt)}</span>
                   </div>
                   {order.status === 'PENDING' ? (
-                    <button className="btn btn-ghost btn-sm" onClick={() => handleCancelOrder(order.id)} disabled={cancellingOrderId === order.id} style={{ padding: isMobile ? '4px 12px' : '2px 8px', fontSize: fs.btn, color: '#ef5350' }}>
+                    <button className="btn btn-ghost btn-sm ord-btn" onClick={() => handleCancelOrder(order.id)} disabled={cancellingOrderId === order.id} style={{ color: '#ef5350' }}>
                       {cancellingOrderId === order.id ? '...' : 'Cancel'}
                     </button>
                   ) : order.status === 'REJECTED' && order.rejectedReason ? (
-                    <span style={{ fontSize: isMobile ? '11px' : '9px', color: 'var(--color-loss)', maxWidth: '140px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={order.rejectedReason}>{order.rejectedReason}</span>
+                    <span className="ord-reject" style={{ color: 'var(--color-loss)', maxWidth: '140px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={order.rejectedReason}>{order.rejectedReason}</span>
                   ) : null}
                 </div>
               </div>

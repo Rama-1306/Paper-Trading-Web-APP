@@ -1177,6 +1177,102 @@ select.input {
   font-size: 10px;
 }
 
+/* ─── Order Card (Orders tab) — desktop base sizes ────────────── */
+.ord-card {
+  padding: 8px 12px;
+  gap: 6px;
+}
+.ord-side-badge {
+  font-size: 11px !important;
+  padding: 2px 6px !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+.ord-symbol {
+  font-size: 12px;
+}
+.ord-meta {
+  font-size: 11px;
+}
+.ord-qty {
+  font-size: 12px;
+}
+.ord-price {
+  font-size: 11px;
+}
+.ord-time {
+  font-size: 10px;
+}
+.ord-btn {
+  padding: 2px 8px;
+  font-size: 10px;
+}
+.ord-reject {
+  font-size: 9px;
+}
+
+/* ─── Order Card — mobile: match Positions tab card font sizes ── */
+@media (max-width: 767px) {
+  .ord-card {
+    padding: 10px 14px;
+    gap: 8px;
+  }
+  .ord-side-badge {
+    font-size: 13px !important;
+    padding: 3px 8px !important;
+  }
+  .ord-symbol {
+    font-size: 14px;
+  }
+  .ord-meta {
+    font-size: 12px;
+    padding: 3px 6px !important;
+  }
+  .ord-qty {
+    font-size: 13px;
+  }
+  .ord-price {
+    font-size: 13px;
+  }
+  .ord-time {
+    font-size: 11px;
+  }
+  .ord-btn {
+    padding: 4px 12px;
+    font-size: 12px;
+  }
+  .ord-reject {
+    font-size: 11px;
+  }
+}
+
+/* ─── Positions: Closed Today card — mobile font sizes ─────────── */
+@media (max-width: 767px) {
+  .pos-closed-symbol {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-bright);
+  }
+  .pos-closed-side {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .pos-closed-qty {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .pos-closed-price {
+    font-size: 13px;
+  }
+  .pos-closed-pnl {
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .pos-closed-detail {
+    font-size: 12px;
+  }
+}
+
 .wl-container {
   height: 100%;
   display: flex;
