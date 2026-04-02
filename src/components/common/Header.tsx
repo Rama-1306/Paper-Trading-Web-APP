@@ -25,6 +25,7 @@ export function Header() {
   const [mcxLoaded, setMcxLoaded] = useState(false);
   const [liveSearchResults, setLiveSearchResults] = useState<SymbolItem[]>([]);
   const [liveSearchLoading, setLiveSearchLoading] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 48, left: 0, width: 300 });
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === 'ADMIN';
@@ -136,6 +137,17 @@ export function Header() {
   };
 
   const handleDropdownOpen = () => {
+    // Compute fixed position from input's viewport rect — bypasses all overflow:hidden ancestors
+    const input = dropdownRef.current?.querySelector('input');
+    if (input) {
+      const rect = input.getBoundingClientRect();
+      const w = Math.min(300, window.innerWidth - 16);
+      setDropdownPos({
+        top: rect.bottom + 4,
+        left: Math.min(rect.left, window.innerWidth - w - 8),
+        width: w,
+      });
+    }
     setShowDropdown(true);
     fetchMcxSymbols();
   };
@@ -242,18 +254,18 @@ export function Header() {
             <div
               onMouseDown={(e) => e.preventDefault()}
               style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                width: '320px',
-                maxHeight: '400px',
+                position: 'fixed',
+                top: dropdownPos.top,
+                left: dropdownPos.left,
+                width: dropdownPos.width,
+                maxHeight: '60vh',
                 overflowY: 'auto',
                 background: '#1a1d23',
                 border: '1px solid var(--border-primary)',
                 borderRadius: '4px',
-                marginTop: '4px',
-                zIndex: 1000,
-                boxShadow: '0 8px 16px rgba(0,0,0,0.4)',
+                zIndex: 9999,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                WebkitOverflowScrolling: 'touch' as any,
               }}>
               {filtered.map(s => {
                 const showGroup = s.group !== lastGroup;

@@ -1729,7 +1729,7 @@ select.input {
   .header-left {
     gap: 6px;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
   }
   /* Hide "BN Paper Trader" text — keep only the icon */
   .header-logo-text {
@@ -1739,6 +1739,7 @@ select.input {
     padding: 3px 6px;
     gap: 4px;
     min-width: 0;
+    overflow: visible;
   }
   /* Override inline width:220px on the symbol search input */
   .header-spot input {
