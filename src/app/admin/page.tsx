@@ -78,9 +78,9 @@ const RISK_FIELDS: Array<{
   step: number;
 }> = [
   { key: "maxOpenPositions", label: "Max Open Positions", min: 1, step: 1 },
-  { key: "maxOrderQuantity", label: "Max Order Quantity", min: 1, step: 1 },
+  { key: "maxOrderQuantity", label: "Max Order Qty", min: 1, step: 1 },
   { key: "maxDailyLoss", label: "Max Daily Loss", min: 1000, step: 1000 },
-  { key: "maxOrderNotional", label: "Max Order Notional", min: 10000, step: 10000 },
+  { key: "maxOrderNotional", label: "Max Notional", min: 10000, step: 10000 },
 ];
 
 export default function AdminPage() {
@@ -93,6 +93,9 @@ export default function AdminPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showAuditLogs, setShowAuditLogs] = useState(false);
 
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -133,9 +136,6 @@ export default function AdminPage() {
       }
     } catch {
       setError("Failed to load users");
-      setUsers([]);
-      setSummary(null);
-      setAuditLogs([]);
     } finally {
       setLoading(false);
     }
@@ -185,18 +185,14 @@ export default function AdminPage() {
       return;
     }
     const ok = await runAction(
-      {
-        action: "create_user",
-        name: newUserName.trim(),
-        email: newUserEmail.trim(),
-        password: newUserPassword,
-      },
+      { action: "create_user", name: newUserName.trim(), email: newUserEmail.trim(), password: newUserPassword },
       "User created"
     );
     if (ok) {
       setNewUserName("");
       setNewUserEmail("");
       setNewUserPassword("");
+      setShowCreateForm(false);
     }
   };
 
@@ -212,14 +208,7 @@ export default function AdminPage() {
     const draft = drafts[userId];
     if (!draft) return;
     await runAction(
-      {
-        action: "update_user",
-        userId,
-        role: draft.role,
-        status: draft.status,
-        permissions: draft.permissions,
-        riskLimits: draft.riskLimits,
-      },
+      { action: "update_user", userId, role: draft.role, status: draft.status, permissions: draft.permissions, riskLimits: draft.riskLimits },
       "User access updated"
     );
   };
@@ -227,31 +216,19 @@ export default function AdminPage() {
   const handleResetPassword = async (userId: string) => {
     const newPassword = window.prompt("Enter new password (minimum 6 characters):");
     if (!newPassword) return;
-    await runAction(
-      {
-        action: "reset_password",
-        userId,
-        newPassword,
-      },
-      "Password reset successful"
-    );
+    await runAction({ action: "reset_password", userId, newPassword }, "Password reset successful");
   };
 
   const handlePurgeNonAdmin = async () => {
-    const confirmed = window.confirm(
-      "This will delete ALL non-admin users and all their records. Continue?"
-    );
+    const confirmed = window.confirm("This will delete ALL non-admin users and all their records. Continue?");
     if (!confirmed) return;
-    await runAction(
-      { action: "purge_non_admin" },
-      "Non-admin users removed"
-    );
+    await runAction({ action: "purge_non_admin" }, "Non-admin users removed");
   };
 
   if (status === "loading" || loading) {
     return (
       <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0d0f14", color: "#9aa0a6" }}>
-        Loading admin dashboard...
+        Loading...
       </div>
     );
   }
@@ -267,286 +244,262 @@ export default function AdminPage() {
   if (!isAdmin) {
     return (
       <div style={{ minHeight: "100vh", background: "#0d0f14", color: "#fff", padding: 24 }}>
-        <h1 style={{ margin: "0 0 8px", fontSize: 24 }}>Admin Access Required</h1>
-        <p style={{ margin: "0 0 16px", color: "#9aa0a6" }}>
-          Your account does not have admin permission.
-        </p>
-        <Link href="/" style={{ color: "#7aa2ff" }}>← Back to Dashboard</Link>
+        <p style={{ color: "#9aa0a6" }}>Admin access required.</p>
+        <Link href="/" style={{ color: "#7aa2ff" }}>← Back</Link>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0d0f14", color: "#fff", padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Admin Dashboard</h1>
-        <Link href="/" style={{ color: "#7aa2ff", textDecoration: "none" }}>← Back to Dashboard</Link>
-      </div>
+    <div style={{ height: "100vh", overflowY: "auto", background: "#0d0f14", color: "#fff" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "16px 12px 40px" }}>
 
-      {summary && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 16 }}>
-          <StatCard label="Total Users" value={String(summary.totalUsers)} />
-          <StatCard label="Admins" value={String(summary.adminUsers)} />
-          <StatCard label="Users" value={String(summary.nonAdminUsers)} />
-          <StatCard label="Active" value={String(summary.activeUsers)} />
-          <StatCard label="Disabled" value={String(summary.disabledUsers)} />
+        {/* Header row */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>Admin Dashboard</div>
+            {summary && (
+              <div style={{ fontSize: 11, color: "#9aa0a6", marginTop: 2 }}>
+                {summary.totalUsers} users · {summary.activeUsers} active · {summary.disabledUsers} disabled · {summary.adminUsers} admins
+              </div>
+            )}
+          </div>
+          <Link href="/" style={{ color: "#7aa2ff", textDecoration: "none", fontSize: 12 }}>← Back</Link>
         </div>
-      )}
 
-      <div style={sectionStyle}>
-        <h3 style={sectionTitle}>Create User</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 8 }}>
-          <input
-            value={newUserName}
-            onChange={(e) => setNewUserName(e.target.value)}
-            placeholder="Full name"
-            style={inputStyle}
-          />
-          <input
-            value={newUserEmail}
-            onChange={(e) => setNewUserEmail(e.target.value)}
-            placeholder="Email"
-            style={inputStyle}
-          />
-          <input
-            value={newUserPassword}
-            onChange={(e) => setNewUserPassword(e.target.value)}
-            placeholder="Password"
-            type="password"
-            style={inputStyle}
-          />
-          <button onClick={handleCreateUser} disabled={actionLoading} style={btnPrimary}>
-            Create User
+        {/* Alerts */}
+        {message && <div style={{ marginBottom: 8, color: "#38d39f", fontSize: 12, padding: "6px 10px", background: "rgba(56,211,159,0.08)", borderRadius: 6 }}>{message}</div>}
+        {error && <div style={{ marginBottom: 8, color: "#ff6b6b", fontSize: 12, padding: "6px 10px", background: "rgba(255,107,107,0.08)", borderRadius: 6 }}>{error}</div>}
+
+        {/* Action bar */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+          <button onClick={() => setShowCreateForm(v => !v)} style={btnPrimary}>
+            {showCreateForm ? "Cancel" : "+ New User"}
+          </button>
+          <button onClick={loadUsers} disabled={actionLoading} style={btnSecondary}>Refresh</button>
+          <button onClick={handlePurgeNonAdmin} disabled={actionLoading} style={btnDanger}>Purge Non-Admin</button>
+          <button onClick={() => setShowAuditLogs(v => !v)} style={btnSecondary}>
+            {showAuditLogs ? "Hide Audit" : "Audit Logs"}
           </button>
         </div>
-      </div>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <button onClick={loadUsers} disabled={actionLoading} style={btnSecondary}>Refresh</button>
-        <button onClick={handlePurgeNonAdmin} disabled={actionLoading} style={btnDanger}>
-          Remove All Non-Admin Users
-        </button>
-      </div>
+        {/* Create user form (collapsible) */}
+        {showCreateForm && (
+          <div style={{ ...cardStyle, marginBottom: 10 }}>
+            <div style={cardTitle}>New User</div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Full name" style={inputStyle} />
+              <input value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} placeholder="Email" style={inputStyle} />
+              <input value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} placeholder="Password" type="password" style={inputStyle} />
+              <button onClick={handleCreateUser} disabled={actionLoading} style={btnPrimary}>Create</button>
+            </div>
+          </div>
+        )}
 
-      {message && <div style={{ marginBottom: 12, color: "#38d39f", fontSize: 13 }}>{message}</div>}
-      {error && <div style={{ marginBottom: 12, color: "#ff6b6b", fontSize: 13 }}>{error}</div>}
-
-      <div style={sectionStyle}>
-        <h3 style={sectionTitle}>User Access Management</h3>
-        <div style={{ display: "grid", gap: 12 }}>
+        {/* User list */}
+        <div style={{ display: "grid", gap: 6 }}>
           {users.map((u) => {
             const draft = drafts[u.id];
             if (!draft) return null;
+            const isExpanded = expandedUser === u.id;
+            const permCount = Object.values(draft.permissions).filter(Boolean).length;
+            const totalPerms = Object.keys(draft.permissions).length;
+
             return (
-              <div key={u.id} style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>{u.name || "—"}</div>
-                    <div style={{ color: "#9aa0a6", fontSize: 12 }}>{u.email || "—"}</div>
-                    <div style={{ color: "#7d8490", fontSize: 11 }}>
+              <div key={u.id} style={cardStyle}>
+                {/* Collapsed row — always visible */}
+                <div
+                  onClick={() => setExpandedUser(isExpanded ? null : u.id)}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", gap: 8 }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name || "—"}</span>
+                      {u.isConfiguredAdmin && (
+                        <span style={{ fontSize: 9, color: "#ffb74d", border: "1px solid rgba(255,183,77,0.4)", padding: "1px 5px", borderRadius: 999, flexShrink: 0 }}>Admin</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#9aa0a6", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email || "—"}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 999, background: draft.status === "ACTIVE" ? "rgba(56,211,159,0.12)" : "rgba(255,107,107,0.12)", color: draft.status === "ACTIVE" ? "#38d39f" : "#ff6b6b" }}>
+                      {draft.status}
+                    </span>
+                    <span style={{ fontSize: 10, color: "#9aa0a6" }}>{permCount}/{totalPerms} perms</span>
+                    <span style={{ fontSize: 12, color: "#9aa0a6" }}>{isExpanded ? "▲" : "▼"}</span>
+                  </div>
+                </div>
+
+                {/* Expanded content */}
+                {isExpanded && (
+                  <div style={{ marginTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 10 }}>
+                    {/* Role & Status */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                      <label style={labelStyle}>
+                        Role
+                        <select value={draft.role} onChange={(e) => updateDraft(u.id, (d) => ({ ...d, role: e.target.value as UserRole }))} disabled={u.isConfiguredAdmin} style={inputStyle}>
+                          <option value="USER">USER</option>
+                          <option value="ADMIN">ADMIN</option>
+                        </select>
+                      </label>
+                      <label style={labelStyle}>
+                        Status
+                        <select value={draft.status} onChange={(e) => updateDraft(u.id, (d) => ({ ...d, status: e.target.value as UserStatus }))} disabled={u.isConfiguredAdmin} style={inputStyle}>
+                          <option value="ACTIVE">ACTIVE</option>
+                          <option value="DISABLED">DISABLED</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    {/* Permissions as dropdown (multi-select via checkboxes in a styled box) */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={miniTitle}>Permissions</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                        {(Object.keys(PERMISSION_LABELS) as Array<keyof UserPermissions>).map((key) => (
+                          <label key={key} style={checkboxLabel}>
+                            <input
+                              type="checkbox"
+                              checked={draft.permissions[key]}
+                              onChange={(e) => updateDraft(u.id, (d) => ({ ...d, permissions: { ...d.permissions, [key]: e.target.checked } }))}
+                            />
+                            <span>{PERMISSION_LABELS[key]}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Risk limits */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={miniTitle}>Risk Limits</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                        {RISK_FIELDS.map((field) => (
+                          <label key={field.key} style={labelStyle}>
+                            {field.label}
+                            <input
+                              type="number"
+                              min={field.min}
+                              step={field.step}
+                              value={draft.riskLimits[field.key]}
+                              onChange={(e) => updateDraft(u.id, (d) => ({ ...d, riskLimits: { ...d.riskLimits, [field.key]: Number(e.target.value || field.min) } }))}
+                              style={inputStyle}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Meta */}
+                    <div style={{ fontSize: 10, color: "#7d8490", marginBottom: 10 }}>
                       Created: {new Date(u.createdAt).toLocaleString("en-IN")} · Accounts: {u._count.accounts}
                     </div>
+
+                    {/* Actions */}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => handleSaveUser(u.id)} disabled={actionLoading} style={btnPrimary}>Save</button>
+                      <button onClick={() => handleResetPassword(u.id)} disabled={actionLoading} style={btnSecondary}>Reset Password</button>
+                    </div>
                   </div>
-                  {u.isConfiguredAdmin && (
-                    <span style={{ alignSelf: "flex-start", fontSize: 11, color: "#ffb74d", border: "1px solid rgba(255,183,77,0.4)", padding: "3px 7px", borderRadius: 999 }}>
-                      Configured Admin
-                    </span>
-                  )}
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 8, marginBottom: 10 }}>
-                  <label style={labelStyle}>
-                    Role
-                    <select
-                      value={draft.role}
-                      onChange={(e) => updateDraft(u.id, (d) => ({ ...d, role: e.target.value as UserRole }))}
-                      disabled={u.isConfiguredAdmin}
-                      style={inputStyle}
-                    >
-                      <option value="USER">USER</option>
-                      <option value="ADMIN">ADMIN</option>
-                    </select>
-                  </label>
-
-                  <label style={labelStyle}>
-                    Status
-                    <select
-                      value={draft.status}
-                      onChange={(e) => updateDraft(u.id, (d) => ({ ...d, status: e.target.value as UserStatus }))}
-                      disabled={u.isConfiguredAdmin}
-                      style={inputStyle}
-                    >
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="DISABLED">DISABLED</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div style={{ marginBottom: 10 }}>
-                  <div style={miniTitle}>Permissions</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 6 }}>
-                    {(Object.keys(PERMISSION_LABELS) as Array<keyof UserPermissions>).map((key) => (
-                      <label key={key} style={checkboxLabel}>
-                        <input
-                          type="checkbox"
-                          checked={draft.permissions[key]}
-                          onChange={(e) =>
-                            updateDraft(u.id, (d) => ({
-                              ...d,
-                              permissions: { ...d.permissions, [key]: e.target.checked },
-                            }))
-                          }
-                        />
-                        <span>{PERMISSION_LABELS[key]}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 10 }}>
-                  <div style={miniTitle}>Risk Limits</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 8 }}>
-                    {RISK_FIELDS.map((field) => (
-                      <label key={field.key} style={labelStyle}>
-                        {field.label}
-                        <input
-                          type="number"
-                          min={field.min}
-                          step={field.step}
-                          value={draft.riskLimits[field.key]}
-                          onChange={(e) =>
-                            updateDraft(u.id, (d) => ({
-                              ...d,
-                              riskLimits: {
-                                ...d.riskLimits,
-                                [field.key]: Number(e.target.value || field.min),
-                              },
-                            }))
-                          }
-                          style={inputStyle}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button onClick={() => handleSaveUser(u.id)} disabled={actionLoading} style={btnPrimary}>
-                    Save Access
-                  </button>
-                  <button onClick={() => handleResetPassword(u.id)} disabled={actionLoading} style={btnSecondary}>
-                    Reset Password
-                  </button>
-                </div>
+                )}
               </div>
             );
           })}
-          {users.length === 0 && (
-            <div style={{ color: "#9aa0a6", fontSize: 13 }}>No users found</div>
-          )}
+          {users.length === 0 && <div style={{ color: "#9aa0a6", fontSize: 12 }}>No users found</div>}
         </div>
-      </div>
 
-      <div style={sectionStyle}>
-        <h3 style={sectionTitle}>Audit Logs</h3>
-        <div style={{ display: "grid", gap: 6 }}>
-          {auditLogs.map((log) => (
-            <div key={log.id} style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700 }}>{log.action}</div>
-              <div style={{ fontSize: 11, color: "#9aa0a6" }}>
-                {new Date(log.createdAt).toLocaleString("en-IN")} · Actor: {log.actorEmail || "unknown"} · Target: {log.targetUserId || "—"}
-              </div>
+        {/* Audit logs (collapsible) */}
+        {showAuditLogs && (
+          <div style={{ ...cardStyle, marginTop: 10 }}>
+            <div style={cardTitle}>Audit Logs</div>
+            <div style={{ display: "grid", gap: 4 }}>
+              {auditLogs.map((log) => (
+                <div key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{log.action}</div>
+                  <div style={{ fontSize: 10, color: "#9aa0a6" }}>
+                    {new Date(log.createdAt).toLocaleString("en-IN")} · {log.actorEmail || "unknown"}
+                  </div>
+                </div>
+              ))}
+              {auditLogs.length === 0 && <div style={{ fontSize: 11, color: "#9aa0a6" }}>No audit logs yet</div>}
             </div>
-          ))}
-          {auditLogs.length === 0 && (
-            <div style={{ fontSize: 12, color: "#9aa0a6" }}>No audit logs yet</div>
-          )}
-        </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 10 }}>
-      <div style={{ fontSize: 11, color: "#9aa0a6", textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, marginTop: 2 }}>{value}</div>
-    </div>
-  );
-}
-
-const sectionStyle: CSSProperties = {
+const cardStyle: CSSProperties = {
   background: "rgba(255,255,255,0.02)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  borderRadius: 12,
-  padding: 12,
-  marginBottom: 12,
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 10,
+  padding: 10,
 };
 
-const sectionTitle: CSSProperties = {
-  fontSize: 14,
+const cardTitle: CSSProperties = {
+  fontSize: 13,
   fontWeight: 700,
-  margin: "0 0 10px",
+  marginBottom: 8,
 };
 
 const miniTitle: CSSProperties = {
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 700,
-  marginBottom: 6,
+  marginBottom: 5,
   color: "#d7dde6",
 };
 
 const labelStyle: CSSProperties = {
   display: "grid",
-  gap: 4,
-  fontSize: 12,
+  gap: 3,
+  fontSize: 11,
   color: "#aeb6c2",
 };
 
 const checkboxLabel: CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 6,
-  fontSize: 12,
+  gap: 5,
+  fontSize: 11,
   color: "#d7dde6",
+  padding: "3px 0",
 };
 
 const inputStyle: CSSProperties = {
   background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.16)",
-  borderRadius: 8,
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: 6,
   color: "#fff",
-  fontSize: 12,
-  padding: "8px 10px",
+  fontSize: 11,
+  padding: "6px 8px",
 };
 
 const btnBase: CSSProperties = {
-  borderRadius: 8,
-  fontSize: 12,
+  borderRadius: 6,
+  fontSize: 11,
   fontWeight: 700,
-  padding: "8px 12px",
+  padding: "6px 10px",
   cursor: "pointer",
   border: "1px solid transparent",
 };
 
 const btnPrimary: CSSProperties = {
   ...btnBase,
-  background: "rgba(90, 141, 255, 0.2)",
+  background: "rgba(90, 141, 255, 0.18)",
   color: "#9ab4ff",
-  borderColor: "rgba(154, 180, 255, 0.45)",
+  borderColor: "rgba(154, 180, 255, 0.4)",
 };
 
 const btnSecondary: CSSProperties = {
   ...btnBase,
-  background: "rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.06)",
   color: "#d7dde6",
-  borderColor: "rgba(255,255,255,0.16)",
+  borderColor: "rgba(255,255,255,0.14)",
 };
 
 const btnDanger: CSSProperties = {
   ...btnBase,
-  background: "rgba(255, 70, 70, 0.14)",
+  background: "rgba(255, 70, 70, 0.12)",
   color: "#ff8f8f",
-  borderColor: "rgba(255, 143, 143, 0.4)",
+  borderColor: "rgba(255, 143, 143, 0.35)",
 };

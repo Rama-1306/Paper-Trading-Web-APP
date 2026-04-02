@@ -217,20 +217,22 @@ export function Header() {
           />
 
           {showDropdown && (
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              width: '320px',
-              maxHeight: '400px',
-              overflowY: 'auto',
-              background: '#1a1d23',
-              border: '1px solid var(--border-primary)',
-              borderRadius: '4px',
-              marginTop: '4px',
-              zIndex: 1000,
-              boxShadow: '0 8px 16px rgba(0,0,0,0.4)',
-            }}>
+            <div
+              onMouseDown={(e) => e.preventDefault()}
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                width: '320px',
+                maxHeight: '400px',
+                overflowY: 'auto',
+                background: '#1a1d23',
+                border: '1px solid var(--border-primary)',
+                borderRadius: '4px',
+                marginTop: '4px',
+                zIndex: 1000,
+                boxShadow: '0 8px 16px rgba(0,0,0,0.4)',
+              }}>
               {filtered.map(s => {
                 const showGroup = s.group !== lastGroup;
                 lastGroup = s.group;
@@ -251,7 +253,8 @@ export function Header() {
                       }}>{s.group} {s.group === 'MCX' && '(Live from Fyers)'}</div>
                     )}
                     <div
-                      onClick={() => handleSymbolSelect(s.value, s.lotSize)}
+                      onMouseDown={() => handleSymbolSelect(s.value, s.lotSize)}
+                      onTouchEnd={(e) => { e.preventDefault(); handleSymbolSelect(s.value, s.lotSize); }}
                       style={{
                         padding: '6px 12px',
                         cursor: 'pointer',
