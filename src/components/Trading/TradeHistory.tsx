@@ -179,18 +179,30 @@ export function TradeHistory({ type }: TradeHistoryProps) {
 
   // ── ORDERS view ───────────────────────────────────────────────
   if (type === 'orders') {
-    if (orders.length === 0) {
+    // Show only today's orders (midnight IST reset) — same as closed positions.
+    const todayOrderKey = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const todayOrders = orders.filter(order =>
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date(order.createdAt)) === todayOrderKey
+    );
+
+    if (todayOrders.length === 0) {
       return (
         <div className="empty-state">
           <div className="empty-state-icon">📋</div>
-          <div className="empty-state-text">No orders placed yet</div>
+          <div className="empty-state-text">No orders today</div>
         </div>
       );
     }
     return (
       <div style={{ overflow: 'auto', height: '100%', padding: '8px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {orders.map((order) => {
+          {todayOrders.map((order) => {
             const sideLabel = order.side === 'BUY' ? 'B' : 'S';
             const sideClass = order.side === 'BUY' ? 'jnl-side-buy' : 'jnl-side-sell';
             const typeLabel = order.orderType === 'MARKET' ? 'M' : order.orderType === 'LIMIT' ? 'L' : order.orderType === 'SL' ? 'SL' : 'SM';
