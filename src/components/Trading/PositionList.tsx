@@ -198,31 +198,31 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
               }}>
                 {/* Row 1: Name | Side | Qty */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
-                  <span style={{ fontWeight: 600, fontSize: '12px', color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {pos.displayName || pos.symbol}
                   </span>
                   {pos.trailingSL && (
                     <span style={{ fontSize: '9px', color: '#ff9800' }} title="Trailing SL">TSL</span>
                   )}
-                  <span style={{ fontSize: '9px', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: '3px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '3px' }}>
                     {pos.instrumentType}
                   </span>
-                  <span className={pos.side === 'BUY' ? 'buy-side' : 'sell-side'} style={{ fontSize: '11px', fontWeight: 700 }}>
+                  <span className={pos.side === 'BUY' ? 'buy-side' : 'sell-side'} style={{ fontSize: '13px', fontWeight: 700 }}>
                     {pos.side}
                   </span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>
                     {pos.quantity}
                   </span>
                 </div>
 
                 {/* Row 2: Entry → LTP | P&L */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isEditing || isExitQtyMode ? '4px' : '0' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                     {pos.entryPrice.toFixed(2)}
-                    <span style={{ margin: '0 3px', color: 'var(--text-muted)' }}>→</span>
-                    <span style={{ color: 'var(--text-secondary)' }}>{currentPrice.toFixed(2)}</span>
+                    <span style={{ margin: '0 5px', color: 'var(--text-muted)' }}>→</span>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{currentPrice.toFixed(2)}</span>
                   </span>
-                  <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '12px' }}>
+                  <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '17px' }}>
                     {pnlInfo.text}
                   </span>
                 </div>
@@ -371,22 +371,24 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                     }}
                     title="Click to view entry/exit details"
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
-                      <span style={{ fontWeight: 600, fontSize: '11px', color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
+                      <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {trade.displayName || trade.symbol}
                       </span>
-                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{trade.side}</span>
-                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{trade.quantity}</span>
-                      <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 700 }}>{trade.side}</span>
+                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{trade.quantity}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '2px' }}>
                         {isExpanded ? '▲' : '▼'}
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                        {trade.entryPrice.toFixed(2)} → {trade.exitPrice.toFixed(2)}
-                        <span style={{ marginLeft: '6px', fontSize: '9px' }}>{trade.exitReason || 'MANUAL'}</span>
+                      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                        {trade.entryPrice.toFixed(2)}
+                        <span style={{ margin: '0 5px' }}>→</span>
+                        {trade.exitPrice.toFixed(2)}
+                        <span style={{ marginLeft: '8px', fontSize: '11px' }}>{trade.exitReason || 'MANUAL'}</span>
                       </span>
-                      <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '11px' }}>
+                      <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '16px' }}>
                         {pnlInfo.text}
                       </span>
                     </div>
