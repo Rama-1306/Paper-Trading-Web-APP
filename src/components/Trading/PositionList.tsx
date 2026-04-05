@@ -113,43 +113,19 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
 
   const openPositions = positions.filter(p => p.isOpen);
 
-  // Show today's closed positions (IST calendar day, reset at 11:55 PM IST)
-  const IST_TIME_ZONE = 'Asia/Kolkata';
-  const RESET_MINUTES_IST = 23 * 60 + 55;
-  const getISTDateKey = (value: string | Date) =>
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: IST_TIME_ZONE,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date(value));
+  // All closed trades sorted newest-first — no date cutoff so they persist
+  // across day boundaries and after both markets close.
+  const recentClosedTrades = [...trades].sort(
+    (a, b) => new Date(b.exitTime).getTime() - new Date(a.exitTime).getTime()
+  );
 
-  const getISTHourMinute = (value: Date) => {
-    const parts = new Intl.DateTimeFormat('en-GB', {
-      timeZone: IST_TIME_ZONE,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).formatToParts(value);
-
-    const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? '0');
-    const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? '0');
-    return { hour, minute };
-  };
-
-  const now = new Date();
-  const { hour: currentHourIST, minute: currentMinuteIST } = getISTHourMinute(now);
-  const isBeforeReset = currentHourIST * 60 + currentMinuteIST < RESET_MINUTES_IST;
-  const todayISTKey = getISTDateKey(now);
-
-  const todayClosedTrades = isBeforeReset
-    ? trades
-        .filter((t) => getISTDateKey(t.exitTime) === todayISTKey)
-        .sort(
-          (a, b) =>
-            new Date(b.exitTime).getTime() - new Date(a.exitTime).getTime()
-        )
-    : [];
+  // Day P&L uses today's IST calendar date for accuracy
+  const todayISTKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 
   const openUnrealizedPnl = openPositions.reduce((sum, pos) => {
     const ltp = ticks[pos.symbol]?.ltp ?? pos.currentPrice;
@@ -157,11 +133,13 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
       ? (ltp - pos.entryPrice) * pos.quantity
       : (pos.entryPrice - ltp) * pos.quantity);
   }, 0);
-  const todayClosedPnl = todayClosedTrades.reduce((sum, t) => sum + t.pnl, 0);
+  const todayClosedPnl = trades
+    .filter(t => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t.exitTime)) === todayISTKey)
+    .reduce((sum, t) => sum + t.pnl, 0);
   const dayPnl = openUnrealizedPnl + todayClosedPnl;
   const dayPnlInfo = formatPnL(dayPnl);
 
-  if (openPositions.length === 0 && todayClosedTrades.length === 0) {
+  if (openPositions.length === 0 && trades.length === 0) {
     return (
       <div className="empty-state">
         <div className="empty-state-icon">📭</div>
@@ -333,7 +311,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
           })}
         </div>
 
-        {todayClosedTrades.length > 0 && (
+        {recentClosedTrades.length > 0 && (
           <>
             <div style={{
               padding: '4px 10px',
@@ -346,9 +324,9 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
             }}>
-              Closed Today
+              Closed Positions
             </div>
-            {todayClosedTrades.map((trade) => {
+            {recentClosedTrades.map((trade) => {
               const pnlInfo = formatPnL(trade.pnl);
               const isExpanded = expandedClosedTradeId === trade.id;
               return (
@@ -429,7 +407,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
     <div style={{ overflow: 'auto', height: '100%' }}>
 
       {/* ── Day P&L Summary Banner ── */}
-      {(openPositions.length > 0 || todayClosedTrades.length > 0) && (
+      {(openPositions.length > 0 || todayClosedPnl !== 0) && (
         <div style={{
           padding: '6px 14px',
           background: 'var(--bg-card)',
@@ -758,7 +736,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
         </tbody>
       </table>}
 
-      {todayClosedTrades.length > 0 && (
+      {recentClosedTrades.length > 0 && (
         <>
           <div style={{
             padding: '4px 10px',
@@ -771,11 +749,11 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
           }}>
-            Closed Today
+            Closed Positions
           </div>
 
           {/* Mobile: card layout for closed trades */}
-          {isMobile && todayClosedTrades.map((trade) => {
+          {isMobile && recentClosedTrades.map((trade) => {
             const pnlInfo = formatPnL(trade.pnl);
             const isExpanded = expandedClosedTradeId === trade.id;
             return (
@@ -837,7 +815,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {todayClosedTrades.map((trade) => {
+              {recentClosedTrades.map((trade) => {
                 const pnlInfo = formatPnL(trade.pnl);
                 const isExpanded = expandedClosedTradeId === trade.id;
                 return [
