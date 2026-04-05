@@ -14,10 +14,12 @@ let onServerEvent: ((event: string, data: any) => void) | null = null;
 // Positive = local clock is behind, negative = local clock is ahead.
 let clockOffsetSeconds = 0;
 
-/** Compute current NSE market session from IST wall-clock time.
- *  IST = UTC+5:30. Market is open Mon–Fri only.
+/** Compute current market session from IST wall-clock time.
+ *  IST = UTC+5:30. Markets are open Mon–Fri only.
+ *  NSE: Pre-open 09:00, Open 09:15–15:30, Post-market 15:30–16:00
+ *  MCX: Open 09:00–23:30 (continuous session, no pre/post)
  */
-function computeMarketStatus(): MarketStatus {
+export function computeMarketStatus(isMCX = false): MarketStatus {
   const now = new Date();
   // Shift to IST (UTC+5:30)
   const istOffset = 5.5 * 60; // minutes
@@ -30,6 +32,16 @@ function computeMarketStatus(): MarketStatus {
   const istDay = new Date(istDayMs).getUTCDay(); // 0=Sun, 6=Sat
 
   const isWeekday = istDay >= 1 && istDay <= 5;
+
+  if (isMCX) {
+    // MCX: 09:00 – 23:30 IST, Mon–Fri
+    const MCX_OPEN  = 9 * 60;        // 09:00
+    const MCX_CLOSE = 23 * 60 + 30;  // 23:30
+    if (!isWeekday || istMinutes < MCX_OPEN || istMinutes >= MCX_CLOSE) {
+      return { isOpen: false, session: 'CLOSED' };
+    }
+    return { isOpen: true, session: 'OPEN' };
+  }
 
   // NSE timings in minutes from midnight IST
   const PRE_OPEN_START = 9 * 60;        // 09:00

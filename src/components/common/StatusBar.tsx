@@ -2,23 +2,28 @@
 
 import { useEffect, useState } from 'react';
 import { useMarketStore } from '@/stores/marketStore';
+import { computeMarketStatus } from '@/stores/marketStore';
 import { formatTime } from '@/lib/utils/formatters';
 
 export function StatusBar() {
   const connectionStatus = useMarketStore((s) => s.connectionStatus);
-  const marketStatus = useMarketStore((s) => s.marketStatus);
+  const activeSymbol = useMarketStore((s) => s.activeSymbol);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const sessionLabels: Record<string, string> = {
-    PRE: '🕐 Pre-Open',
-    OPEN: '🟢 Market Open',
-    CLOSED: '🔴 Market Closed',
-    POST: '🟡 Post-Market',
+  const nseStatus = computeMarketStatus(false);
+  const mcxStatus = computeMarketStatus(true);
+
+  const sessionLabel = (session: string, isOpen: boolean) => {
+    if (session === 'PRE') return '🕐 Pre-Open';
+    if (session === 'POST') return '🟡 Post-Market';
+    return isOpen ? '🟢 Open' : '🔴 Closed';
   };
+
+  const isMCXActive = activeSymbol.startsWith('MCX:');
 
   return (
     <footer className="status-bar" style={{
@@ -38,7 +43,12 @@ export function StatusBar() {
           {connectionStatus.isConnected ? '🟢' : '🔴'}{' '}
           {connectionStatus.isConnected ? 'Live Feed Connected' : 'Disconnected'}
         </span>
-        <span>{sessionLabels[marketStatus.session] ?? 'Unknown'}</span>
+        <span style={{ fontWeight: isMCXActive ? 400 : 600, color: isMCXActive ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+          NSE: {sessionLabel(nseStatus.session, nseStatus.isOpen)}
+        </span>
+        <span style={{ fontWeight: isMCXActive ? 600 : 400, color: isMCXActive ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+          MCX: {sessionLabel(mcxStatus.session, mcxStatus.isOpen)}
+        </span>
         <span>Symbols: {connectionStatus.subscribedSymbols.length}</span>
       </div>
       <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
