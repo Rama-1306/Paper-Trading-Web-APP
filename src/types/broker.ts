@@ -92,7 +92,8 @@ export interface FyersOptionChainResponse {
 export type WebSocketDataMode = 'liteMode' | 'fullMode';
 
 export interface BrokerConnectionStatus {
-  isConnected: boolean;
+  isConnected: boolean;   // Socket.IO connection to WS server is up
+  isFeedLive: boolean;    // Fyers data socket is actually streaming ticks
   isAuthenticated: boolean;
   lastTickTime?: number;
   subscribedSymbols: string[];

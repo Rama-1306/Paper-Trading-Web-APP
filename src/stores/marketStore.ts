@@ -119,6 +119,7 @@ const _storedLotSize = typeof window !== 'undefined' ? parseInt(localStorage.get
 const initialState = {
   connectionStatus: {
     isConnected: false,
+    isFeedLive: false,
     isAuthenticated: false,
     subscribedSymbols: [],
   },
@@ -212,8 +213,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
     newSocket.on('connect', () => {
       console.log('Connected to Market Data Server');
+      // Mark WS server as reachable; isFeedLive stays false until
+      // the server confirms the Fyers data socket is actually streaming.
       set((state) => ({
-        connectionStatus: { ...state.connectionStatus, isConnected: true },
+        connectionStatus: { ...state.connectionStatus, isConnected: true, isFeedLive: false },
         marketStatus: computeMarketStatus(),
       }));
 
@@ -234,8 +237,15 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     newSocket.on('disconnect', () => {
       console.log('Disconnected from Market Data Server');
       set((state) => ({
-        connectionStatus: { ...state.connectionStatus, isConnected: false },
+        connectionStatus: { ...state.connectionStatus, isConnected: false, isFeedLive: false },
         marketStatus: computeMarketStatus(),
+      }));
+    });
+
+    newSocket.on('feed_status', (data: { live: boolean }) => {
+      console.log(`Fyers feed status: ${data.live ? 'LIVE' : 'DOWN'}`);
+      set((state) => ({
+        connectionStatus: { ...state.connectionStatus, isFeedLive: data.live },
       }));
     });
 

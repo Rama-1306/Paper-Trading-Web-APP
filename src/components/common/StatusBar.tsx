@@ -25,6 +25,12 @@ export function StatusBar() {
 
   const isMCXActive = activeSymbol.startsWith('MCX:');
 
+  const feedLabel = !connectionStatus.isConnected
+    ? '🔴 WS Server Down'
+    : connectionStatus.isFeedLive
+      ? '🟢 Live Feed'
+      : '🟡 Feed Down';
+
   return (
     <footer className="status-bar" style={{
       display: 'flex',
@@ -39,10 +45,7 @@ export function StatusBar() {
       flexShrink: 0,
     }}>
       <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-        <span>
-          {connectionStatus.isConnected ? '🟢' : '🔴'}{' '}
-          {connectionStatus.isConnected ? 'Live Feed Connected' : 'Disconnected'}
-        </span>
+        <span>{feedLabel}</span>
         <span style={{ fontWeight: isMCXActive ? 400 : 600, color: isMCXActive ? 'var(--text-muted)' : 'var(--text-primary)' }}>
           NSE: {sessionLabel(nseStatus.session, nseStatus.isOpen)}
         </span>

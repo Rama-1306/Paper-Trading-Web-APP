@@ -392,6 +392,7 @@ function initFyersSocket(token: string, forceReconnect = false) {
     console.log('🔗 Connected to Fyers Real-time Data WebSocket');
     skt = fyersSocket; // Reassign in case it was cleared after a previous close
     activeSocketToken = normalizedToken;
+    io.emit('feed_status', { live: true });
 
     if (activeSymbols.size > 0) {
       const syms = Array.from(activeSymbols);
@@ -431,6 +432,7 @@ function initFyersSocket(token: string, forceReconnect = false) {
 
   fyersSocket.on('error', (err: any) => {
     console.error('❌ Fyers WS Error:', err);
+    io.emit('feed_status', { live: false });
     const msg = String(err?.message || err || '').toLowerCase();
     const isAuthError =
       msg.includes('invalid') ||
@@ -445,6 +447,7 @@ function initFyersSocket(token: string, forceReconnect = false) {
 
   fyersSocket.on('close', () => {
     console.log('🔌 Fyers WS Closed — autoreconnect will retry');
+    io.emit('feed_status', { live: false });
     skt = null;
     activeSocketToken = null;
   });
@@ -1019,6 +1022,8 @@ io.on('connection', async (socket) => {
 
   clients.set(socket.id, { token, symbols: new Set() });
   socket.emit('authenticated', { success: true, sharedFeed: !token });
+  // Tell this client immediately whether the Fyers feed is currently live
+  socket.emit('feed_status', { live: isFyersSocketConnected() });
 
   if (token) {
     void persistSharedBrokerToken(token).catch((error) => {

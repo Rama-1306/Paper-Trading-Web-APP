@@ -79,7 +79,7 @@ export function Header() {
         </div>
 
         <div className="header-right">
-          {connectionStatus.isConnected ? (
+          {connectionStatus.isFeedLive ? (
             <>
               <div className="status-dot connected" title="Connected to Fyers live feed" />
               {isAdmin && (
