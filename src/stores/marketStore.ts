@@ -14,6 +14,41 @@ let onServerEvent: ((event: string, data: any) => void) | null = null;
 // Positive = local clock is behind, negative = local clock is ahead.
 let clockOffsetSeconds = 0;
 
+/** Compute current NSE market session from IST wall-clock time.
+ *  IST = UTC+5:30. Market is open Mon–Fri only.
+ */
+function computeMarketStatus(): MarketStatus {
+  const now = new Date();
+  // Shift to IST (UTC+5:30)
+  const istOffset = 5.5 * 60; // minutes
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const istMinutes = (utcMinutes + istOffset) % (24 * 60);
+
+  // Day of week in IST
+  const utcDayMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const istDayMs = utcDayMs + istOffset * 60 * 1000;
+  const istDay = new Date(istDayMs).getUTCDay(); // 0=Sun, 6=Sat
+
+  const isWeekday = istDay >= 1 && istDay <= 5;
+
+  // NSE timings in minutes from midnight IST
+  const PRE_OPEN_START = 9 * 60;        // 09:00
+  const MARKET_OPEN   = 9 * 60 + 15;   // 09:15
+  const MARKET_CLOSE  = 15 * 60 + 30;  // 15:30
+  const POST_CLOSE    = 16 * 60;        // 16:00
+
+  if (!isWeekday || istMinutes < PRE_OPEN_START || istMinutes >= POST_CLOSE) {
+    return { isOpen: false, session: 'CLOSED' };
+  }
+  if (istMinutes < MARKET_OPEN) {
+    return { isOpen: false, session: 'PRE' };
+  }
+  if (istMinutes < MARKET_CLOSE) {
+    return { isOpen: true, session: 'OPEN' };
+  }
+  return { isOpen: false, session: 'POST' };
+}
+
 /** Returns current UTC epoch seconds corrected by exchange clock offset. */
 export function getAccurateNowUTC(): number {
   return Math.floor(Date.now() / 1000) + clockOffsetSeconds;
@@ -75,10 +110,7 @@ const initialState = {
     isAuthenticated: false,
     subscribedSymbols: [],
   },
-  marketStatus: {
-    isOpen: false,
-    session: 'CLOSED' as const,
-  },
+  marketStatus: computeMarketStatus(),
   socket: null,
   ticks: {},
   spotPrice: 0,
@@ -170,7 +202,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       console.log('Connected to Market Data Server');
       set((state) => ({
         connectionStatus: { ...state.connectionStatus, isConnected: true },
-        marketStatus: { isOpen: true, session: 'OPEN' }
+        marketStatus: computeMarketStatus(),
       }));
 
       // Auto-subscribe to the active symbol
@@ -189,9 +221,9 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
     newSocket.on('disconnect', () => {
       console.log('Disconnected from Market Data Server');
-      set((state) => ({ 
+      set((state) => ({
         connectionStatus: { ...state.connectionStatus, isConnected: false },
-        marketStatus: { isOpen: false, session: 'CLOSED' }
+        marketStatus: computeMarketStatus(),
       }));
     });
 
