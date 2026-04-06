@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { formatINR } from '@/lib/utils/formatters';
@@ -10,12 +10,14 @@ import { InstrumentSearch } from '@/components/Trading/InstrumentSearch';
 
 export function Header() {
   const connectionStatus = useMarketStore((s) => s.connectionStatus);
+  const reconnectSocket = useMarketStore((s) => s.reconnectSocket);
   const account = useTradingStore((s) => s.account);
   const positions = useTradingStore((s) => s.positions);
   const trades = useTradingStore((s) => s.trades);
   const ticks = useMarketStore((s) => s.ticks);
 
   const [hasToken, setHasToken] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === 'ADMIN';
 
@@ -65,6 +67,22 @@ export function Header() {
     return exitDay === todayISTStr ? sum + t.pnl : sum;
   }, 0);
   const dayPnl = todayRealizedPnl + unrealizedPnl;
+
+  const handleMobileRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      reconnectSocket();
+      await Promise.all([
+        useTradingStore.getState().fetchAccount(),
+        useTradingStore.getState().fetchPositions(),
+        useTradingStore.getState().fetchOrders(),
+        useTradingStore.getState().fetchTrades(),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, reconnectSocket]);
 
   return (
     <>
@@ -116,6 +134,23 @@ export function Header() {
             <div className="status-dot" style={{ background: '#ff9800' }}
               title={hasToken ? 'Token found, connecting...' : 'Waiting for live feed'} />
           )}
+
+          {/* Mobile-only refresh button */}
+          <button
+            className="mobile-refresh-btn"
+            onClick={handleMobileRefresh}
+            disabled={isRefreshing}
+            title="Refresh data"
+            aria-label="Refresh"
+          >
+            <span style={{
+              display: 'inline-block',
+              animation: isRefreshing ? 'spin 0.8s linear infinite' : 'none',
+              fontSize: '14px',
+            }}>
+              ↻
+            </span>
+          </button>
 
           <Link href="/backtester" className="header-backtester-link" style={{
             padding: '4px 10px', borderRadius: '4px',

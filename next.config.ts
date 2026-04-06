@@ -7,6 +7,13 @@ const withPWA = withPWAInit({
   register: true,
   workboxOptions: {
     skipWaiting: true,
+    // Never cache API routes — always fetch fresh from network
+    runtimeCaching: [
+      {
+        urlPattern: /^\/api\//,
+        handler: 'NetworkOnly' as const,
+      },
+    ],
   },
 });
 

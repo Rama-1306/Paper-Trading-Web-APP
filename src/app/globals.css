@@ -2079,3 +2079,33 @@ a.mobile-nav-tab {
   text-decoration: none;
   color: var(--text-muted);
 }
+
+/* ─── Mobile Refresh Button (hidden on desktop) ─────────────── */
+.mobile-refresh-btn {
+  display: none;
+}
+@media (max-width: 767px) {
+  .mobile-refresh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: var(--color-accent, #6366f1);
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .mobile-refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .mobile-refresh-btn:active {
+    background: rgba(99, 102, 241, 0.25);
+  }
+}

@@ -95,6 +95,7 @@ interface MarketState {
 
   // Actions
   initSocket: () => void;
+  reconnectSocket: () => void;
   fetchHistory: () => Promise<void>;
   fetchOptionChain: () => Promise<void>;
   setConnectionStatus: (status: Partial<BrokerConnectionStatus>) => void;
@@ -203,11 +204,12 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     set({ connectionStatus: { ...connectionStatus, isAuthenticated: !!token } });
 
     const newSocket: Socket = io(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3002', {
-  auth: token ? { token } : {},
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  transports: ['polling', 'websocket'],
-});
+      auth: token ? { token } : {},
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      transports: ['websocket', 'polling'], // prefer WS; fall back to polling
+    });
     
     set({ socket: newSocket });
 
@@ -316,6 +318,18 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
   setConnectionStatus: (status) => set((s) => ({ connectionStatus: { ...s.connectionStatus, ...status } })),
   setMarketStatus: (status) => set({ marketStatus: status }),
+
+  reconnectSocket: () => {
+    const { socket } = get();
+    if (!socket) {
+      get().initSocket();
+      return;
+    }
+    // Socket.IO client can reconnect on demand
+    if (!socket.connected) {
+      socket.connect();
+    }
+  },
 
   updateTick: (tick) =>
     set((state) => ({

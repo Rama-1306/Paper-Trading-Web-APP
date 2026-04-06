@@ -11,6 +11,7 @@ import { TradeHistory } from '@/components/Trading/TradeHistory';
 import { WatchlistPanel } from '@/components/Trading/WatchlistPanel';
 import { AlertsPanel } from '@/components/Trading/AlertsPanel';
 import { ToastContainer } from '@/components/common/ToastContainer';
+import { PullToRefresh } from '@/components/common/PullToRefresh';
 import { InstrumentSearch } from '@/components/Trading/InstrumentSearch';
 import { formatINR } from '@/lib/utils/formatters';
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -54,6 +55,7 @@ export default function Dashboard() {
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const initSocket = useMarketStore(s => s.initSocket);
+  const reconnectSocket = useMarketStore(s => s.reconnectSocket);
   const isSocketConnected = useMarketStore(s => s.connectionStatus.isConnected);
 
   useEffect(() => {
@@ -211,8 +213,25 @@ export default function Dashboard() {
     };
   }, [isSidebarDragging]);
 
+  const handleRefresh = useCallback(async () => {
+    reconnectSocket();
+    await Promise.all([
+      useTradingStore.getState().fetchAccount(),
+      useTradingStore.getState().fetchPositions().then(() => {
+        const positions = useTradingStore.getState().positions;
+        const openSymbols = positions.filter(p => p.isOpen).map(p => p.symbol);
+        if (openSymbols.length > 0) {
+          useMarketStore.getState().subscribePositionSymbols(openSymbols);
+        }
+      }),
+      useTradingStore.getState().fetchOrders(),
+      useTradingStore.getState().fetchTrades(),
+    ]);
+  }, [reconnectSocket]);
+
   return (
     <ProtectedRoute>
+      <PullToRefresh onRefresh={handleRefresh} />
       <div className="app-container">
         <Header />
 
