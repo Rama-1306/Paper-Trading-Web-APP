@@ -259,14 +259,10 @@ let ensureSharedStatePromise: Promise<void> | null = null;
 
 let skt: any = null;
 let isProcessingOrders = false;
+let fyersFeedLive = false;
 
 function isFyersSocketConnected(): boolean {
-  if (!skt || typeof skt.isConnected !== 'function') return false;
-  try {
-    return !!skt.isConnected();
-  } catch {
-    return false;
-  }
+  return fyersFeedLive;
 }
 
 function safelyCloseFyersSocket(instance: any) {
@@ -392,6 +388,7 @@ function initFyersSocket(token: string, forceReconnect = false) {
     console.log('🔗 Connected to Fyers Real-time Data WebSocket');
     skt = fyersSocket; // Reassign in case it was cleared after a previous close
     activeSocketToken = normalizedToken;
+    fyersFeedLive = true;
     io.emit('feed_status', { live: true });
 
     if (activeSymbols.size > 0) {
@@ -425,6 +422,10 @@ function initFyersSocket(token: string, forceReconnect = false) {
     });
 
     if (ticks.length > 0) {
+      if (!fyersFeedLive) {
+        fyersFeedLive = true;
+        io.emit('feed_status', { live: true });
+      }
       io.emit('ticks', ticks);
       processTicksForOrders(ticks);
     }
@@ -432,6 +433,7 @@ function initFyersSocket(token: string, forceReconnect = false) {
 
   fyersSocket.on('error', (err: any) => {
     console.error('❌ Fyers WS Error:', err);
+    fyersFeedLive = false;
     io.emit('feed_status', { live: false });
     const msg = String(err?.message || err || '').toLowerCase();
     const isAuthError =
@@ -447,6 +449,7 @@ function initFyersSocket(token: string, forceReconnect = false) {
 
   fyersSocket.on('close', () => {
     console.log('🔌 Fyers WS Closed — autoreconnect will retry');
+    fyersFeedLive = false;
     io.emit('feed_status', { live: false });
     skt = null;
     activeSocketToken = null;

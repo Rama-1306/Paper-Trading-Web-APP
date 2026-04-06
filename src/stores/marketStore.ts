@@ -250,6 +250,13 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     });
 
     newSocket.on('ticks', (newTicks: Tick[]) => {
+      // Ticks are definitive proof the feed is live — ensure status reflects that.
+      if (!get().connectionStatus.isFeedLive) {
+        set((state) => ({
+          connectionStatus: { ...state.connectionStatus, isFeedLive: true },
+        }));
+      }
+
       // Sync local clock offset from exchange timestamps (ltt).
       // Only trust timestamps that look like valid recent epochs.
       const refTick = newTicks.find(t => t.timestamp && t.timestamp > 1_700_000_000);
