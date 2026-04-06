@@ -580,11 +580,17 @@ async function processPendingOrders(tickMap: Record<string, number>) {
 
     if (order.orderType === 'LIMIT') {
       if (order.side === 'BUY' && order.price && ltp <= order.price) {
+        // BUY LIMIT: fills when market is at or below the limit price.
+        // Fill at the actual market price (ltp), which is always ≤ limit —
+        // i.e. a better price than the limit the user specified.
         shouldFill = true;
-        fillPrice = order.price;
+        fillPrice = ltp;
       } else if (order.side === 'SELL' && order.price && ltp >= order.price) {
+        // SELL LIMIT: fills when market is at or above the limit price.
+        // Fill at the actual market price (ltp), which is always ≥ limit —
+        // i.e. a better price than the limit the user specified.
         shouldFill = true;
-        fillPrice = order.price;
+        fillPrice = ltp;
       }
     }
 
