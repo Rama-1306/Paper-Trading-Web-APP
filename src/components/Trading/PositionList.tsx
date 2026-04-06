@@ -7,6 +7,12 @@ import { formatDateTime, formatPnL } from '@/lib/utils/formatters';
 import { useUIStore } from '@/stores/uiStore';
 import { getLotSizeForSymbol } from '@/lib/utils/margins';
 
+/** Format per-unit price points in brackets, e.g. (+98.25) or (-100.00) */
+function formatPoints(points: number): string {
+  const sign = points >= 0 ? '+' : '';
+  return `(${sign}${points.toFixed(2)})`;
+}
+
 export function PositionList({ compact = false }: { compact?: boolean }) {
   const positions = useTradingStore((s) => s.positions);
   const trades = useTradingStore((s) => s.trades);
@@ -169,6 +175,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
               ? (currentPrice - pos.entryPrice) * pos.quantity
               : (pos.entryPrice - currentPrice) * pos.quantity;
             const pnlInfo = formatPnL(livePnl);
+            const points = pos.side === 'BUY' ? currentPrice - pos.entryPrice : pos.entryPrice - currentPrice;
             const isEditing = editingId === pos.id;
             const isExitQtyMode = exitQtyId === pos.id;
             const lotSize = getExitStepSize(pos.symbol, pos.quantity);
@@ -199,16 +206,21 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                   </span>
                 </div>
 
-                {/* Row 2: Entry → LTP | P&L */}
+                {/* Row 2: Entry → LTP | P&L + bracket points */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isEditing || isExitQtyMode ? '4px' : '0' }}>
                   <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                     {pos.entryPrice.toFixed(2)}
                     <span style={{ margin: '0 5px', color: 'var(--text-muted)' }}>→</span>
                     <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{currentPrice.toFixed(2)}</span>
                   </span>
-                  <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '17px' }}>
-                    {pnlInfo.text}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                    <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '17px' }}>
+                      {pnlInfo.text}
+                    </span>
+                    <span className={pnlInfo.className} style={{ fontSize: '10px', opacity: 0.75 }}>
+                      {formatPoints(points)}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Edit form */}
@@ -334,6 +346,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             </div>
             {todayClosedTrades.map((trade) => {
               const pnlInfo = formatPnL(trade.pnl);
+              const closedPoints = trade.side === 'BUY' ? trade.exitPrice - trade.entryPrice : trade.entryPrice - trade.exitPrice;
               const isExpanded = expandedClosedTradeId === trade.id;
               return (
                 <div key={trade.id} style={{
@@ -372,9 +385,14 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                         {trade.exitPrice.toFixed(2)}
                         <span style={{ marginLeft: '8px', fontSize: '11px' }}>{trade.exitReason || 'MANUAL'}</span>
                       </span>
-                      <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '16px' }}>
-                        {pnlInfo.text}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '16px' }}>
+                          {pnlInfo.text}
+                        </span>
+                        <span className={pnlInfo.className} style={{ fontSize: '10px', opacity: 0.75 }}>
+                          {formatPoints(closedPoints)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   {isExpanded && (
@@ -440,6 +458,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
           ? (currentPrice - pos.entryPrice) * pos.quantity
           : (pos.entryPrice - currentPrice) * pos.quantity;
         const pnlInfo = formatPnL(livePnl);
+        const points = pos.side === 'BUY' ? currentPrice - pos.entryPrice : pos.entryPrice - currentPrice;
         const isEditing = editingId === pos.id;
         const isExitQtyMode = exitQtyId === pos.id;
         const lotSize = getExitStepSize(pos.symbol, pos.quantity);
@@ -456,14 +475,17 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
               <span className={pos.side === 'BUY' ? 'buy-side' : 'sell-side'} style={{ fontSize: '13px', fontWeight: 700 }}>{pos.side}</span>
               <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>{pos.quantity}</span>
             </div>
-            {/* Row 2: Entry → LTP | P&L */}
+            {/* Row 2: Entry → LTP | P&L + bracket points */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
               <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                 {pos.entryPrice.toFixed(2)}
                 <span style={{ margin: '0 5px', color: 'var(--text-muted)' }}>→</span>
                 <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{currentPrice.toFixed(2)}</span>
               </span>
-              <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '17px' }}>{pnlInfo.text}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <span className={pnlInfo.className} style={{ fontWeight: 700, fontSize: '17px' }}>{pnlInfo.text}</span>
+                <span className={pnlInfo.className} style={{ fontSize: '10px', opacity: 0.75 }}>{formatPoints(points)}</span>
+              </div>
             </div>
             {/* Edit form */}
             {isEditing && (
@@ -546,6 +568,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
               ? (currentPrice - pos.entryPrice) * pos.quantity
               : (pos.entryPrice - currentPrice) * pos.quantity;
             const pnlInfo = formatPnL(livePnl);
+            const deskPoints = pos.side === 'BUY' ? currentPrice - pos.entryPrice : pos.entryPrice - currentPrice;
             const isEditing = editingId === pos.id;
             const isExitQtyMode = exitQtyId === pos.id;
             const lotSize = getExitStepSize(pos.symbol, pos.quantity);
@@ -575,7 +598,10 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                 <td className="right">{pos.entryPrice.toFixed(2)}</td>
                 <td className="right">{currentPrice.toFixed(2)}</td>
                 <td className={`right ${pnlInfo.className}`} style={{ fontWeight: 600 }}>
-                  {pnlInfo.text}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                    <span>{pnlInfo.text}</span>
+                    <span style={{ fontSize: '10px', opacity: 0.75 }}>{formatPoints(deskPoints)}</span>
+                  </div>
                 </td>
 
                 <td className="right">
@@ -761,6 +787,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
           {/* Mobile: card layout for closed trades */}
           {isMobile && todayClosedTrades.map((trade) => {
             const pnlInfo = formatPnL(trade.pnl);
+            const closedPts = trade.side === 'BUY' ? trade.exitPrice - trade.entryPrice : trade.entryPrice - trade.exitPrice;
             const isExpanded = expandedClosedTradeId === trade.id;
             return (
               <div key={trade.id} style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-primary)', padding: '10px 12px', opacity: 0.7, cursor: 'pointer' }}>
@@ -779,7 +806,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                     <span className="pos-closed-qty" style={{ color: 'var(--text-secondary)' }}>{trade.quantity}</span>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '2px' }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
-                  {/* Row 2: entry → exit | P&L */}
+                  {/* Row 2: entry → exit | P&L + bracket points */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span className="pos-closed-price" style={{ color: 'var(--text-muted)' }}>
                       {trade.entryPrice.toFixed(2)}
@@ -787,7 +814,10 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                       {trade.exitPrice.toFixed(2)}
                       <span style={{ marginLeft: '8px', fontSize: '11px' }}>{trade.exitReason || 'MANUAL'}</span>
                     </span>
-                    <span className={`pos-closed-pnl ${pnlInfo.className}`}>{pnlInfo.text}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      <span className={`pos-closed-pnl ${pnlInfo.className}`}>{pnlInfo.text}</span>
+                      <span className={pnlInfo.className} style={{ fontSize: '10px', opacity: 0.75 }}>{formatPoints(closedPts)}</span>
+                    </div>
                   </div>
                 </div>
                 {isExpanded && (
@@ -823,6 +853,7 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             <tbody>
               {todayClosedTrades.map((trade) => {
                 const pnlInfo = formatPnL(trade.pnl);
+                const deskClosedPts = trade.side === 'BUY' ? trade.exitPrice - trade.entryPrice : trade.entryPrice - trade.exitPrice;
                 const isExpanded = expandedClosedTradeId === trade.id;
                 return [
                   <tr
@@ -843,7 +874,12 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                     <td className="right" style={{ color: 'var(--text-muted)' }}>{trade.quantity}</td>
                     <td className="right" style={{ color: 'var(--text-muted)' }}>{trade.entryPrice.toFixed(2)}</td>
                     <td className="right" style={{ color: 'var(--text-muted)' }}>{trade.exitPrice.toFixed(2)}</td>
-                    <td className={`right ${pnlInfo.className}`} style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{pnlInfo.text}</td>
+                    <td className={`right ${pnlInfo.className}`} style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <span>{pnlInfo.text}</span>
+                        <span style={{ fontSize: '10px', opacity: 0.75 }}>{formatPoints(deskClosedPts)}</span>
+                      </div>
+                    </td>
                     <td style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{trade.exitReason || 'MANUAL'}</td>
                   </tr>,
                   isExpanded ? (
