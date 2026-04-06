@@ -150,10 +150,21 @@ export default function Dashboard() {
   }, [initSocket]);
   useEffect(() => {
     if (!isSocketConnected) return;
-    const alertSymbols = useAlertStore.getState().getActiveAlertSymbols();
-    if (alertSymbols.length > 0) {
-      useMarketStore.getState().subscribePositionSymbols(alertSymbols);
-    }
+
+    // On every (re)connect: fetch fresh data and re-subscribe all symbols
+    // so positions and alerts always have live ticks after any disconnect.
+    useTradingStore.getState().fetchAccount();
+    useTradingStore.getState().fetchPositions().then(() => {
+      const positions = useTradingStore.getState().positions;
+      const openSymbols = positions.filter(p => p.isOpen).map(p => p.symbol);
+      const alertSymbols = useAlertStore.getState().getActiveAlertSymbols();
+      const allSymbols = [...new Set([...openSymbols, ...alertSymbols])];
+      if (allSymbols.length > 0) {
+        useMarketStore.getState().subscribePositionSymbols(allSymbols);
+      }
+    });
+    useTradingStore.getState().fetchOrders();
+    useTradingStore.getState().fetchTrades();
   }, [isSocketConnected]);
 
   const account = useTradingStore(s => s.account);

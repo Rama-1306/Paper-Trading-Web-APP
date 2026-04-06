@@ -207,8 +207,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       auth: token ? { token } : {},
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
-      transports: ['websocket', 'polling'], // prefer WS; fall back to polling
+      reconnectionDelayMax: 3000, // max 3s between retries — 10s was too slow
+      // Start with polling (works through all proxies/CDN), then upgrade to WS.
+      // Reversing this order caused delays on Railway.app infrastructure.
+      transports: ['polling', 'websocket'],
     });
     
     set({ socket: newSocket });
