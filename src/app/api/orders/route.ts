@@ -123,6 +123,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate LIMIT order price direction before doing any DB work
+    if (orderType === 'LIMIT') {
+      const currentLtp = typeof body.currentLtp === 'number' ? body.currentLtp : 0;
+      if (currentLtp > 0 && price) {
+        if (side === 'BUY' && price >= currentLtp) {
+          return NextResponse.json(
+            { error: `BUY LIMIT price (${Number(price).toFixed(2)}) must be below current market price (${currentLtp.toFixed(2)}). Lower your limit price so the order waits for the market to drop to it, or use a Market order to buy immediately.` },
+            { status: 400 }
+          );
+        }
+        if (side === 'SELL' && price <= currentLtp) {
+          return NextResponse.json(
+            { error: `SELL LIMIT price (${Number(price).toFixed(2)}) must be above current market price (${currentLtp.toFixed(2)}). Raise your limit price so the order waits for the market to rise to it, or use a Market order to sell immediately.` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const context = await getOrCreateAuthenticatedAccount();
     if (!context) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });

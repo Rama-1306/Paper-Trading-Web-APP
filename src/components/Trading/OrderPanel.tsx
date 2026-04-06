@@ -55,6 +55,17 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
   const lots = Math.floor(orderQuantity / lotSize);
   const orderValue = currentPrice * orderQuantity;
 
+  // Real-time warning when LIMIT price is on the wrong side of the market
+  const limitPriceNum = price ? parseFloat(price) : 0;
+  const limitSideWarning =
+    orderType === 'LIMIT' && limitPriceNum > 0 && currentPrice > 0
+      ? orderSide === 'BUY' && limitPriceNum >= currentPrice
+        ? `BUY LIMIT must be below market (${currentPrice.toFixed(2)}). Lower the price so the order waits for market to drop.`
+        : orderSide === 'SELL' && limitPriceNum <= currentPrice
+          ? `SELL LIMIT must be above market (${currentPrice.toFixed(2)}). Raise the price so the order waits for market to rise.`
+          : null
+      : null;
+
   const sideNum = orderSide === 'BUY' ? 1 : -1;
   const marginRequired = getQuickMargin(sym, orderQuantity, sideNum);
   const isOptionBuy = /\d+(CE|PE)$/i.test(sym.replace(/^(NSE:|MCX:|BSE:)/, '')) && orderSide === 'BUY';
@@ -80,6 +91,26 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
     if ((orderType === 'LIMIT' || orderType === 'SL') && !price) {
       addNotification({ type: 'error', title: 'Price Required', message: 'Please enter a limit price' });
       return;
+    }
+
+    if (orderType === 'LIMIT' && price && currentPrice > 0) {
+      const lp = parseFloat(price);
+      if (orderSide === 'BUY' && lp >= currentPrice) {
+        addNotification({
+          type: 'error',
+          title: 'Invalid Limit Price',
+          message: `BUY LIMIT price must be below market (${currentPrice.toFixed(2)}). Use a Market order to buy now, or set a lower limit price.`,
+        });
+        return;
+      }
+      if (orderSide === 'SELL' && lp <= currentPrice) {
+        addNotification({
+          type: 'error',
+          title: 'Invalid Limit Price',
+          message: `SELL LIMIT price must be above market (${currentPrice.toFixed(2)}). Use a Market order to sell now, or set a higher limit price.`,
+        });
+        return;
+      }
     }
 
     if ((orderType === 'SL' || orderType === 'SL-M') && !triggerPrice) {
@@ -300,10 +331,25 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
               onChange={(e) => setPrice(e.target.value)}
               placeholder={currentPrice > 0 ? currentPrice.toFixed(2) : 'Price'}
               step="0.05"
-              style={{ flex: 1, padding: '8px', background: 'var(--bg-input)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'var(--font-mono)' }}
+              style={{ flex: 1, padding: '8px', background: 'var(--bg-input)', border: `1px solid ${limitSideWarning ? '#f59e0b' : 'var(--border-primary)'}`, borderRadius: '4px', color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'var(--font-mono)' }}
             />
           )}
         </div>
+
+        {/* LIMIT price direction warning — mobile */}
+        {limitSideWarning && (
+          <div style={{
+            padding: '6px 8px',
+            background: 'rgba(245,158,11,0.12)',
+            border: '1px solid rgba(245,158,11,0.4)',
+            borderRadius: '4px',
+            fontSize: '11px',
+            color: '#f59e0b',
+            lineHeight: 1.4,
+          }}>
+            ⚠ {limitSideWarning}
+          </div>
+        )}
 
         {/* ROW 3: Advanced Settings */}
         <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-primary)', borderRadius: '4px' }}>
@@ -475,7 +521,22 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
               onChange={(e) => setPrice(e.target.value)}
               placeholder={currentPrice > 0 ? currentPrice.toFixed(2) : '0.00'}
               step="0.05"
+              style={limitSideWarning ? { borderColor: '#f59e0b' } : undefined}
             />
+            {limitSideWarning && (
+              <div style={{
+                marginTop: '4px',
+                padding: '6px 8px',
+                background: 'rgba(245,158,11,0.12)',
+                border: '1px solid rgba(245,158,11,0.4)',
+                borderRadius: '4px',
+                fontSize: '11px',
+                color: '#f59e0b',
+                lineHeight: 1.4,
+              }}>
+                ⚠ {limitSideWarning}
+              </div>
+            )}
           </div>
         )}
 
