@@ -117,3 +117,25 @@ model WatchlistItem {
   displayName String    @default("")
   createdAt   DateTime  @default(now())
 }
+
+// ── SAHAAI Algo Bot ─────────────────────────────────────────────────────────
+// One row per registered bot. Updated every 60 seconds by the bot's heartbeat.
+// Used by the admin dashboard (Phase 2C) and the signal broadcaster (Phase 2B).
+
+model BotStatus {
+  id              Int       @id @default(autoincrement())
+  user_id         String    @unique               // License key from the bot's config.json
+  bot_url         String    @default("")          // Public URL — used to send signals to the bot
+  status          String    @default("offline")   // online | offline | halted | idle
+  mode            String    @default("paper")     // paper | shadow | live
+  uptime_minutes  Int       @default(0)
+  daily_trades    Int       @default(0)
+  daily_pnl       Float     @default(0.0)
+  open_positions  Int       @default(0)
+  last_trade_time DateTime?
+  last_ping       DateTime  @default(now())
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  @@map("bot_status")
+}
