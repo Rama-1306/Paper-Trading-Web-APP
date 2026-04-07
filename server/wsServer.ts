@@ -1024,7 +1024,7 @@ function handleSymbolSync() {
   }
 }
 
-io.on('connection', async (socket) => {
+io.on('connection', (socket) => {
   console.log(`✅ Client connected: ${socket.id}`);
   const rawToken = socket.handshake.auth?.token;
   const token = typeof rawToken === 'string' && rawToken.trim() ? rawToken.trim() : null;
@@ -1034,19 +1034,12 @@ io.on('connection', async (socket) => {
   // Tell this client immediately whether the Fyers feed is currently live
   socket.emit('feed_status', { live: isFyersSocketConnected() });
 
-  if (token) {
-    void persistSharedBrokerToken(token).catch((error) => {
-      console.error('Failed to persist shared broker token:', error);
-    });
-    initFyersSocket(token, true);
-  } else {
-    const persistedToken = await ensurePrimaryBrokerTokenLoaded();
-    if (persistedToken && !isFyersSocketConnected()) {
-      initFyersSocket(persistedToken);
-    }
-  }
+  // IMPORTANT: Register ALL socket event handlers synchronously before any async
+  // work. If handlers are registered after an await, events sent by the client
+  // immediately on connect (e.g. 'subscribe') arrive before the handler exists
+  // and are silently dropped — breaking live feed for user accounts.
 
-  socket.on('subscribe', async (symbols: string[]) => {
+  socket.on('subscribe', (symbols: string[]) => {
     const client = clients.get(socket.id);
     if (!client) return;
 
@@ -1057,12 +1050,25 @@ io.on('connection', async (socket) => {
 
     console.log(`📊 Client ${socket.id} subscribed to: ${symbols.join(', ')}`);
     socket.emit('subscribed', Array.from(client.symbols));
-    const tokenForFeed = token || primaryBrokerToken || (await ensurePrimaryBrokerTokenLoaded());
-    if (tokenForFeed && !isFyersSocketConnected()) {
-      initFyersSocket(tokenForFeed, !!token);
-    }
 
-    handleSymbolSync();
+    // If feed is already live just sync symbols; otherwise try to start it.
+    if (isFyersSocketConnected()) {
+      handleSymbolSync();
+    } else {
+      const tokenForFeed = token || primaryBrokerToken;
+      if (tokenForFeed) {
+        initFyersSocket(tokenForFeed, !!token);
+      } else {
+        // Token not in memory yet — load from DB then start feed
+        void ensurePrimaryBrokerTokenLoaded().then((persisted) => {
+          if (persisted && !isFyersSocketConnected()) {
+            initFyersSocket(persisted);
+          } else {
+            handleSymbolSync();
+          }
+        });
+      }
+    }
   });
 
   socket.on('unsubscribe', (symbols: string[]) => {
@@ -1090,6 +1096,20 @@ io.on('connection', async (socket) => {
     activeSymbols.clear();
     clients.forEach(c => c.symbols.forEach(s => activeSymbols.add(s)));
   });
+
+  // Async broker/token setup — runs after handlers are registered so no events are lost.
+  if (token) {
+    void persistSharedBrokerToken(token).catch((error) => {
+      console.error('Failed to persist shared broker token:', error);
+    });
+    initFyersSocket(token, true);
+  } else {
+    void ensurePrimaryBrokerTokenLoaded().then((persistedToken) => {
+      if (persistedToken && !isFyersSocketConnected()) {
+        initFyersSocket(persistedToken);
+      }
+    });
+  }
 });
 
 httpServer.listen(PORT, () => {

@@ -238,6 +238,12 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       console.log('Fyers WebSocket Authenticated');
     });
 
+    newSocket.on('subscribed', (symbols: string[]) => {
+      set((state) => ({
+        connectionStatus: { ...state.connectionStatus, subscribedSymbols: symbols },
+      }));
+    });
+
     newSocket.on('disconnect', () => {
       console.log('Disconnected from Market Data Server');
       set((state) => ({
