@@ -264,7 +264,10 @@ export default function AdminPage() {
               </div>
             )}
           </div>
-          <Link href="/" style={{ color: "#7aa2ff", textDecoration: "none", fontSize: 12 }}>← Back</Link>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <Link href="/admin/bots" style={{ color: "#38d39f", textDecoration: "none", fontSize: 12, fontWeight: 700 }}>Bot Monitor →</Link>
+            <Link href="/" style={{ color: "#7aa2ff", textDecoration: "none", fontSize: 12 }}>← Back</Link>
+          </div>
         </div>
 
         {/* Alerts */}
