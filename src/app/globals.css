@@ -1860,6 +1860,26 @@ select.input {
   }
 }
 
+/* ─── PWA-only Place Order view (mobile: expandable Up/Down panel + positions) ─── */
+/* On desktop: hide the mobile PWA panel; show the fallback message */
+/* On mobile (PWA): hide the desktop fallback; show the mobile panel */
+.pwa-place-order-view {
+  display: none; /* hidden on desktop by default */
+}
+.desktop-place-order-fallback {
+  display: flex; /* shown on desktop by default */
+}
+@media (max-width: 767px) {
+  .pwa-place-order-view {
+    display: flex; /* visible in PWA/mobile */
+    flex-direction: column;
+  }
+  .desktop-place-order-fallback {
+    display: none; /* hidden in PWA/mobile */
+  }
+}
+
+
 /* ─── Instrument Search Bar (Row 2 of header) ──────────────── */
 /* When rendered in the header as mobile-only, hide on desktop */
 .header-search-bar.header-search-mobile-only {

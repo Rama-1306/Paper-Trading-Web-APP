@@ -283,7 +283,16 @@ export default function Dashboard() {
             )}
             {activeView === 'positions' && (
               <div style={{ height: '100%', overflow: 'auto' }}>
-                <PositionList onSelectInstrument={(sym: string) => { useTradingStore.getState().setSelectedSymbol(sym); useMarketStore.getState().setActiveSymbol(sym); setActiveView('place-order'); }} />
+                {/* On desktop: clicking an instrument switches sidebar to order tab; on mobile: navigate to place-order view */}
+                <PositionList onSelectInstrument={(sym: string) => {
+                  useTradingStore.getState().setSelectedSymbol(sym);
+                  useMarketStore.getState().setActiveSymbol(sym);
+                  if (window.innerWidth < 768) {
+                    setActiveView('place-order');
+                  } else {
+                    setSidebarTab('order');
+                  }
+                }} />
               </div>
             )}
             {activeView === 'orders' && (
@@ -303,7 +312,16 @@ export default function Dashboard() {
             )}
             {activeView === 'watchlist' && (
               <div style={{ height: '100%', overflow: 'auto' }}>
-                <WatchlistPanel onSelectInstrument={(sym: string) => { useTradingStore.getState().setSelectedSymbol(sym); useMarketStore.getState().setActiveSymbol(sym); setActiveView('place-order'); }} />
+                {/* On desktop: clicking an instrument switches sidebar to order tab; on mobile: navigate to place-order view */}
+                <WatchlistPanel onSelectInstrument={(sym: string) => {
+                  useTradingStore.getState().setSelectedSymbol(sym);
+                  useMarketStore.getState().setActiveSymbol(sym);
+                  if (window.innerWidth < 768) {
+                    setActiveView('place-order');
+                  } else {
+                    setSidebarTab('order');
+                  }
+                }} />
               </div>
             )}
             {activeView === 'alerts' && (
@@ -312,26 +330,43 @@ export default function Dashboard() {
               </div>
             )}
             {activeView === 'place-order' && (
-              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ flexShrink: 0 }}>
-                  <OrderPanel isMobile={true} />
-                </div>
-                <div style={{ flex: 1, minHeight: 0, overflow: 'auto', borderTop: '4px solid var(--bg-card)' }}>
-                  <div style={{
-                    padding: '8px 12px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: 'var(--text-muted)',
-                    background: 'var(--bg-secondary)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    borderBottom: '1px solid var(--border-primary)'
-                  }}>
-                    Positions
+              <>
+                {/* PWA (mobile) only: Up/Down expandable order form + positions below */}
+                <div className="pwa-place-order-view" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ flexShrink: 0 }}>
+                    <OrderPanel isMobile={true} />
                   </div>
-                  <PositionList compact={true} />
+                  <div style={{ flex: 1, minHeight: 0, overflow: 'auto', borderTop: '4px solid var(--bg-card)' }}>
+                    <div style={{
+                      padding: '8px 12px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: 'var(--text-muted)',
+                      background: 'var(--bg-secondary)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      borderBottom: '1px solid var(--border-primary)'
+                    }}>
+                      Positions
+                    </div>
+                    <PositionList compact={true} />
+                  </div>
                 </div>
-              </div>
+                {/* Desktop fallback: this view is PWA-only; on desktop redirect to chart */}
+                <div className="desktop-place-order-fallback" style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: '32px' }}>📊</div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>Use the sidebar to Place Orders</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '280px' }}>
+                    On the web app, the <strong style={{ color: 'var(--color-accent)' }}>Place Order</strong> and <strong style={{ color: 'var(--color-accent)' }}>Positions</strong> tabs are in the right sidebar.
+                  </div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => { setSidebarTab('order'); setActiveView('chart'); }}
+                  >
+                    ← Back to Chart
+                  </button>
+                </div>
+              </>
             )}
           </div>
 
