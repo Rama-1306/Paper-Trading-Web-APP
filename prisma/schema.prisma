@@ -50,7 +50,9 @@ model Position {
   currentPrice   Float     @default(0)
   pnl            Float     @default(0)
   stopLoss       Float?
-  targetPrice    Float?
+  targetPrice    Float?    // T1
+  target2        Float?    // T2
+  target3        Float?    // T3
   trailingSL     Boolean   @default(false)
   trailingDistance Float?
   targetQty      Int?

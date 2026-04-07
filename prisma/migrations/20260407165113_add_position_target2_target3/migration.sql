@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Position" ADD COLUMN     "target2" DOUBLE PRECISION,
+ADD COLUMN     "target3" DOUBLE PRECISION;
