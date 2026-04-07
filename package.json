@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "npm run dev:next",
     "dev:next": "DATABASE_URL='file:/home/runner/workspace/bank-nifty-paper-trader/prisma/dev.db' next dev -p 5000",
-    "build": "prisma generate && prisma db push && next build --webpack",
-    "start": "next start",
+    "build": "prisma generate && next build --webpack",
+    "start": "prisma db push && next start",
     "lint": "next lint"
   },
   "dependencies": {
