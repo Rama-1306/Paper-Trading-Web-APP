@@ -1073,8 +1073,13 @@ io.on('connection', async (socket) => {
     activeSymbols.clear();
     clients.forEach(c => c.symbols.forEach(s => activeSymbols.add(s)));
 
-    if (skt && isFyersSocketConnected()) {
-      skt.unsubscribe(symbols, false, 1);
+    // Only unsubscribe from Fyers for symbols no other client still needs.
+    // Without this check, switching the chart symbol would drop position symbols
+    // from the Fyers feed even though other clients (or the same client's positions)
+    // still require them.
+    const orphaned = symbols.filter(s => !activeSymbols.has(s));
+    if (skt && isFyersSocketConnected() && orphaned.length > 0) {
+      skt.unsubscribe(orphaned, false, 1);
     }
   });
 

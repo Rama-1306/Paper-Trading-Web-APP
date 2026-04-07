@@ -380,10 +380,16 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       localStorage.setItem('activeLotSize', String(resolvedLotSize));
     }
     set({ activeSymbol: sym, candles: [], activeLotSize: resolvedLotSize } as any);
-    // Reset order quantity to 1 lot of the new symbol
+    // Reset order quantity to 1 lot of the new symbol; re-subscribe open positions
+    // so switching the chart symbol never drops position symbols from the feed.
     try {
       const { useTradingStore } = require('@/stores/tradingStore');
       useTradingStore.getState().setOrderQuantity(resolvedLotSize);
+      const positions = useTradingStore.getState().positions as Array<{ isOpen: boolean; symbol: string }>;
+      const openSymbols = positions.filter(p => p.isOpen).map(p => p.symbol);
+      if (openSymbols.length > 0) {
+        get().subscribePositionSymbols(openSymbols);
+      }
     } catch {}
     get().fetchHistory();
   },
