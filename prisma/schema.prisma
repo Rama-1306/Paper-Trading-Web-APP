@@ -118,6 +118,29 @@ model WatchlistItem {
   createdAt   DateTime  @default(now())
 }
 
+// ── SAHAAI Signal Flow ───────────────────────────────────────────────────────
+// One row per TradingView webhook received. Audit trail for the full signal flow.
+// Tracks: webhook received → bot notified → paper order created.
+
+model WebhookSignal {
+  id            String    @id @default(cuid())
+  action        String                           // BUY or SELL
+  symbol        String                           // e.g. BANKNIFTY
+  exchange      String    @default("NSE")        // NSE or MCX
+  signal_type   String                           // e.g. CCC_BULL, GANN_BUY
+  score         Int                              // Confluence score 1-4
+  candle_high   Float?                           // High of signal candle
+  candle_low    Float?                           // Low of signal candle
+  close         Float?                           // Close price of signal candle
+  source        String    @default("tradingview") // Where the signal came from
+  bot_notified  Boolean   @default(false)        // Did broadcast reach the bot?
+  order_created Boolean   @default(false)        // Did bot create a paper order?
+  order_id      String?                          // Paper order ID once created
+  created_at    DateTime  @default(now())
+
+  @@map("webhook_signals")
+}
+
 // ── SAHAAI Algo Bot ─────────────────────────────────────────────────────────
 // One row per registered bot. Updated every 60 seconds by the bot's heartbeat.
 // Used by the admin dashboard (Phase 2C) and the signal broadcaster (Phase 2B).
