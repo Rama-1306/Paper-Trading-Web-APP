@@ -4,7 +4,7 @@
  *
  * Called by the algo bot after it decides to act on a broadcast signal.
  * This endpoint:
- *   1. Authenticates the bot via bot_id (user_id in bot_status table)
+ *   1. Authenticates via Authorization: Bearer {BOT_SECRET} header
  *   2. Validates the order payload
  *   3. Creates a paper Order record (FILLED for MARKET, PENDING for LIMIT)
  *   4. For MARKET orders: opens a Position with SL / T1 / T2 / T3
@@ -13,20 +13,23 @@
  *
  * Expected JSON from the bot:
  * {
- *   "bot_id":      "BOT-LICENSE-KEY",     // must exist in bot_status.user_id
- *   "account_id":  "clxxx...",            // paper trading account to debit
- *   "signal_id":   "cmnougqs7...",        // optional — WebhookSignal.id
- *   "symbol":      "NSE:BANKNIFTY25JANFUT",
- *   "display_name": "BANKNIFTY JAN FUT",  // optional
- *   "side":        "BUY",                 // BUY | SELL
- *   "order_type":  "MARKET",              // MARKET | LIMIT
- *   "quantity":    25,
- *   "price":       48250.0,               // required for LIMIT; fill price for MARKET
- *   "sl":          47900.0,               // optional stop-loss
- *   "t1":          48600.0,               // optional target 1
- *   "t2":          48900.0,               // optional target 2
- *   "t3":          49200.0                // optional target 3
+ *   "bot_id":       "SAHAAI-XXXX",        // label only — not checked against DB
+ *   "account_id":   "clxxx...",           // paper trading account to debit
+ *   "signal_id":    "cmnougqs7...",       // optional — WebhookSignal.id
+ *   "symbol":       "BANKNIFTY25APR48000CE",
+ *   "display_name": "BANKNIFTY 48000 CE", // optional
+ *   "side":         "BUY",               // BUY | SELL
+ *   "order_type":   "MARKET",            // MARKET | LIMIT
+ *   "quantity":     30,
+ *   "price":        48100.0,             // fill price for MARKET; required for LIMIT
+ *   "sl":           47980.0,             // optional stop-loss
+ *   "t1":           48261.0,             // optional target 1
+ *   "t2":           48340.0,             // optional target 2
+ *   "t3":           48430.0              // optional target 3
  * }
+ *
+ * Auth: set BOT_SECRET env variable in Railway. Bot sends it as:
+ *   Authorization: Bearer <BOT_SECRET>
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -45,11 +48,28 @@ function err(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function authenticateBot(req: NextRequest): boolean {
+  const secret = process.env.BOT_SECRET;
+  if (!secret) {
+    // If BOT_SECRET is not set, log a warning and allow through (dev fallback)
+    console.warn('[BotOrder] BOT_SECRET env variable is not set — authentication skipped');
+    return true;
+  }
+  const authHeader = req.headers.get('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  return token === secret;
+}
+
 // ── POST handler ──────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
-    // ── 1. Parse body ─────────────────────────────────────────────────────────
+    // ── 1. Authenticate ───────────────────────────────────────────────────────
+    if (!authenticateBot(req)) {
+      return err('Unauthorized — invalid or missing BOT_SECRET', 401);
+    }
+
+    // ── 2. Parse body ─────────────────────────────────────────────────────────
     let body: Record<string, unknown>;
     try {
       body = await req.json();
@@ -87,8 +107,7 @@ export async function POST(req: NextRequest) {
       t3?: number;
     };
 
-    // ── 2. Validate required fields ───────────────────────────────────────────
-    if (!bot_id)     return err('bot_id is required');
+    // ── 3. Validate required fields ───────────────────────────────────────────
     if (!account_id) return err('account_id is required');
     if (!symbol)     return err('symbol is required');
     if (!side)       return err('side is required (BUY | SELL)');
@@ -98,36 +117,27 @@ export async function POST(req: NextRequest) {
     const sideUpper = side.toUpperCase();
     const typeUpper = order_type.toUpperCase();
 
-    if (!['BUY', 'SELL'].includes(sideUpper))     return err("side must be 'BUY' or 'SELL'");
+    if (!['BUY', 'SELL'].includes(sideUpper))    return err("side must be 'BUY' or 'SELL'");
     if (!['MARKET', 'LIMIT'].includes(typeUpper)) return err("order_type must be 'MARKET' or 'LIMIT'");
     if (typeUpper === 'LIMIT' && !price)          return err('price is required for LIMIT orders');
-
-    // ── 3. Authenticate bot ───────────────────────────────────────────────────
-    const bot = await prisma.botStatus.findUnique({
-      where: { user_id: bot_id },
-      select: { user_id: true, status: true },
-    });
-
-    if (!bot) {
-      return err('Unknown bot_id — bot is not registered', 403);
-    }
-    if (bot.status === 'halted') {
-      return err('Bot is halted — orders are blocked', 403);
-    }
 
     // ── 4. Resolve account ────────────────────────────────────────────────────
     const account = await prisma.account.findUnique({
       where: { id: account_id },
     });
 
-    if (!account) return err('account_id not found', 404);
+    if (!account) return err(`account_id '${account_id}' not found`, 404);
 
-    const fillPrice = price ?? 0;
-    const sideNum   = sideUpper === 'BUY' ? 1 : -1;
-    const instType  = instrumentType(symbol);
-    const isOption  = instType === 'CE' || instType === 'PE';
-    const premium   = isOption ? fillPrice * quantity : 0;
+    const fillPrice   = price ?? 0;
+    const sideNum     = sideUpper === 'BUY' ? 1 : -1;
+    const instType    = instrumentType(symbol);
+    const isOption    = instType === 'CE' || instType === 'PE';
+    const premium     = isOption ? fillPrice * quantity : 0;
     const displayName = display_name || symbol;
+
+    console.log(
+      `[BotOrder] ${sideUpper} ${quantity} ${symbol} @ ${fillPrice} | bot=${bot_id ?? 'unknown'}`
+    );
 
     // ── 5. Create the Order record ────────────────────────────────────────────
     const isMarket = typeUpper === 'MARKET';
@@ -147,11 +157,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    console.log(
-      `[BotOrder] ${sideUpper} ${quantity} ${symbol} @ ${fillPrice} ` +
-      `| order=${order.id} bot=${bot_id}`
-    );
-
     // ── 6. For MARKET orders: open / update position ──────────────────────────
     let positionId: string | null = null;
 
@@ -168,20 +173,18 @@ export async function POST(req: NextRequest) {
           sideUpper === 'BUY'
             ? oppPosition.entryPrice - fillPrice
             : fillPrice - oppPosition.entryPrice;
-        const netQty  = Math.min(quantity, oppPosition.quantity);
-        const pnl     = pnlPerUnit * netQty;
-        const mPerUnit = oppPosition.marginUsed > 0
-          ? oppPosition.marginUsed / oppPosition.quantity
-          : 0;
+        const netQty         = Math.min(quantity, oppPosition.quantity);
+        const pnl            = pnlPerUnit * netQty;
+        const mPerUnit       = oppPosition.marginUsed > 0 ? oppPosition.marginUsed / oppPosition.quantity : 0;
         const marginReleased = mPerUnit * netQty;
 
         if (netQty < oppPosition.quantity) {
           await prisma.position.update({
             where: { id: oppPosition.id },
             data: {
-              quantity:    oppPosition.quantity - netQty,
+              quantity:     oppPosition.quantity - netQty,
               currentPrice: fillPrice,
-              marginUsed:  Math.max(0, oppPosition.marginUsed - marginReleased),
+              marginUsed:   Math.max(0, oppPosition.marginUsed - marginReleased),
             },
           });
         } else {
@@ -200,16 +203,16 @@ export async function POST(req: NextRequest) {
 
         await prisma.trade.create({
           data: {
-            accountId:   account.id,
+            accountId:  account.id,
             symbol,
             displayName,
-            side:        oppSide,
-            quantity:    netQty,
-            entryPrice:  oppPosition.entryPrice,
-            exitPrice:   fillPrice,
+            side:       oppSide,
+            quantity:   netQty,
+            entryPrice: oppPosition.entryPrice,
+            exitPrice:  fillPrice,
             pnl,
-            exitReason:  'NET_OFF',
-            entryTime:   oppPosition.createdAt,
+            exitReason: 'NET_OFF',
+            entryTime:  oppPosition.createdAt,
           },
         });
 
@@ -223,30 +226,27 @@ export async function POST(req: NextRequest) {
         });
 
         positionId = oppPosition.id;
-        await prisma.order.update({
-          where: { id: order.id },
-          data:  { positionId },
-        });
+        await prisma.order.update({ where: { id: order.id }, data: { positionId } });
 
-        // If order qty > opposite position qty, open new position for remainder
+        // Open a new position for any remaining qty beyond the netted quantity
         const remainingQty = quantity - netQty;
         if (remainingQty > 0) {
           const newMargin = getQuickMargin(symbol, remainingQty, sideNum);
           const newPos = await prisma.position.create({
             data: {
-              accountId:    account.id,
+              accountId:      account.id,
               symbol,
               displayName,
               instrumentType: instType,
-              side:         sideUpper,
-              quantity:     remainingQty,
-              entryPrice:   fillPrice,
-              currentPrice: fillPrice,
-              marginUsed:   newMargin,
-              stopLoss:     sl    ?? null,
-              targetPrice:  t1    ?? null,
-              target2:      t2    ?? null,
-              target3:      t3    ?? null,
+              side:           sideUpper,
+              quantity:       remainingQty,
+              entryPrice:     fillPrice,
+              currentPrice:   fillPrice,
+              marginUsed:     newMargin,
+              stopLoss:       sl ?? null,
+              targetPrice:    t1 ?? null,
+              target2:        t2 ?? null,
+              target3:        t3 ?? null,
             },
           });
           await prisma.account.update({
@@ -254,16 +254,13 @@ export async function POST(req: NextRequest) {
             data:  { usedMargin: { increment: newMargin } },
           });
           positionId = newPos.id;
-          await prisma.order.update({
-            where: { id: order.id },
-            data:  { positionId },
-          });
+          await prisma.order.update({ where: { id: order.id }, data: { positionId } });
         }
       } else {
         // No opposite position — open a fresh position
         const marginRequired = getQuickMargin(symbol, quantity, sideNum);
-        const totalCost = marginRequired + (isOption && sideUpper === 'BUY' ? premium : 0);
-        const available = account.balance - account.usedMargin;
+        const totalCost      = marginRequired + (isOption && sideUpper === 'BUY' ? premium : 0);
+        const available      = account.balance - account.usedMargin;
 
         if (totalCost > available) {
           await prisma.order.update({
@@ -283,19 +280,19 @@ export async function POST(req: NextRequest) {
 
         const position = await prisma.position.create({
           data: {
-            accountId:     account.id,
+            accountId:      account.id,
             symbol,
             displayName,
             instrumentType: instType,
-            side:          sideUpper,
+            side:           sideUpper,
             quantity,
-            entryPrice:    fillPrice,
-            currentPrice:  fillPrice,
-            marginUsed:    marginRequired,
-            stopLoss:      sl ?? null,
-            targetPrice:   t1 ?? null,
-            target2:       t2 ?? null,
-            target3:       t3 ?? null,
+            entryPrice:     fillPrice,
+            currentPrice:   fillPrice,
+            marginUsed:     marginRequired,
+            stopLoss:       sl ?? null,
+            targetPrice:    t1 ?? null,
+            target2:        t2 ?? null,
+            target3:        t3 ?? null,
           },
         });
 
@@ -309,10 +306,7 @@ export async function POST(req: NextRequest) {
         });
 
         positionId = position.id;
-        await prisma.order.update({
-          where: { id: order.id },
-          data:  { positionId },
-        });
+        await prisma.order.update({ where: { id: order.id }, data: { positionId } });
 
         console.log(
           `[BotOrder] Position opened: ${position.id} | ` +
@@ -321,7 +315,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── 7. Mark originating signal as order_created ───────────────────────────
+    // ── 7. Mark originating WebhookSignal as order_created ────────────────────
     if (signal_id) {
       try {
         await prisma.webhookSignal.update({
@@ -329,7 +323,6 @@ export async function POST(req: NextRequest) {
           data:  { order_created: true, order_id: order.id },
         });
       } catch {
-        // Signal may have been deleted or ID is wrong — don't fail the order
         console.warn(`[BotOrder] Could not update signal ${signal_id}`);
       }
     }
@@ -337,9 +330,9 @@ export async function POST(req: NextRequest) {
     // ── 8. Return result ──────────────────────────────────────────────────────
     return NextResponse.json(
       {
-        status:      'created',
-        order_id:    order.id,
-        position_id: positionId,
+        status:       'created',
+        order_id:     order.id,
+        position_id:  positionId,
         order_status: order.status,
       },
       { status: 201 }
