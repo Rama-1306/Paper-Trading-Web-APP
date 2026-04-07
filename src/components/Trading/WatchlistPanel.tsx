@@ -17,7 +17,11 @@ interface WatchlistData {
   items: WatchlistItemData[];
 }
 
-export function WatchlistPanel() {
+interface WatchlistPanelProps {
+  onSelectInstrument?: (symbol: string) => void;
+}
+
+export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {}) {
   const [watchlists, setWatchlists] = useState<WatchlistData[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [newListName, setNewListName] = useState('');
@@ -164,10 +168,17 @@ export function WatchlistPanel() {
   const selectSymbol = (symbol: string) => {
     useMarketStore.getState().setActiveSymbol(symbol);
     useTradingStore.getState().setSelectedSymbol(symbol);
+    if (onSelectInstrument) onSelectInstrument(symbol);
   };
+
+  // ── Active watchlist tab (default to first) ─────────────────────────────
+  const activeWlId = expandedId ?? (watchlists[0]?.id ?? null);
+  const activeWl = watchlists.find(w => w.id === activeWlId) ?? null;
+  const isRenaming = renaming === activeWlId;
 
   return (
     <div className="wl-container">
+      {/* ── Top toolbar ── */}
       <div className="wl-toolbar">
         <span className="wl-title">Watchlists</span>
         <button
@@ -204,141 +215,175 @@ export function WatchlistPanel() {
         </div>
       )}
 
-      <div className="wl-lists">
-        {watchlists.map((wl) => {
-          const isOpen = expandedId === wl.id;
-          const isRenaming = renaming === wl.id;
-          return (
-            <div key={wl.id} className="wl-group">
-              <div className="wl-group-header">
-                <button className="wl-group-toggle" onClick={() => setExpandedId(isOpen ? null : wl.id)}>
-                  <span className="wl-arrow">{isOpen ? '▾' : '▸'}</span>
-                  {isRenaming ? (
-                    <input
-                      className="wl-input wl-rename-input"
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') renameList(wl.id);
-                        if (e.key === 'Escape') setRenaming(null);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      autoFocus
-                    />
-                  ) : (
-                    <span className="wl-group-name">{wl.name}</span>
-                  )}
-                  <span className="wl-group-count">{wl.items.length}</span>
-                </button>
-                <div className="wl-group-actions">
-                  {isRenaming ? (
-                    <>
-                      <button className="wl-action" onClick={() => renameList(wl.id)} title="Save">&#10003;</button>
-                      <button className="wl-action" onClick={() => setRenaming(null)} title="Cancel">&#10005;</button>
-                    </>
-                  ) : (
-                    <>
-                      <button className="wl-action" onClick={() => { setAddingTo(addingTo === wl.id ? null : wl.id); setAddSymbolInput(''); }} title="Add symbol">+</button>
-                      <button className="wl-action" onClick={() => { setRenaming(wl.id); setRenameValue(wl.name); }} title="Rename">&#9998;</button>
-                      <button className="wl-action wl-action-delete" onClick={() => deleteList(wl.id)} title="Delete list">&#128465;</button>
-                    </>
-                  )}
-                </div>
-              </div>
+      {/* ── Horizontal Tab Bar ── */}
+      {watchlists.length > 0 && (
+        <div style={{
+          display: 'flex',
+          overflowX: 'auto',
+          borderBottom: '1px solid var(--border-primary)',
+          background: 'var(--bg-secondary)',
+          flexShrink: 0,
+          scrollbarWidth: 'none',
+        }}>
+          {watchlists.map((wl) => (
+            <button
+              key={wl.id}
+              onClick={() => setExpandedId(wl.id)}
+              style={{
+                padding: '8px 14px',
+                fontSize: '12px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: activeWlId === wl.id ? '2px solid var(--color-accent)' : '2px solid transparent',
+                color: activeWlId === wl.id ? 'var(--color-accent)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                transition: 'color 0.15s',
+                flexShrink: 0,
+              }}
+            >
+              {wl.name}
+              <span style={{ marginLeft: '5px', fontSize: '10px', opacity: 0.6 }}>({wl.items.length})</span>
+            </button>
+          ))}
+        </div>
+      )}
 
-              {isOpen && (
-                <div className="wl-items">
-                  {addingTo === wl.id && (
-                    <div className="wl-add-symbol-form" style={{ position: 'relative' }}>
-                      <input
-                        className="wl-input"
-                        value={addSymbolInput}
-                        onChange={(e) => handleSearchInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && searchResults.length === 0) addSymbol(wl.id);
-                          if (e.key === 'Escape') { setSearchResults([]); setAddingTo(null); }
-                        }}
-                        placeholder="Search symbol (e.g. BANKNIFTY, GOLD...)"
-                        autoFocus
-                      />
-                      <button className="wl-btn-confirm" onClick={() => addSymbol(wl.id)}>Add</button>
-                      {(searchResults.length > 0 || searchLoading) && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          zIndex: 100,
-                          background: 'var(--bg-secondary, #1a1d23)',
-                          border: '1px solid var(--border-primary, rgba(255,255,255,0.1))',
-                          borderRadius: '4px',
-                          maxHeight: '200px',
-                          overflowY: 'auto',
-                          marginTop: '2px',
-                        }}>
-                          {searchLoading && (
-                            <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                              Searching...
-                            </div>
-                          )}
-                          {searchResults.map((r) => (
-                            <div
-                              key={r.value}
-                              onClick={() => selectSearchResult(wl.id, r)}
-                              style={{
-                                padding: '6px 12px',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                borderBottom: '1px solid rgba(255,255,255,0.05)',
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.15)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                            >
-                              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{r.label}</span>
-                              <span style={{ color: 'var(--text-muted)', marginLeft: '8px', fontSize: '10px' }}>{r.value}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+      {/* ── Active Watchlist Content ── */}
+      {activeWl && (
+        <div className="wl-lists">
+          {/* Tab actions bar */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '6px 10px',
+            gap: '6px',
+            borderBottom: '1px solid var(--border-primary)',
+            background: 'rgba(255,255,255,0.02)',
+          }}>
+            {isRenaming ? (
+              <>
+                <input
+                  className="wl-input wl-rename-input"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') renameList(activeWl.id);
+                    if (e.key === 'Escape') setRenaming(null);
+                  }}
+                  autoFocus
+                  style={{ flex: 1 }}
+                />
+                <button className="wl-action" onClick={() => renameList(activeWl.id)} title="Save">&#10003;</button>
+                <button className="wl-action" onClick={() => setRenaming(null)} title="Cancel">&#10005;</button>
+              </>
+            ) : (
+              <>
+                <span style={{ flex: 1, fontSize: '11px', color: 'var(--text-muted)' }}>{activeWl.items.length} symbols</span>
+                <button className="wl-action" onClick={() => { setAddingTo(addingTo === activeWl.id ? null : activeWl.id); setAddSymbolInput(''); }} title="Add symbol">+</button>
+                <button className="wl-action" onClick={() => { setRenaming(activeWl.id); setRenameValue(activeWl.name); }} title="Rename">&#9998;</button>
+                <button className="wl-action wl-action-delete" onClick={() => deleteList(activeWl.id)} title="Delete list">&#128465;</button>
+              </>
+            )}
+          </div>
+
+          {/* Symbol search input */}
+          {addingTo === activeWl.id && (
+            <div className="wl-add-symbol-form" style={{ position: 'relative' }}>
+              <input
+                className="wl-input"
+                value={addSymbolInput}
+                onChange={(e) => handleSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchResults.length === 0) addSymbol(activeWl.id);
+                  if (e.key === 'Escape') { setSearchResults([]); setAddingTo(null); }
+                }}
+                placeholder="Search symbol (e.g. BANKNIFTY, GOLD...)"
+                autoFocus
+              />
+              <button className="wl-btn-confirm" onClick={() => addSymbol(activeWl.id)}>Add</button>
+              {(searchResults.length > 0 || searchLoading) && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  zIndex: 100,
+                  background: 'var(--bg-secondary, #1a1d23)',
+                  border: '1px solid var(--border-primary, rgba(255,255,255,0.1))',
+                  borderRadius: '4px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  marginTop: '2px',
+                }}>
+                  {searchLoading && (
+                    <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Searching...
                     </div>
                   )}
-                  {wl.items.length === 0 && addingTo !== wl.id && (
-                    <div className="wl-empty-list">No symbols added</div>
-                  )}
-                  {wl.items.map((item) => {
-                    const tick = ticks[item.symbol];
-                    const ltp = tick?.ltp;
-                    const change = tick?.change ?? 0;
-                    const changePct = tick?.changePercent ?? 0;
-                    return (
-                      <div key={item.id} className="wl-item" onClick={() => selectSymbol(item.symbol)}>
-                        <span className="wl-item-name">{item.displayName}</span>
-                        {ltp !== undefined ? (
-                          <div className="wl-item-price-area">
-                            <span className="wl-item-ltp">{ltp.toFixed(2)}</span>
-                            <span className={`wl-item-change ${change >= 0 ? 'profit' : 'loss'}`}>
-                              {change >= 0 ? '+' : ''}{change.toFixed(2)} ({changePct.toFixed(2)}%)
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="wl-item-no-data">--</span>
-                        )}
-                        <button
-                          className="wl-item-remove"
-                          onClick={(e) => { e.stopPropagation(); removeItem(wl.id, item.id); }}
-                          title="Remove"
-                        >
-                          &#10005;
-                        </button>
-                      </div>
-                    );
-                  })}
+                  {searchResults.map((r) => (
+                    <div
+                      key={r.value}
+                      onClick={() => selectSearchResult(activeWl.id, r)}
+                      style={{
+                        padding: '6px 12px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.15)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{r.label}</span>
+                      <span style={{ color: 'var(--text-muted)', marginLeft: '8px', fontSize: '10px' }}>{r.value}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          );
-        })}
-      </div>
+          )}
+
+          {/* Instrument list */}
+          {activeWl.items.length === 0 && addingTo !== activeWl.id && (
+            <div className="wl-empty-list">No symbols added. Click + to add.</div>
+          )}
+          {activeWl.items.map((item) => {
+            const tick = ticks[item.symbol];
+            const ltp = tick?.ltp;
+            const change = tick?.change ?? 0;
+            const changePct = tick?.changePercent ?? 0;
+            return (
+              <div
+                key={item.id}
+                className="wl-item"
+                onClick={() => selectSymbol(item.symbol)}
+                style={{ cursor: 'pointer' }}
+                title="Click to place order"
+              >
+                <span className="wl-item-name">{item.displayName}</span>
+                {ltp !== undefined ? (
+                  <div className="wl-item-price-area">
+                    <span className="wl-item-ltp">{ltp.toFixed(2)}</span>
+                    <span className={`wl-item-change ${change >= 0 ? 'profit' : 'loss'}`}>
+                      {change >= 0 ? '+' : ''}{change.toFixed(2)} ({changePct.toFixed(2)}%)
+                    </span>
+                  </div>
+                ) : (
+                  <span className="wl-item-no-data">--</span>
+                )}
+                <button
+                  className="wl-item-remove"
+                  onClick={(e) => { e.stopPropagation(); removeItem(activeWl.id, item.id); }}
+                  title="Remove"
+                >
+                  &#10005;
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

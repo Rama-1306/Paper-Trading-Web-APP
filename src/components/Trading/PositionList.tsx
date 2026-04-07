@@ -13,7 +13,7 @@ function formatPoints(points: number): string {
   return `(${sign}${points.toFixed(2)})`;
 }
 
-export function PositionList({ compact = false }: { compact?: boolean }) {
+export function PositionList({ compact = false, onSelectInstrument }: { compact?: boolean; onSelectInstrument?: (symbol: string) => void }) {
   const positions = useTradingStore((s) => s.positions);
   const trades = useTradingStore((s) => s.trades);
   const ticks = useMarketStore((s) => s.ticks);
@@ -189,7 +189,11 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
               }}>
                 {/* Row 1: Name | Side | Qty */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
-                  <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span
+                    style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: onSelectInstrument ? 'pointer' : 'default' }}
+                    onClick={() => onSelectInstrument && onSelectInstrument(pos.symbol)}
+                    title={onSelectInstrument ? 'Click to place order' : undefined}
+                  >
                     {pos.displayName || pos.symbol}
                   </span>
                   {pos.trailingSL && (
@@ -369,7 +373,11 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                     title="Click to view entry/exit details"
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span
+                        style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: onSelectInstrument ? 'pointer' : 'default' }}
+                        onClick={() => onSelectInstrument && onSelectInstrument(trade.symbol)}
+                        title={onSelectInstrument ? 'Click to place order' : undefined}
+                      >
                         {trade.displayName || trade.symbol}
                       </span>
                       <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 700 }}>{trade.side}</span>
@@ -467,7 +475,11 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
           <div key={pos.id} style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-primary)', padding: '10px 12px' }}>
             {/* Row 1: Name | badges | Side | Qty */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
-              <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span
+                style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: onSelectInstrument ? 'pointer' : 'default' }}
+                onClick={() => onSelectInstrument && onSelectInstrument(pos.symbol)}
+                title={onSelectInstrument ? 'Click to place order' : undefined}
+              >
                 {pos.displayName || pos.symbol}
               </span>
               {pos.trailingSL && <span style={{ fontSize: '9px', color: '#ff9800' }}>TSL</span>}
@@ -577,7 +589,11 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
             return (
               <tr key={pos.id}>
                 <td>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                  <span
+                    style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: onSelectInstrument ? 'pointer' : 'default' }}
+                    onClick={() => onSelectInstrument && onSelectInstrument(pos.symbol)}
+                    title={onSelectInstrument ? 'Click to place order' : undefined}
+                  >
                     {pos.displayName || pos.symbol}
                   </span>
                   <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '6px' }}>
@@ -797,9 +813,13 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                   onClick={() => toggleClosedTradeDetails(trade.id)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleClosedTradeDetails(trade.id); } }}
                 >
-                  {/* Row 1: symbol | side | qty | chevron */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
-                    <span className="pos-closed-symbol" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span
+                      className="pos-closed-symbol"
+                      style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: onSelectInstrument ? 'pointer' : 'default' }}
+                      onClick={(e) => { e.stopPropagation(); onSelectInstrument && onSelectInstrument(trade.symbol); }}
+                      title={onSelectInstrument ? 'Click to place order' : undefined}
+                    >
                       {trade.displayName || trade.symbol}
                     </span>
                     <span className="pos-closed-side" style={{ color: 'var(--text-muted)' }}>{trade.side}</span>
@@ -863,7 +883,11 @@ export function PositionList({ compact = false }: { compact?: boolean }) {
                     title="Click to expand entry and exit details"
                   >
                     <td>
-                      <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
+                      <span
+                        style={{ fontWeight: 600, color: 'var(--text-muted)', cursor: onSelectInstrument ? 'pointer' : 'default' }}
+                        onClick={(e) => { e.stopPropagation(); onSelectInstrument && onSelectInstrument(trade.symbol); }}
+                        title={onSelectInstrument ? 'Click to place order' : undefined}
+                      >
                         {trade.displayName || trade.symbol}
                       </span>
                       <span style={{ marginLeft: '6px', fontSize: '10px', color: 'var(--text-muted)' }}>

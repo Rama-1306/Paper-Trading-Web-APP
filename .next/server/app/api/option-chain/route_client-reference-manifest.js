@@ -1,0 +1,1 @@
+globalThis.__RSC_MANIFEST=(globalThis.__RSC_MANIFEST||{});globalThis.__RSC_MANIFEST["/api/option-chain/route"]={"moduleLoading":{"prefix":"/_next/"},"ssrModuleMapping":{},"edgeSSRModuleMapping":{},"clientModules":{},"entryCSSFiles":{"C:\\Users\\Admin\\Desktop\\Paper-Trading-Web-APP\\src\\app\\api\\option-chain\\route":[]},"rscModuleMapping":{},"edgeRscModuleMapping":{}};

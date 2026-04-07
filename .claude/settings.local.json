@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/Admin/Desktop/Paper-Trading-Web-APP -type f -name *fyers*)",
+      "Bash(xargs grep:*)",
+      "Bash(node --input-type=commonjs:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"console.log\\(require\\(''lightweight-charts/package.json''\\).version\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(pip install:*)",
+      "Bash(npm run:*)",
+      "Bash(npx next:*)",
+      "Bash(npx prisma:*)",
+      "Bash(DATABASE_URL=\"postgresql://placeholder:placeholder@localhost:5432/placeholder\" DIRECT_URL=\"postgresql://placeholder:placeholder@localhost:5432/placeholder\" npx prisma generate)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"require\\('@ducanh2912/next-pwa'\\)\")",
+      "Bash(node scripts/generate-icons.mjs)",
+      "Bash(node -e \"try{require\\('@ducanh2912/next-pwa'\\);console.log\\('ok'\\)}catch\\(e\\){console.log\\('missing'\\)}\")"
+    ]
+  }
+}

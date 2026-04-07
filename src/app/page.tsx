@@ -283,7 +283,7 @@ export default function Dashboard() {
             )}
             {activeView === 'positions' && (
               <div style={{ height: '100%', overflow: 'auto' }}>
-                <PositionList />
+                <PositionList onSelectInstrument={(sym: string) => { useTradingStore.getState().setSelectedSymbol(sym); useMarketStore.getState().setActiveSymbol(sym); setActiveView('place-order'); }} />
               </div>
             )}
             {activeView === 'orders' && (
@@ -303,7 +303,7 @@ export default function Dashboard() {
             )}
             {activeView === 'watchlist' && (
               <div style={{ height: '100%', overflow: 'auto' }}>
-                <WatchlistPanel />
+                <WatchlistPanel onSelectInstrument={(sym: string) => { useTradingStore.getState().setSelectedSymbol(sym); useMarketStore.getState().setActiveSymbol(sym); setActiveView('place-order'); }} />
               </div>
             )}
             {activeView === 'alerts' && (
