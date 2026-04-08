@@ -22,7 +22,11 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
   const [editingId, setEditingId] = useState<string | null>(null);
   const [slInput, setSlInput] = useState('');
   const [tpInput, setTpInput] = useState('');
-  const [modifyQtyInput, setModifyQtyInput] = useState('');
+  const [tp1QtyInput, setTp1QtyInput] = useState('');
+  const [tp2Input, setTp2Input] = useState('');
+  const [tp2QtyInput, setTp2QtyInput] = useState('');
+  const [tp3Input, setTp3Input] = useState('');
+  const [tp3QtyInput, setTp3QtyInput] = useState('');
   const [tslEnabled, setTslEnabled] = useState(false);
   const [tslDistance, setTslDistance] = useState('');
   const [exitQtyId, setExitQtyId] = useState<string | null>(null);
@@ -128,16 +132,23 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
 
   const startEditing = (pos: any) => {
     setEditingId(pos.id);
-    setSlInput(pos.stopLoss ? pos.stopLoss.toString() : '');
-    setTpInput(pos.targetPrice ? pos.targetPrice.toString() : '');
-    setModifyQtyInput(String(pos.quantity));
+    const exitOrders = pendingExitOrdersByPosition.get(pos.id);
+    const targets = exitOrders?.targets ?? [];
+    const stops = exitOrders?.stops ?? [];
+
+    setSlInput(stops[0]?.triggerPrice?.toString() ?? pos.stopLoss?.toString() ?? '');
+    setTpInput(targets[0]?.price?.toString() ?? pos.targetPrice?.toString() ?? '');
+    setTp1QtyInput(targets[0]?.quantity?.toString() ?? '');
+    setTp2Input(targets[1]?.price?.toString() ?? pos.target2?.toString() ?? '');
+    setTp2QtyInput(targets[1]?.quantity?.toString() ?? '');
+    setTp3Input(targets[2]?.price?.toString() ?? pos.target3?.toString() ?? '');
+    setTp3QtyInput(targets[2]?.quantity?.toString() ?? '');
     setTslEnabled(pos.trailingSL || false);
     setTslDistance(pos.trailingDistance ? pos.trailingDistance.toString() : '');
   };
 
   const handleModify = async (positionId: string, posQty: number) => {
     try {
-      const modQty = modifyQtyInput ? parseInt(modifyQtyInput) : posQty;
       const res = await fetch('/api/positions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -145,7 +156,11 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
           positionId,
           stopLoss: slInput ? parseFloat(slInput) : null,
           targetPrice: tpInput ? parseFloat(tpInput) : null,
-          targetQty: modQty < posQty ? modQty : null,
+          targetQty: tp1QtyInput ? parseInt(tp1QtyInput) : null,
+          target2: tp2Input ? parseFloat(tp2Input) : null,
+          targetQty2: tp2QtyInput ? parseInt(tp2QtyInput) : null,
+          target3: tp3Input ? parseFloat(tp3Input) : null,
+          targetQty3: tp3QtyInput ? parseInt(tp3QtyInput) : null,
           trailingSL: tslEnabled,
           trailingDistance: tslDistance ? parseFloat(tslDistance) : null,
         }),
@@ -322,37 +337,19 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
                 {isEditing && (
                   <div style={{ marginTop: '5px', borderTop: '1px solid var(--border-primary)', paddingTop: '5px' }}>
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '4px' }}>
-                      <input
-                        className="input"
-                        type="number"
-                        value={slInput}
-                        onChange={(e) => setSlInput(e.target.value)}
-                        placeholder="SL"
-                        style={{ width: '72px', padding: '2px 4px', fontSize: '11px' }}
-                        step="0.05"
-                      />
-                      <input
-                        className="input"
-                        type="number"
-                        value={tpInput}
-                        onChange={(e) => setTpInput(e.target.value)}
-                        placeholder="Target"
-                        style={{ width: '72px', padding: '2px 4px', fontSize: '11px' }}
-                        step="0.05"
-                      />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Qty:</span>
-                        <input
-                          className="input"
-                          type="number"
-                          value={modifyQtyInput}
-                          onChange={(e) => setModifyQtyInput(e.target.value)}
-                          min={lotSize}
-                          max={pos.quantity}
-                          step={lotSize}
-                          style={{ width: '55px', padding: '2px 4px', fontSize: '11px' }}
-                        />
-                      </div>
+                      <span style={{ fontSize: '10px', color: '#ef5350', fontWeight: 600 }}>SL</span>
+                      <input className="input" type="number" value={slInput} onChange={(e) => setSlInput(e.target.value)} placeholder="Price" style={{ width: '68px', padding: '2px 4px', fontSize: '11px' }} step="0.05" />
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '10px', color: '#66bb6a', fontWeight: 600 }}>T1</span>
+                      <input className="input" type="number" value={tpInput} onChange={(e) => setTpInput(e.target.value)} placeholder="Price" style={{ width: '68px', padding: '2px 4px', fontSize: '11px' }} step="0.05" />
+                      <input className="input" type="number" value={tp1QtyInput} onChange={(e) => setTp1QtyInput(e.target.value)} placeholder="Qty" min={1} max={pos.quantity} step={lotSize} style={{ width: '50px', padding: '2px 4px', fontSize: '11px' }} />
+                      <span style={{ fontSize: '10px', color: '#66bb6a', fontWeight: 600 }}>T2</span>
+                      <input className="input" type="number" value={tp2Input} onChange={(e) => setTp2Input(e.target.value)} placeholder="Price" style={{ width: '68px', padding: '2px 4px', fontSize: '11px' }} step="0.05" />
+                      <input className="input" type="number" value={tp2QtyInput} onChange={(e) => setTp2QtyInput(e.target.value)} placeholder="Qty" min={1} max={pos.quantity} step={lotSize} style={{ width: '50px', padding: '2px 4px', fontSize: '11px' }} />
+                      <span style={{ fontSize: '10px', color: '#66bb6a', fontWeight: 600 }}>T3</span>
+                      <input className="input" type="number" value={tp3Input} onChange={(e) => setTp3Input(e.target.value)} placeholder="Price" style={{ width: '68px', padding: '2px 4px', fontSize: '11px' }} step="0.05" />
+                      <input className="input" type="number" value={tp3QtyInput} onChange={(e) => setTp3QtyInput(e.target.value)} placeholder="Qty" min={1} max={pos.quantity} step={lotSize} style={{ width: '50px', padding: '2px 4px', fontSize: '11px' }} />
                     </div>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -360,15 +357,7 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
                         TSL
                       </label>
                       {tslEnabled && (
-                        <input
-                          className="input"
-                          type="number"
-                          value={tslDistance}
-                          onChange={(e) => setTslDistance(e.target.value)}
-                          placeholder="Dist"
-                          style={{ width: '50px', padding: '2px 4px', fontSize: '10px' }}
-                          step="0.5"
-                        />
+                        <input className="input" type="number" value={tslDistance} onChange={(e) => setTslDistance(e.target.value)} placeholder="Dist" style={{ width: '50px', padding: '2px 4px', fontSize: '10px' }} step="0.5" />
                       )}
                       <button className="btn btn-primary btn-sm" onClick={() => handleModify(pos.id, pos.quantity)} style={{ padding: '2px 8px', fontSize: '10px' }}>Save</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => setEditingId(null)} style={{ padding: '2px 6px', fontSize: '10px' }}>X</button>
@@ -621,12 +610,21 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
             {isEditing && (
               <div style={{ borderTop: '1px solid var(--border-primary)', paddingTop: '6px', marginTop: '2px' }}>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '6px' }}>
-                  <input className="input" type="number" value={slInput} onChange={(e) => setSlInput(e.target.value)} placeholder="SL" style={{ width: '80px', padding: '4px 6px', fontSize: '12px' }} step="0.05" />
-                  <input className="input" type="number" value={tpInput} onChange={(e) => setTpInput(e.target.value)} placeholder="Target" style={{ width: '80px', padding: '4px 6px', fontSize: '12px' }} step="0.05" />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Qty:</span>
-                    <input className="input" type="number" value={modifyQtyInput} onChange={(e) => setModifyQtyInput(e.target.value)} min={lotSize} max={pos.quantity} step={lotSize} style={{ width: '65px', padding: '4px 6px', fontSize: '12px' }} />
-                  </div>
+                  <span style={{ fontSize: '11px', color: '#ef5350', fontWeight: 600 }}>SL</span>
+                  <input className="input" type="number" value={slInput} onChange={(e) => setSlInput(e.target.value)} placeholder="Price" style={{ width: '80px', padding: '4px 6px', fontSize: '12px' }} step="0.05" />
+                </div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '11px', color: '#66bb6a', fontWeight: 600 }}>T1</span>
+                  <input className="input" type="number" value={tpInput} onChange={(e) => setTpInput(e.target.value)} placeholder="Price" style={{ width: '80px', padding: '4px 6px', fontSize: '12px' }} step="0.05" />
+                  <input className="input" type="number" value={tp1QtyInput} onChange={(e) => setTp1QtyInput(e.target.value)} placeholder="Qty" min={1} max={pos.quantity} step={lotSize} style={{ width: '55px', padding: '4px 6px', fontSize: '12px' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '11px', color: '#66bb6a', fontWeight: 600 }}>T2</span>
+                  <input className="input" type="number" value={tp2Input} onChange={(e) => setTp2Input(e.target.value)} placeholder="Price" style={{ width: '80px', padding: '4px 6px', fontSize: '12px' }} step="0.05" />
+                  <input className="input" type="number" value={tp2QtyInput} onChange={(e) => setTp2QtyInput(e.target.value)} placeholder="Qty" min={1} max={pos.quantity} step={lotSize} style={{ width: '55px', padding: '4px 6px', fontSize: '12px' }} />
+                  <span style={{ fontSize: '11px', color: '#66bb6a', fontWeight: 600 }}>T3</span>
+                  <input className="input" type="number" value={tp3Input} onChange={(e) => setTp3Input(e.target.value)} placeholder="Price" style={{ width: '80px', padding: '4px 6px', fontSize: '12px' }} step="0.05" />
+                  <input className="input" type="number" value={tp3QtyInput} onChange={(e) => setTp3QtyInput(e.target.value)} placeholder="Qty" min={1} max={pos.quantity} step={lotSize} style={{ width: '55px', padding: '4px 6px', fontSize: '12px' }} />
                 </div>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -748,15 +746,7 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
 
                 <td className="right">
                   {isEditing ? (
-                    <input
-                      className="input"
-                      type="number"
-                      value={slInput}
-                      onChange={(e) => setSlInput(e.target.value)}
-                      placeholder="SL"
-                      style={{ width: '70px', padding: '2px 4px', fontSize: '11px' }}
-                      step="0.05"
-                    />
+                    <input className="input" type="number" value={slInput} onChange={(e) => setSlInput(e.target.value)} placeholder="SL Price" style={{ width: '70px', padding: '2px 4px', fontSize: '11px' }} step="0.05" />
                   ) : (
                     <span style={{ color: stopSummary ? '#ef5350' : 'var(--text-muted)', fontSize: '11px' }} title={stopSummary || '—'}>
                       {stopSummary || '—'}
@@ -766,15 +756,23 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
 
                 <td className="right">
                   {isEditing ? (
-                    <input
-                      className="input"
-                      type="number"
-                      value={tpInput}
-                      onChange={(e) => setTpInput(e.target.value)}
-                      placeholder="Target"
-                      style={{ width: '70px', padding: '2px 4px', fontSize: '11px' }}
-                      step="0.05"
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
+                      <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '9px', color: '#66bb6a' }}>T1</span>
+                        <input className="input" type="number" value={tpInput} onChange={(e) => setTpInput(e.target.value)} placeholder="Price" style={{ width: '62px', padding: '2px 4px', fontSize: '11px' }} step="0.05" />
+                        <input className="input" type="number" value={tp1QtyInput} onChange={(e) => setTp1QtyInput(e.target.value)} placeholder="Qty" style={{ width: '42px', padding: '2px 4px', fontSize: '11px' }} min={1} max={pos.quantity} step={lotSize} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '9px', color: '#66bb6a' }}>T2</span>
+                        <input className="input" type="number" value={tp2Input} onChange={(e) => setTp2Input(e.target.value)} placeholder="Price" style={{ width: '62px', padding: '2px 4px', fontSize: '11px' }} step="0.05" />
+                        <input className="input" type="number" value={tp2QtyInput} onChange={(e) => setTp2QtyInput(e.target.value)} placeholder="Qty" style={{ width: '42px', padding: '2px 4px', fontSize: '11px' }} min={1} max={pos.quantity} step={lotSize} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '9px', color: '#66bb6a' }}>T3</span>
+                        <input className="input" type="number" value={tp3Input} onChange={(e) => setTp3Input(e.target.value)} placeholder="Price" style={{ width: '62px', padding: '2px 4px', fontSize: '11px' }} step="0.05" />
+                        <input className="input" type="number" value={tp3QtyInput} onChange={(e) => setTp3QtyInput(e.target.value)} placeholder="Qty" style={{ width: '42px', padding: '2px 4px', fontSize: '11px' }} min={1} max={pos.quantity} step={lotSize} />
+                      </div>
+                    </div>
                   ) : (
                     <span style={{ color: targetSummary ? '#66bb6a' : 'var(--text-muted)', fontSize: '11px' }} title={targetSummary || '—'}>
                       {targetSummary || '—'}
@@ -785,54 +783,15 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
                 <td className="center" style={{ whiteSpace: 'nowrap' }}>
                   {isEditing ? (
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Qty:</span>
-                        <input
-                          className="input"
-                          type="number"
-                          value={modifyQtyInput}
-                          onChange={(e) => setModifyQtyInput(e.target.value)}
-                          min={lotSize}
-                          max={pos.quantity}
-                          step={lotSize}
-                          style={{ width: '55px', padding: '2px 4px', fontSize: '11px' }}
-                          title={`Target/SL qty (max ${pos.quantity})`}
-                        />
-                      </div>
                       <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                        <input
-                          type="checkbox"
-                          checked={tslEnabled}
-                          onChange={(e) => setTslEnabled(e.target.checked)}
-                          style={{ width: '12px', height: '12px' }}
-                        />
+                        <input type="checkbox" checked={tslEnabled} onChange={(e) => setTslEnabled(e.target.checked)} style={{ width: '12px', height: '12px' }} />
                         TSL
                       </label>
                       {tslEnabled && (
-                        <input
-                          className="input"
-                          type="number"
-                          value={tslDistance}
-                          onChange={(e) => setTslDistance(e.target.value)}
-                          placeholder="Dist"
-                          style={{ width: '50px', padding: '2px 4px', fontSize: '10px' }}
-                          step="0.5"
-                        />
+                        <input className="input" type="number" value={tslDistance} onChange={(e) => setTslDistance(e.target.value)} placeholder="Dist" style={{ width: '50px', padding: '2px 4px', fontSize: '10px' }} step="0.5" />
                       )}
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => handleModify(pos.id, pos.quantity)}
-                        style={{ padding: '2px 6px', fontSize: '10px' }}
-                      >
-                        Save
-                      </button>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => setEditingId(null)}
-                        style={{ padding: '2px 6px', fontSize: '10px' }}
-                      >
-                        X
-                      </button>
+                      <button className="btn btn-primary btn-sm" onClick={() => handleModify(pos.id, pos.quantity)} style={{ padding: '2px 6px', fontSize: '10px' }}>Save</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setEditingId(null)} style={{ padding: '2px 6px', fontSize: '10px' }}>X</button>
                     </div>
                   ) : isExitQtyMode ? (
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'center' }}>

@@ -39,7 +39,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'SL/target modification permission is disabled for this user' }, { status: 403 });
     }
     const body = await request.json();
-    const { positionId, stopLoss, targetPrice, targetQty, trailingSL, trailingDistance } = body;
+    const { positionId, trailingSL, trailingDistance } = body;
 
     if (!positionId) {
       return NextResponse.json({ error: 'positionId required' }, { status: 400 });
@@ -56,77 +56,100 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const parsedStopLoss =
-      stopLoss === undefined || stopLoss === null ? stopLoss : Number(stopLoss);
-    const parsedTargetPrice =
-      targetPrice === undefined || targetPrice === null ? targetPrice : Number(targetPrice);
-    const parsedTargetQty =
-      targetQty === undefined || targetQty === null ? targetQty : Math.floor(Number(targetQty));
+    // ── Parse all target levels (T1 / T2 / T3) and SL ────────────────────
+    const parsePrice = (v: unknown) =>
+      v === undefined || v === null ? v : Number(v);
+    const parseQty = (v: unknown) =>
+      v === undefined || v === null ? v : Math.floor(Number(v));
 
-    if (parsedStopLoss !== undefined && parsedStopLoss !== null) {
-      if (!Number.isFinite(parsedStopLoss) || parsedStopLoss <= 0) {
+    const parsedSL   = parsePrice(body.stopLoss);
+    const parsedT1   = parsePrice(body.targetPrice);
+    const parsedT2   = parsePrice(body.target2);
+    const parsedT3   = parsePrice(body.target3);
+    const parsedQ1   = parseQty(body.targetQty);
+    const parsedQ2   = parseQty(body.targetQty2);
+    const parsedQ3   = parseQty(body.targetQty3);
+
+    // ── Validate SL direction ─────────────────────────────────────────────
+    if (parsedSL !== undefined && parsedSL !== null) {
+      if (!Number.isFinite(parsedSL) || parsedSL <= 0) {
         return NextResponse.json({ error: 'Stop loss must be greater than 0' }, { status: 400 });
       }
-      if (position.side === 'BUY' && parsedStopLoss >= position.entryPrice) {
+      if (position.side === 'BUY' && parsedSL >= position.entryPrice) {
         return NextResponse.json(
           { error: 'Stop loss must be below entry price for BUY positions' },
           { status: 400 }
         );
       }
-      if (position.side === 'SELL' && parsedStopLoss <= position.entryPrice) {
+      if (position.side === 'SELL' && parsedSL <= position.entryPrice) {
         return NextResponse.json(
           { error: 'Stop loss must be above entry price for SELL positions' },
           { status: 400 }
         );
       }
     }
-    if (parsedTargetPrice !== undefined && parsedTargetPrice !== null) {
-      if (!Number.isFinite(parsedTargetPrice) || parsedTargetPrice <= 0) {
-        return NextResponse.json({ error: 'Target must be greater than 0' }, { status: 400 });
+
+    // ── Validate each target price direction ──────────────────────────────
+    const validateTarget = (price: number | null | undefined, label: string) => {
+      if (price === undefined || price === null) return null;
+      if (!Number.isFinite(price) || price <= 0) {
+        return `${label} must be greater than 0`;
       }
-      if (position.side === 'BUY' && parsedTargetPrice <= position.entryPrice) {
-        return NextResponse.json(
-          { error: 'Target must be above entry price for BUY positions' },
-          { status: 400 }
-        );
+      if (position.side === 'BUY' && price <= position.entryPrice) {
+        return `${label} must be above entry price for BUY positions`;
       }
-      if (position.side === 'SELL' && parsedTargetPrice >= position.entryPrice) {
-        return NextResponse.json(
-          { error: 'Target must be below entry price for SELL positions' },
-          { status: 400 }
-        );
+      if (position.side === 'SELL' && price >= position.entryPrice) {
+        return `${label} must be below entry price for SELL positions`;
       }
+      return null;
+    };
+
+    for (const [price, label] of [
+      [parsedT1, 'T1'], [parsedT2, 'T2'], [parsedT3, 'T3'],
+    ] as const) {
+      const err = validateTarget(price as number | null | undefined, label as string);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
     }
 
-    if (parsedTargetQty !== undefined && parsedTargetQty !== null) {
-      if (!Number.isFinite(parsedTargetQty) || parsedTargetQty < 1) {
-        return NextResponse.json({ error: 'Target quantity must be at least 1' }, { status: 400 });
+    // ── Build list of targets to create ───────────────────────────────────
+    type TargetLevel = { price: number; qty: number };
+    const targets: TargetLevel[] = [];
+    if (parsedT1 !== undefined && parsedT1 !== null) {
+      targets.push({ price: parsedT1, qty: (parsedQ1 && parsedQ1 >= 1) ? parsedQ1 : position.quantity });
+    }
+    if (parsedT2 !== undefined && parsedT2 !== null) {
+      if (!parsedQ2 || parsedQ2 < 1) {
+        return NextResponse.json({ error: 'T2 quantity is required when T2 price is set' }, { status: 400 });
       }
-      if (parsedTargetQty > position.quantity) {
-        return NextResponse.json(
-          { error: `Target quantity cannot exceed open quantity (${position.quantity})` },
-          { status: 400 }
-        );
+      targets.push({ price: parsedT2, qty: parsedQ2 });
+    }
+    if (parsedT3 !== undefined && parsedT3 !== null) {
+      if (!parsedQ3 || parsedQ3 < 1) {
+        return NextResponse.json({ error: 'T3 quantity is required when T3 price is set' }, { status: 400 });
       }
+      targets.push({ price: parsedT3, qty: parsedQ3 });
     }
 
-    const updateData: any = {};
-    if (parsedStopLoss !== undefined) updateData.stopLoss = parsedStopLoss;
-    if (parsedTargetPrice !== undefined) updateData.targetPrice = parsedTargetPrice;
-    if (parsedTargetQty !== undefined) updateData.targetQty = parsedTargetQty;
+    // ── Validate cumulative target qty ≤ position qty ─────────────────────
+    const totalTargetQty = targets.reduce((sum, t) => sum + t.qty, 0);
+    if (totalTargetQty > position.quantity) {
+      return NextResponse.json(
+        { error: `Total target qty (${totalTargetQty}) exceeds position qty (${position.quantity}). T1+T2+T3 must be ≤ ${position.quantity}` },
+        { status: 400 }
+      );
+    }
+
+    // ── Build position field updates ──────────────────────────────────────
+    const updateData: Record<string, unknown> = {};
+    if (parsedSL !== undefined) updateData.stopLoss = parsedSL;
+    if (parsedT1 !== undefined) updateData.targetPrice = parsedT1;
+    if (parsedT2 !== undefined) updateData.target2 = parsedT2;
+    if (parsedT3 !== undefined) updateData.target3 = parsedT3;
+    if (parsedQ1 !== undefined) updateData.targetQty = parsedQ1;
     if (trailingSL !== undefined) updateData.trailingSL = trailingSL;
     if (trailingDistance !== undefined) updateData.trailingDistance = trailingDistance;
+
     const exitSide = position.side === 'BUY' ? 'SELL' : 'BUY';
-    const configuredExitQty = parsedTargetQty ?? position.quantity;
-    const previousConfiguredQty = position.targetQty ?? position.quantity;
-    const shouldCreateTargetOrder =
-      parsedTargetPrice !== undefined &&
-      parsedTargetPrice !== null &&
-      (parsedTargetPrice !== position.targetPrice || configuredExitQty !== previousConfiguredQty);
-    const shouldCreateStopOrder =
-      parsedStopLoss !== undefined &&
-      parsedStopLoss !== null &&
-      (parsedStopLoss !== position.stopLoss || configuredExitQty !== previousConfiguredQty);
 
     const result = await prisma.$transaction(async (tx) => {
       const updatedPosition = await tx.position.update({
@@ -134,45 +157,21 @@ export async function PUT(request: NextRequest) {
         data: updateData,
       });
 
-      if (parsedTargetPrice === null) {
-        await tx.order.deleteMany({
-          where: {
-            accountId: account.id,
-            positionId,
-            status: 'PENDING',
-            side: exitSide,
-            orderType: 'LIMIT',
-          },
-        });
-      }
-
-      if (parsedStopLoss === null) {
-        await tx.order.deleteMany({
-          where: {
-            accountId: account.id,
-            positionId,
-            status: 'PENDING',
-            side: exitSide,
-            orderType: { in: ['SL', 'SL-M'] },
-          },
-        });
-      }
+      // ── Delete ALL existing pending exit orders (clean slate) ──────────
+      await tx.order.deleteMany({
+        where: {
+          accountId: account.id,
+          positionId,
+          status: 'PENDING',
+          side: exitSide,
+        },
+      });
 
       const createdExitOrders: Array<{ id: string; orderType: string; quantity: number; price: number | null; triggerPrice: number | null }> = [];
 
-      if (shouldCreateTargetOrder) {
-        // Delete ALL existing pending target orders for this position first
-        // to prevent stacking multiple LIMIT orders on repeated modifies
-        await tx.order.deleteMany({
-          where: {
-            accountId: account.id,
-            positionId,
-            status: 'PENDING',
-            side: exitSide,
-            orderType: 'LIMIT',
-          },
-        });
-        const targetOrder = await tx.order.create({
+      // ── Create one LIMIT order per target level ────────────────────────
+      for (const t of targets) {
+        const order = await tx.order.create({
           data: {
             accountId: account.id,
             positionId,
@@ -180,35 +179,22 @@ export async function PUT(request: NextRequest) {
             displayName: position.displayName,
             side: exitSide,
             orderType: 'LIMIT',
-            quantity: configuredExitQty,
-            price: parsedTargetPrice,
+            quantity: t.qty,
+            price: t.price,
             triggerPrice: null,
             status: 'PENDING',
             intent: 'CLOSE',
           },
         });
         createdExitOrders.push({
-          id: targetOrder.id,
-          orderType: targetOrder.orderType,
-          quantity: targetOrder.quantity,
-          price: targetOrder.price,
-          triggerPrice: targetOrder.triggerPrice,
+          id: order.id, orderType: order.orderType,
+          quantity: order.quantity, price: order.price, triggerPrice: order.triggerPrice,
         });
       }
 
-      if (shouldCreateStopOrder) {
-        // Delete ALL existing pending SL orders for this position first
-        // to prevent stacking multiple SL orders on repeated modifies
-        await tx.order.deleteMany({
-          where: {
-            accountId: account.id,
-            positionId,
-            status: 'PENDING',
-            side: exitSide,
-            orderType: { in: ['SL', 'SL-M'] },
-          },
-        });
-        const stopOrder = await tx.order.create({
+      // ── Create SL order (protects full position qty — execution caps) ──
+      if (parsedSL !== undefined && parsedSL !== null) {
+        const order = await tx.order.create({
           data: {
             accountId: account.id,
             positionId,
@@ -216,19 +202,16 @@ export async function PUT(request: NextRequest) {
             displayName: position.displayName,
             side: exitSide,
             orderType: 'SL-M',
-            quantity: configuredExitQty,
+            quantity: position.quantity,
             price: null,
-            triggerPrice: parsedStopLoss,
+            triggerPrice: parsedSL,
             status: 'PENDING',
             intent: 'CLOSE',
           },
         });
         createdExitOrders.push({
-          id: stopOrder.id,
-          orderType: stopOrder.orderType,
-          quantity: stopOrder.quantity,
-          price: stopOrder.price,
-          triggerPrice: stopOrder.triggerPrice,
+          id: order.id, orderType: order.orderType,
+          quantity: order.quantity, price: order.price, triggerPrice: order.triggerPrice,
         });
       }
 
