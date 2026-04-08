@@ -1,4 +1,4 @@
--- Migration: Add dual signal input fields
+-- Migration: Add dual signal input fields + order intent
 -- Run with: npx prisma db execute --file prisma/migrations/add_signal_fields.sql
 
 -- Add new columns to webhook_signals
@@ -25,3 +25,6 @@ CREATE TABLE IF NOT EXISTS signal_settings (
 INSERT INTO signal_settings (id, ccc_engine_enabled, webhook_enabled, updated_at)
 VALUES (1, TRUE, TRUE, CURRENT_TIMESTAMP)
 ON CONFLICT (id) DO NOTHING;
+
+-- Add intent column to orders (OPEN = new position, CLOSE = exit existing)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS intent TEXT NOT NULL DEFAULT 'OPEN';

@@ -304,6 +304,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const intent: string = (body as Record<string, unknown>).intent
+      ? String((body as Record<string, unknown>).intent).toUpperCase()
+      : 'OPEN';
+
     const order = await prisma.order.create({
       data: {
         accountId: account.id,
@@ -317,8 +321,10 @@ export async function POST(request: NextRequest) {
         status: orderType === 'MARKET' ? 'FILLED' : 'PENDING',
         filledPrice: orderType === 'MARKET' ? (price || 0) : null,
         filledAt: orderType === 'MARKET' ? new Date() : null,
+        intent,
       },
     });
+
     const rejectOrder = async (reason: string) => {
       await prisma.order.update({
         where: { id: order.id },
@@ -331,6 +337,100 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json({ error: reason }, { status: 400 });
     };
+
+    // ── Bug Fix: CLOSE intent — exit existing position, never open new ────────
+    if (intent === 'CLOSE') {
+      // The order side is the EXIT side; the position side is opposite
+      const positionSide = side === 'BUY' ? 'SELL' : 'BUY';
+
+      const posToExit = await prisma.position.findFirst({
+        where: { accountId: account.id, symbol, side: positionSide, isOpen: true },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      // Rule 1: no opposite position → reject
+      if (!posToExit) {
+        return rejectOrder(`No open ${positionSide} position found for ${symbol} to close`);
+      }
+
+      // Rule 4: exit qty exceeds position qty → reject
+      if (quantity > posToExit.quantity) {
+        return rejectOrder(
+          `Exit qty (${quantity}) exceeds open position qty (${posToExit.quantity}) for ${symbol}`
+        );
+      }
+
+      // Link order to position immediately
+      await prisma.order.update({ where: { id: order.id }, data: { positionId: posToExit.id } });
+
+      if (orderType === 'MARKET') {
+        const fillPrice = price || 0;
+        const isPartial = quantity < posToExit.quantity;
+        const pnlPerUnit = posToExit.side === 'BUY'
+          ? fillPrice - posToExit.entryPrice
+          : posToExit.entryPrice - fillPrice;
+        const pnl = pnlPerUnit * quantity;
+        const marginPerUnit = posToExit.marginUsed > 0 ? posToExit.marginUsed / posToExit.quantity : 0;
+        const marginToRelease = marginPerUnit * quantity;
+
+        // Rule 2 & 3: partial or full close
+        if (isPartial) {
+          await prisma.position.update({
+            where: { id: posToExit.id },
+            data: {
+              quantity:   posToExit.quantity - quantity,
+              currentPrice: fillPrice,
+              marginUsed: Math.max(0, posToExit.marginUsed - marginToRelease),
+            },
+          });
+        } else {
+          await prisma.position.update({
+            where: { id: posToExit.id },
+            data: { isOpen: false, currentPrice: fillPrice, pnl, marginUsed: 0, exitReason: 'MANUAL', closedAt: new Date() },
+          });
+          // Cancel all other pending exit orders for this position
+          await prisma.order.updateMany({
+            where: { accountId: account.id, positionId: posToExit.id, status: 'PENDING', id: { not: order.id } },
+            data: { status: 'CANCELLED', rejectedReason: 'Position closed' },
+          });
+        }
+
+        await prisma.trade.create({
+          data: {
+            accountId:  account.id,
+            symbol,
+            displayName: displayName || symbol,
+            side:       posToExit.side,
+            quantity,
+            entryPrice: posToExit.entryPrice,
+            exitPrice:  fillPrice,
+            pnl,
+            exitReason: 'MANUAL',
+            entryTime:  posToExit.createdAt,
+          },
+        });
+
+        const isOpt = ['CE', 'PE'].includes(posToExit.instrumentType);
+        const balanceAdjust = isOpt
+          ? (posToExit.side === 'BUY' ? fillPrice * quantity : -(fillPrice * quantity))
+          : pnl;
+
+        await prisma.account.update({
+          where: { id: account.id },
+          data: {
+            balance:     { increment: balanceAdjust },
+            realizedPnl: { increment: pnl },
+            usedMargin:  { decrement: Math.max(0, marginToRelease) },
+          },
+        });
+      }
+      // For LIMIT / SL / SL-M with CLOSE intent:
+      // order is PENDING and positionId is already set.
+      // WS server's linked-exit path (fillPendingOrder) will handle execution correctly.
+
+      return NextResponse.json(order, { status: 201 });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     if (orderType === 'MARKET') {
       let instrumentType = 'FUTURES';

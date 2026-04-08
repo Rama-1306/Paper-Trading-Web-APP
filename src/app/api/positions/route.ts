@@ -173,6 +173,7 @@ export async function PUT(request: NextRequest) {
             price: parsedTargetPrice,
             triggerPrice: null,
             status: 'PENDING',
+            intent: 'CLOSE',
           },
         });
         createdExitOrders.push({
@@ -197,6 +198,7 @@ export async function PUT(request: NextRequest) {
             price: null,
             triggerPrice: parsedStopLoss,
             status: 'PENDING',
+            intent: 'CLOSE',
           },
         });
         createdExitOrders.push({
@@ -317,6 +319,7 @@ export async function DELETE(request: NextRequest) {
         filledPrice: actualExitPrice,
         filledAt: new Date(),
         positionId: position.id,
+        intent: 'CLOSE',
       },
     });
 

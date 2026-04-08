@@ -79,6 +79,7 @@ model Order {
   filledPrice    Float?
   rejectedReason String?
   positionId     String?
+  intent         String    @default("OPEN")  // "OPEN" | "CLOSE"
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   filledAt       DateTime?

@@ -168,6 +168,40 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
 
   const openPositions = positions.filter(p => p.isOpen);
 
+  // ── Bug Fix 3: Net same-symbol positions into a single row ──────────────────
+  // If BUY 90 + SELL 30 exist for the same strike → show as single BUY 60 row.
+  // Uses the primary (dominant-side) position ID for pending-order lookups.
+  const nettedPositions = useMemo(() => {
+    type SymGroup = { buyPos: any | null; buyQty: number; sellPos: any | null; sellQty: number };
+    const symbolMap = new Map<string, SymGroup>();
+
+    for (const pos of openPositions) {
+      const g: SymGroup = symbolMap.get(pos.symbol) ?? { buyPos: null, buyQty: 0, sellPos: null, sellQty: 0 };
+      if (pos.side === 'BUY') {
+        g.buyQty  += pos.quantity;
+        g.buyPos   = g.buyPos ?? pos; // keep first/oldest BUY as primary
+      } else {
+        g.sellQty += pos.quantity;
+        g.sellPos  = g.sellPos ?? pos;
+      }
+      symbolMap.set(pos.symbol, g);
+    }
+
+    const result: Array<typeof openPositions[number] & { _nettedOffQty: number }> = [];
+    for (const { buyPos, buyQty, sellPos, sellQty } of symbolMap.values()) {
+      const netQty = buyQty - sellQty;
+      if (netQty > 0 && buyPos) {
+        result.push({ ...buyPos, quantity: netQty, _nettedOffQty: sellQty });
+      } else if (netQty < 0 && sellPos) {
+        result.push({ ...sellPos, quantity: Math.abs(netQty), _nettedOffQty: buyQty });
+      } else if (netQty === 0 && buyPos) {
+        // Flat — positions fully offset; show a zero-qty row so user knows to cancel
+        result.push({ ...buyPos, quantity: 0, _nettedOffQty: sellQty });
+      }
+    }
+    return result;
+  }, [openPositions]);
+
   // Today's IST calendar date — resets at midnight IST (no 11:55 PM cutoff).
   // Closed positions and orders only show for the current trading day;
   // open positions always show regardless of date.
@@ -219,7 +253,7 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
     return (
       <div style={{ overflow: 'auto', height: '100%' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-          {openPositions.map((pos) => {
+          {nettedPositions.map((pos) => {
             const liveLtp = ticks[pos.symbol]?.ltp;
             const currentPrice = liveLtp ?? pos.currentPrice;
             const livePnl = pos.side === 'BUY'
@@ -233,6 +267,7 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
             const canPartialExit = pos.quantity > 1;
             const stopSummary = getStopSummary(pos);
             const targetSummary = getTargetSummary(pos);
+            const isNetted = (pos._nettedOffQty ?? 0) > 0;
 
             return (
               <div key={pos.id} style={{
@@ -260,6 +295,9 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
                   </span>
                   <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>
                     {pos.quantity}
+                    {isNetted && (
+                      <span style={{ fontSize: '9px', color: '#ff9800', marginLeft: '3px' }} title={`Net of ${pos._nettedOffQty} opposite qty`}>NET</span>
+                    )}
                   </span>
                 </div>
 
@@ -531,7 +569,7 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
       )}
 
       {/* ── Mobile card layout for open positions ── */}
-      {isMobile && openPositions.map((pos) => {
+      {isMobile && nettedPositions.map((pos) => {
         const liveLtp = ticks[pos.symbol]?.ltp;
         const currentPrice = liveLtp ?? pos.currentPrice;
         const livePnl = pos.side === 'BUY'
@@ -545,6 +583,7 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
         const canPartialExit = pos.quantity > 1;
         const stopSummary = getStopSummary(pos);
         const targetSummary = getTargetSummary(pos);
+        const isNetted = (pos._nettedOffQty ?? 0) > 0;
         return (
           <div key={pos.id} style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-primary)', padding: '10px 12px' }}>
             {/* Row 1: Name | badges | Side | Qty */}
@@ -559,7 +598,12 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
               {pos.trailingSL && <span style={{ fontSize: '9px', color: '#ff9800' }}>TSL</span>}
               <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '3px' }}>{pos.instrumentType}</span>
               <span className={pos.side === 'BUY' ? 'buy-side' : 'sell-side'} style={{ fontSize: '13px', fontWeight: 700 }}>{pos.side}</span>
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>{pos.quantity}</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                {pos.quantity}
+                {isNetted && (
+                  <span style={{ fontSize: '9px', color: '#ff9800', marginLeft: '3px' }} title={`Net of ${pos._nettedOffQty} opposite qty`}>NET</span>
+                )}
+              </span>
             </div>
             {/* Row 2: Entry → LTP | P&L + bracket points */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
@@ -647,7 +691,7 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
           </tr>
         </thead>
         <tbody>
-          {openPositions.map((pos) => {
+          {nettedPositions.map((pos) => {
             const liveLtp = ticks[pos.symbol]?.ltp;
             const currentPrice = liveLtp ?? pos.currentPrice;
             const livePnl = pos.side === 'BUY'
@@ -661,6 +705,7 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
             const canPartialExit = pos.quantity > 1;
             const stopSummary = getStopSummary(pos);
             const targetSummary = getTargetSummary(pos);
+            const isNetted = (pos._nettedOffQty ?? 0) > 0;
 
             return (
               <tr key={pos.id}>
@@ -686,7 +731,12 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
                     {pos.side}
                   </span>
                 </td>
-                <td className="right" style={{ fontWeight: 600 }}>{pos.quantity}</td>
+                <td className="right" style={{ fontWeight: 600 }}>
+                  {pos.quantity}
+                  {isNetted && (
+                    <span style={{ fontSize: '9px', color: '#ff9800', marginLeft: '3px' }} title={`Net of ${pos._nettedOffQty} opposite qty`}>NET</span>
+                  )}
+                </td>
                 <td className="right">{pos.entryPrice.toFixed(2)}</td>
                 <td className="right">{currentPrice.toFixed(2)}</td>
                 <td className={`right ${pnlInfo.className}`} style={{ fontWeight: 600 }}>
