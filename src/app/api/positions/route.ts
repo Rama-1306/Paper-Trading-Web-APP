@@ -140,12 +140,18 @@ export async function PUT(request: NextRequest) {
     }
 
     // ── Build position field updates ──────────────────────────────────────
-    const updateData: Record<string, unknown> = {};
+    // IMPORTANT: Do NOT store targetPrice/target2/target3/targetQty on the
+    // position.  Pending LIMIT orders are the sole source of truth for
+    // targets.  Storing them on the position causes processPositionSLTarget
+    // to race ahead of the pending-order path and close the FULL qty
+    // instead of the per-target qty.
+    const updateData: Record<string, unknown> = {
+      targetPrice: null,
+      target2: null,
+      target3: null,
+      targetQty: null,
+    };
     if (parsedSL !== undefined) updateData.stopLoss = parsedSL;
-    if (parsedT1 !== undefined) updateData.targetPrice = parsedT1;
-    if (parsedT2 !== undefined) updateData.target2 = parsedT2;
-    if (parsedT3 !== undefined) updateData.target3 = parsedT3;
-    if (parsedQ1 !== undefined) updateData.targetQty = parsedQ1;
     if (trailingSL !== undefined) updateData.trailingSL = trailingSL;
     if (trailingDistance !== undefined) updateData.trailingDistance = trailingDistance;
 
