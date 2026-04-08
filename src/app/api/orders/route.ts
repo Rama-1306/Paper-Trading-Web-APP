@@ -17,6 +17,120 @@ function getISTDayBounds(date = new Date()) {
   };
 }
 
+export async function PUT(request: NextRequest) {
+  try {
+    const context = await getOrCreateAuthenticatedAccount();
+    if (!context) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const { account, access } = context;
+    if (!access.permissions.canCancelOrder) {
+      return NextResponse.json({ error: 'Order modification permission is disabled for this user' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { orderId, quantity, price, triggerPrice } = body as {
+      orderId?: string;
+      quantity?: number;
+      price?: number;
+      triggerPrice?: number;
+    };
+
+    if (!orderId) {
+      return NextResponse.json({ error: 'orderId required' }, { status: 400 });
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, accountId: account.id },
+    });
+
+    if (!order || order.status !== 'PENDING') {
+      return NextResponse.json({ error: 'Order not found or not pending' }, { status: 404 });
+    }
+
+    const updateData: Record<string, unknown> = {};
+
+    if (quantity !== undefined) {
+      const nextQty = Math.floor(Number(quantity));
+      if (!Number.isFinite(nextQty) || nextQty < 1) {
+        return NextResponse.json({ error: 'Quantity must be at least 1' }, { status: 400 });
+      }
+
+      if (order.positionId) {
+        const linkedPosition = await prisma.position.findFirst({
+          where: { id: order.positionId, accountId: account.id, isOpen: true },
+        });
+        if (!linkedPosition) {
+          return NextResponse.json({ error: 'Linked position is already closed' }, { status: 400 });
+        }
+        if (nextQty > linkedPosition.quantity) {
+          return NextResponse.json(
+            { error: `Quantity exceeds linked position quantity (${linkedPosition.quantity})` },
+            { status: 400 }
+          );
+        }
+      }
+
+      updateData.quantity = nextQty;
+    }
+
+    if (price !== undefined) {
+      if (order.orderType === 'MARKET' || order.orderType === 'SL-M') {
+        return NextResponse.json(
+          { error: `Price is not editable for ${order.orderType} orders` },
+          { status: 400 }
+        );
+      }
+      const nextPrice = Number(price);
+      if (!Number.isFinite(nextPrice) || nextPrice <= 0) {
+        return NextResponse.json({ error: 'Price must be greater than 0' }, { status: 400 });
+      }
+      updateData.price = nextPrice;
+    }
+
+    if (triggerPrice !== undefined) {
+      if (order.orderType !== 'SL' && order.orderType !== 'SL-M') {
+        return NextResponse.json(
+          { error: 'Trigger price can only be edited for SL/SL-M orders' },
+          { status: 400 }
+        );
+      }
+      const nextTrigger = Number(triggerPrice);
+      if (!Number.isFinite(nextTrigger) || nextTrigger <= 0) {
+        return NextResponse.json({ error: 'Trigger price must be greater than 0' }, { status: 400 });
+      }
+      updateData.triggerPrice = nextTrigger;
+    }
+
+    const finalPrice = (updateData.price as number | undefined) ?? order.price ?? undefined;
+    const finalTrigger = (updateData.triggerPrice as number | undefined) ?? order.triggerPrice ?? undefined;
+
+    if (order.orderType === 'LIMIT' && (!finalPrice || finalPrice <= 0)) {
+      return NextResponse.json({ error: 'LIMIT orders require a valid price' }, { status: 400 });
+    }
+    if (order.orderType === 'SL' && (!finalPrice || finalPrice <= 0)) {
+      return NextResponse.json({ error: 'SL orders require a valid limit price' }, { status: 400 });
+    }
+    if ((order.orderType === 'SL' || order.orderType === 'SL-M') && (!finalTrigger || finalTrigger <= 0)) {
+      return NextResponse.json({ error: 'SL/SL-M orders require a valid trigger price' }, { status: 400 });
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: updateData,
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('Orders PUT error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function GET() {
   try {
     const context = await getOrCreateAuthenticatedAccount();

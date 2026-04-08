@@ -56,29 +56,41 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (stopLoss !== undefined && stopLoss !== null) {
-      if (position.side === 'BUY' && stopLoss >= position.entryPrice) {
+    const parsedStopLoss =
+      stopLoss === undefined || stopLoss === null ? stopLoss : Number(stopLoss);
+    const parsedTargetPrice =
+      targetPrice === undefined || targetPrice === null ? targetPrice : Number(targetPrice);
+    const parsedTargetQty =
+      targetQty === undefined || targetQty === null ? targetQty : Math.floor(Number(targetQty));
+
+    if (parsedStopLoss !== undefined && parsedStopLoss !== null) {
+      if (!Number.isFinite(parsedStopLoss) || parsedStopLoss <= 0) {
+        return NextResponse.json({ error: 'Stop loss must be greater than 0' }, { status: 400 });
+      }
+      if (position.side === 'BUY' && parsedStopLoss >= position.entryPrice) {
         return NextResponse.json(
           { error: 'Stop loss must be below entry price for BUY positions' },
           { status: 400 }
         );
       }
-      if (position.side === 'SELL' && stopLoss <= position.entryPrice) {
+      if (position.side === 'SELL' && parsedStopLoss <= position.entryPrice) {
         return NextResponse.json(
           { error: 'Stop loss must be above entry price for SELL positions' },
           { status: 400 }
         );
       }
     }
-
-    if (targetPrice !== undefined && targetPrice !== null) {
-      if (position.side === 'BUY' && targetPrice <= position.entryPrice) {
+    if (parsedTargetPrice !== undefined && parsedTargetPrice !== null) {
+      if (!Number.isFinite(parsedTargetPrice) || parsedTargetPrice <= 0) {
+        return NextResponse.json({ error: 'Target must be greater than 0' }, { status: 400 });
+      }
+      if (position.side === 'BUY' && parsedTargetPrice <= position.entryPrice) {
         return NextResponse.json(
           { error: 'Target must be above entry price for BUY positions' },
           { status: 400 }
         );
       }
-      if (position.side === 'SELL' && targetPrice >= position.entryPrice) {
+      if (position.side === 'SELL' && parsedTargetPrice >= position.entryPrice) {
         return NextResponse.json(
           { error: 'Target must be below entry price for SELL positions' },
           { status: 400 }
@@ -86,19 +98,123 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    if (parsedTargetQty !== undefined && parsedTargetQty !== null) {
+      if (!Number.isFinite(parsedTargetQty) || parsedTargetQty < 1) {
+        return NextResponse.json({ error: 'Target quantity must be at least 1' }, { status: 400 });
+      }
+      if (parsedTargetQty > position.quantity) {
+        return NextResponse.json(
+          { error: `Target quantity cannot exceed open quantity (${position.quantity})` },
+          { status: 400 }
+        );
+      }
+    }
+
     const updateData: any = {};
-    if (stopLoss !== undefined) updateData.stopLoss = stopLoss;
-    if (targetPrice !== undefined) updateData.targetPrice = targetPrice;
-    if (targetQty !== undefined) updateData.targetQty = targetQty;
+    if (parsedStopLoss !== undefined) updateData.stopLoss = parsedStopLoss;
+    if (parsedTargetPrice !== undefined) updateData.targetPrice = parsedTargetPrice;
+    if (parsedTargetQty !== undefined) updateData.targetQty = parsedTargetQty;
     if (trailingSL !== undefined) updateData.trailingSL = trailingSL;
     if (trailingDistance !== undefined) updateData.trailingDistance = trailingDistance;
+    const exitSide = position.side === 'BUY' ? 'SELL' : 'BUY';
+    const configuredExitQty = parsedTargetQty ?? position.quantity;
+    const previousConfiguredQty = position.targetQty ?? position.quantity;
+    const shouldCreateTargetOrder =
+      parsedTargetPrice !== undefined &&
+      parsedTargetPrice !== null &&
+      (parsedTargetPrice !== position.targetPrice || configuredExitQty !== previousConfiguredQty);
+    const shouldCreateStopOrder =
+      parsedStopLoss !== undefined &&
+      parsedStopLoss !== null &&
+      (parsedStopLoss !== position.stopLoss || configuredExitQty !== previousConfiguredQty);
 
-    const updated = await prisma.position.update({
-      where: { id: positionId },
-      data: updateData,
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedPosition = await tx.position.update({
+        where: { id: positionId },
+        data: updateData,
+      });
+
+      if (parsedTargetPrice === null) {
+        await tx.order.deleteMany({
+          where: {
+            accountId: account.id,
+            positionId,
+            status: 'PENDING',
+            side: exitSide,
+            orderType: 'LIMIT',
+          },
+        });
+      }
+
+      if (parsedStopLoss === null) {
+        await tx.order.deleteMany({
+          where: {
+            accountId: account.id,
+            positionId,
+            status: 'PENDING',
+            side: exitSide,
+            orderType: { in: ['SL', 'SL-M'] },
+          },
+        });
+      }
+
+      const createdExitOrders: Array<{ id: string; orderType: string; quantity: number; price: number | null; triggerPrice: number | null }> = [];
+
+      if (shouldCreateTargetOrder) {
+        const targetOrder = await tx.order.create({
+          data: {
+            accountId: account.id,
+            positionId,
+            symbol: position.symbol,
+            displayName: position.displayName,
+            side: exitSide,
+            orderType: 'LIMIT',
+            quantity: configuredExitQty,
+            price: parsedTargetPrice,
+            triggerPrice: null,
+            status: 'PENDING',
+          },
+        });
+        createdExitOrders.push({
+          id: targetOrder.id,
+          orderType: targetOrder.orderType,
+          quantity: targetOrder.quantity,
+          price: targetOrder.price,
+          triggerPrice: targetOrder.triggerPrice,
+        });
+      }
+
+      if (shouldCreateStopOrder) {
+        const stopOrder = await tx.order.create({
+          data: {
+            accountId: account.id,
+            positionId,
+            symbol: position.symbol,
+            displayName: position.displayName,
+            side: exitSide,
+            orderType: 'SL-M',
+            quantity: configuredExitQty,
+            price: null,
+            triggerPrice: parsedStopLoss,
+            status: 'PENDING',
+          },
+        });
+        createdExitOrders.push({
+          id: stopOrder.id,
+          orderType: stopOrder.orderType,
+          quantity: stopOrder.quantity,
+          price: stopOrder.price,
+          triggerPrice: stopOrder.triggerPrice,
+        });
+      }
+
+      return { updatedPosition, createdExitOrders };
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({
+      ...result.updatedPosition,
+      createdExitOrders: result.createdExitOrders,
+    });
   } catch (error) {
     console.error('Positions PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -203,6 +319,20 @@ export async function DELETE(request: NextRequest) {
         positionId: position.id,
       },
     });
+
+    if (!isPartialExit) {
+      await prisma.order.updateMany({
+        where: {
+          accountId: position.accountId,
+          positionId: position.id,
+          status: 'PENDING',
+        },
+        data: {
+          status: 'CANCELLED',
+          rejectedReason: 'Position closed manually',
+        },
+      });
+    }
 
     const isOption = position.instrumentType === 'CE' || position.instrumentType === 'PE';
     let balanceAdjust: number;

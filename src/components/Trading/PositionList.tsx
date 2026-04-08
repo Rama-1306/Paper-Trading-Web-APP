@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { formatDateTime, formatPnL } from '@/lib/utils/formatters';
@@ -15,6 +15,7 @@ function formatPoints(points: number): string {
 
 export function PositionList({ compact = false, onSelectInstrument }: { compact?: boolean; onSelectInstrument?: (symbol: string) => void }) {
   const positions = useTradingStore((s) => s.positions);
+  const pendingOrders = useTradingStore((s) => s.pendingOrders);
   const trades = useTradingStore((s) => s.trades);
   const ticks = useMarketStore((s) => s.ticks);
   const addNotification = useUIStore((s) => s.addNotification);
@@ -77,6 +78,53 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
     const inferredLotSize = Math.max(1, getLotSizeForSymbol(symbol));
     return quantity % inferredLotSize === 0 ? inferredLotSize : 1;
   };
+  const pendingExitOrdersByPosition = useMemo(() => {
+    const map = new Map<string, { targets: any[]; stops: any[] }>();
+    for (const order of pendingOrders) {
+      if (order.status !== 'PENDING' || !order.positionId) continue;
+      const bucket = map.get(order.positionId) ?? { targets: [], stops: [] };
+      if (order.orderType === 'LIMIT') {
+        bucket.targets.push(order);
+      } else if (order.orderType === 'SL' || order.orderType === 'SL-M') {
+        bucket.stops.push(order);
+      }
+      map.set(order.positionId, bucket);
+    }
+
+    for (const bucket of map.values()) {
+      bucket.targets.sort((a, b) => (a.price ?? Number.MAX_SAFE_INTEGER) - (b.price ?? Number.MAX_SAFE_INTEGER));
+      bucket.stops.sort((a, b) => ((a.triggerPrice ?? a.price ?? Number.MAX_SAFE_INTEGER) - (b.triggerPrice ?? b.price ?? Number.MAX_SAFE_INTEGER)));
+    }
+    return map;
+  }, [pendingOrders]);
+
+  const formatExitLevels = (orders: any[], label: 'T' | 'SL') =>
+    orders
+      .map((order, idx) => {
+        const level = `${label}${idx + 1}`;
+        const price =
+          label === 'SL'
+            ? (order.triggerPrice ?? order.price)
+            : (order.price ?? order.triggerPrice);
+        return `${level} ${order.quantity}${price ? ` @${Number(price).toFixed(2)}` : ''}`;
+      })
+      .join(' · ');
+
+  const getTargetSummary = (pos: any) => {
+    const targetOrders = pendingExitOrdersByPosition.get(pos.id)?.targets ?? [];
+    if (targetOrders.length > 0) return formatExitLevels(targetOrders, 'T');
+    if (!pos.targetPrice) return '';
+    const fallbackQty = pos.targetQty && pos.targetQty > 0 ? pos.targetQty : pos.quantity;
+    return `T1 ${fallbackQty} @${pos.targetPrice.toFixed(2)}`;
+  };
+
+  const getStopSummary = (pos: any) => {
+    const stopOrders = pendingExitOrdersByPosition.get(pos.id)?.stops ?? [];
+    if (stopOrders.length > 0) return formatExitLevels(stopOrders, 'SL');
+    if (!pos.stopLoss) return '';
+    const fallbackQty = pos.targetQty && pos.targetQty > 0 ? pos.targetQty : pos.quantity;
+    return `SL1 ${fallbackQty} @${pos.stopLoss.toFixed(2)}`;
+  };
 
   const startEditing = (pos: any) => {
     setEditingId(pos.id);
@@ -104,8 +152,9 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
       });
 
       if (res.ok) {
-        addNotification({ type: 'success', title: 'Position Modified', message: 'SL/Target updated successfully' });
+        addNotification({ type: 'success', title: 'Position Modified', message: 'SL/Target exit orders updated successfully' });
         useTradingStore.getState().fetchPositions();
+        useTradingStore.getState().fetchOrders();
         setEditingId(null);
       } else {
         const data = await res.json();
@@ -182,6 +231,8 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
             const isExitQtyMode = exitQtyId === pos.id;
             const lotSize = getExitStepSize(pos.symbol, pos.quantity);
             const canPartialExit = pos.quantity > 1;
+            const stopSummary = getStopSummary(pos);
+            const targetSummary = getTargetSummary(pos);
 
             return (
               <div key={pos.id} style={{
@@ -317,9 +368,9 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
                 {!isEditing && !isExitQtyMode && (
                   <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', marginTop: '4px' }}>
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginRight: 'auto', alignSelf: 'center' }}>
-                      {pos.stopLoss ? <span style={{ color: '#ef5350' }}>SL {pos.stopLoss.toFixed(2)}</span> : ''}
-                      {pos.stopLoss && pos.targetPrice ? ' · ' : ''}
-                      {pos.targetPrice ? <span style={{ color: '#66bb6a' }}>Tgt {pos.targetPrice.toFixed(2)}{pos.targetQty && pos.targetQty < pos.quantity ? ` (${pos.targetQty})` : ''}</span> : ''}
+                      {stopSummary ? <span style={{ color: '#ef5350' }}>{stopSummary}</span> : ''}
+                      {stopSummary && targetSummary ? ' · ' : ''}
+                      {targetSummary ? <span style={{ color: '#66bb6a' }}>{targetSummary}</span> : (!stopSummary ? '—' : '')}
                     </span>
                     <button className="btn btn-ghost btn-sm" onClick={() => startEditing(pos)} style={{ padding: '2px 6px', fontSize: '10px' }} title="Modify SL/Target">Modify</button>
                     {canPartialExit && (
@@ -492,6 +543,8 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
         const isExitQtyMode = exitQtyId === pos.id;
         const lotSize = getExitStepSize(pos.symbol, pos.quantity);
         const canPartialExit = pos.quantity > 1;
+        const stopSummary = getStopSummary(pos);
+        const targetSummary = getTargetSummary(pos);
         return (
           <div key={pos.id} style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-primary)', padding: '10px 12px' }}>
             {/* Row 1: Name | badges | Side | Qty */}
@@ -561,9 +614,9 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
             {!isEditing && !isExitQtyMode && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', flex: 1 }}>
-                  {pos.stopLoss ? <span style={{ color: '#ef5350' }}>SL {pos.stopLoss.toFixed(2)}</span> : ''}
-                  {pos.stopLoss && pos.targetPrice ? ' · ' : ''}
-                  {pos.targetPrice ? <span style={{ color: '#66bb6a' }}>Tgt {pos.targetPrice.toFixed(2)}{pos.targetQty && pos.targetQty < pos.quantity ? ` (${pos.targetQty})` : ''}</span> : ''}
+                  {stopSummary ? <span style={{ color: '#ef5350' }}>{stopSummary}</span> : ''}
+                  {stopSummary && targetSummary ? ' · ' : ''}
+                  {targetSummary ? <span style={{ color: '#66bb6a' }}>{targetSummary}</span> : (!stopSummary ? '—' : '')}
                 </span>
                 <button className="btn btn-ghost btn-sm" onClick={() => startEditing(pos)} style={{ padding: '4px 10px', fontSize: '11px' }}>Modify</button>
                 {canPartialExit && (
@@ -606,6 +659,8 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
             const isExitQtyMode = exitQtyId === pos.id;
             const lotSize = getExitStepSize(pos.symbol, pos.quantity);
             const canPartialExit = pos.quantity > 1;
+            const stopSummary = getStopSummary(pos);
+            const targetSummary = getTargetSummary(pos);
 
             return (
               <tr key={pos.id}>
@@ -653,8 +708,8 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
                       step="0.05"
                     />
                   ) : (
-                    <span style={{ color: pos.stopLoss ? '#ef5350' : 'var(--text-muted)', fontSize: '12px' }}>
-                      {pos.stopLoss ? pos.stopLoss.toFixed(2) : '—'}
+                    <span style={{ color: stopSummary ? '#ef5350' : 'var(--text-muted)', fontSize: '11px' }} title={stopSummary || '—'}>
+                      {stopSummary || '—'}
                     </span>
                   )}
                 </td>
@@ -671,10 +726,8 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
                       step="0.05"
                     />
                   ) : (
-                    <span style={{ color: pos.targetPrice ? '#66bb6a' : 'var(--text-muted)', fontSize: '12px' }}>
-                      {pos.targetPrice
-                        ? `${pos.targetPrice.toFixed(2)}${pos.targetQty && pos.targetQty < pos.quantity ? ` (${pos.targetQty})` : ''}`
-                        : '—'}
+                    <span style={{ color: targetSummary ? '#66bb6a' : 'var(--text-muted)', fontSize: '11px' }} title={targetSummary || '—'}>
+                      {targetSummary || '—'}
                     </span>
                   )}
                 </td>

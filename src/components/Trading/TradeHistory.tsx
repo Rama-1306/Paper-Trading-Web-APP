@@ -54,6 +54,11 @@ export function TradeHistory({ type }: TradeHistoryProps) {
 
   const [selectedTrade, setSelectedTrade] = useState<TradeData | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [savingOrderId, setSavingOrderId] = useState<string | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editQty, setEditQty] = useState<string>('');
+  const [editPrice, setEditPrice] = useState<string>('');
+  const [editTrigger, setEditTrigger] = useState<string>('');
   // Calendar state
   const _today = new Date();
   const [calYear, setCalYear] = useState(_today.getFullYear());
@@ -176,6 +181,67 @@ export function TradeHistory({ type }: TradeHistoryProps) {
       setCancellingOrderId(null);
     }
   };
+  const resetOrderEditor = () => {
+    setEditingOrderId(null);
+    setEditQty('');
+    setEditPrice('');
+    setEditTrigger('');
+  };
+
+  const startOrderEdit = (order: any) => {
+    setEditingOrderId(order.id);
+    setEditQty(String(order.quantity ?? ''));
+    setEditPrice(order.price !== null && order.price !== undefined ? String(order.price) : '');
+    setEditTrigger(order.triggerPrice !== null && order.triggerPrice !== undefined ? String(order.triggerPrice) : '');
+  };
+
+  const handleModifyOrder = async (order: any) => {
+    const payload: Record<string, unknown> = { orderId: order.id };
+    const nextQty = Math.floor(Number(editQty));
+    if (Number.isFinite(nextQty) && nextQty > 0 && nextQty !== order.quantity) {
+      payload.quantity = nextQty;
+    }
+
+    if (order.orderType !== 'MARKET' && order.orderType !== 'SL-M') {
+      const nextPrice = Number(editPrice);
+      if (Number.isFinite(nextPrice) && nextPrice > 0 && nextPrice !== (order.price ?? 0)) {
+        payload.price = nextPrice;
+      }
+    }
+
+    if (order.orderType === 'SL' || order.orderType === 'SL-M') {
+      const nextTrigger = Number(editTrigger);
+      if (Number.isFinite(nextTrigger) && nextTrigger > 0 && nextTrigger !== (order.triggerPrice ?? 0)) {
+        payload.triggerPrice = nextTrigger;
+      }
+    }
+
+    if (Object.keys(payload).length === 1) {
+      addNotification({ type: 'warning', title: 'No Changes', message: 'Update qty/price before saving' });
+      return;
+    }
+
+    try {
+      setSavingOrderId(order.id);
+      const res = await fetch('/api/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        addNotification({ type: 'success', title: 'Order Modified', message: 'Pending order updated successfully' });
+        resetOrderEditor();
+        useTradingStore.getState().fetchOrders();
+      } else {
+        const data = await res.json();
+        addNotification({ type: 'error', title: 'Modify Failed', message: data.error || 'Unable to modify order' });
+      }
+    } catch {
+      addNotification({ type: 'error', title: 'Modify Failed', message: 'Failed to connect to server' });
+    } finally {
+      setSavingOrderId(null);
+    }
+  };
 
   // ── ORDERS view ───────────────────────────────────────────────
   if (type === 'orders') {
@@ -207,15 +273,41 @@ export function TradeHistory({ type }: TradeHistoryProps) {
             const sideClass = order.side === 'BUY' ? 'jnl-side-buy' : 'jnl-side-sell';
             const typeLabel = order.orderType === 'MARKET' ? 'M' : order.orderType === 'LIMIT' ? 'L' : order.orderType === 'SL' ? 'SL' : 'SM';
             const statusLabel = order.status === 'FILLED' ? 'F' : order.status === 'PENDING' ? 'P' : order.status === 'REJECTED' ? 'R' : 'C';
+            const isEditing = editingOrderId === order.id;
+            const canEditPrice = order.orderType !== 'MARKET' && order.orderType !== 'SL-M';
+            const canEditTrigger = order.orderType === 'SL' || order.orderType === 'SL-M';
             return (
               <div key={order.id} className="ord-card" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span className={`ord-side-badge jnl-trade-side ${sideClass}`}>{sideLabel}</span>
                   <span className="ord-symbol" style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-bright)', fontWeight: 700 }}>{order.displayName || order.symbol}</span>
                   <span className="ord-meta" style={{ color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '2px 5px', borderRadius: '4px' }}>{typeLabel}</span>
+                  {order.positionId && (
+                    <span className="ord-meta" style={{ color: 'var(--accent-primary)', background: 'rgba(99,102,241,0.12)', padding: '2px 5px', borderRadius: '4px' }}>EXIT</span>
+                  )}
                   <span className="ord-meta" style={{ borderRadius: '4px', fontWeight: 600, ...(order.status === 'FILLED' ? { color: 'var(--color-profit)', background: 'var(--color-profit-bg)' } : order.status === 'REJECTED' || order.status === 'CANCELLED' ? { color: 'var(--color-loss)', background: 'var(--color-loss-bg)' } : { color: 'var(--color-warning)', background: 'rgba(255,171,0,0.1)' }), padding: '2px 5px' }}>{statusLabel}</span>
                   <span className="ord-qty" style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>{order.quantity}</span>
                 </div>
+                {order.status === 'PENDING' && isEditing && (
+                  <div style={{ display: 'grid', gridTemplateColumns: canEditPrice || canEditTrigger ? 'repeat(3,minmax(0,1fr))' : 'repeat(2,minmax(0,1fr))', gap: '6px', marginTop: '6px', marginBottom: '4px' }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '10px', color: 'var(--text-muted)' }}>
+                      Qty
+                      <input className="input" type="number" min={1} value={editQty} onChange={(e) => setEditQty(e.target.value)} />
+                    </label>
+                    {canEditPrice && (
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '10px', color: 'var(--text-muted)' }}>
+                        Price
+                        <input className="input" type="number" min={0} step="0.05" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} />
+                      </label>
+                    )}
+                    {canEditTrigger && (
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '10px', color: 'var(--text-muted)' }}>
+                        Trigger
+                        <input className="input" type="number" min={0} step="0.05" value={editTrigger} onChange={(e) => setEditTrigger(e.target.value)} />
+                      </label>
+                    )}
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span className="ord-price" style={{ color: 'var(--text-muted)' }}>P: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{order.filledPrice ? order.filledPrice.toFixed(2) : order.price?.toFixed(2) ?? 'MKT'}</span></span>
@@ -225,9 +317,25 @@ export function TradeHistory({ type }: TradeHistoryProps) {
                     <span className="ord-time" style={{ color: 'var(--text-muted)' }}>{formatTimeOnly(order.createdAt)}</span>
                   </div>
                   {order.status === 'PENDING' ? (
-                    <button className="btn btn-ghost btn-sm ord-btn" onClick={() => handleCancelOrder(order.id)} disabled={cancellingOrderId === order.id} style={{ color: '#ef5350' }}>
-                      {cancellingOrderId === order.id ? '...' : 'Cancel'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {isEditing ? (
+                        <>
+                          <button className="btn btn-ghost btn-sm ord-btn" onClick={() => handleModifyOrder(order)} disabled={savingOrderId === order.id || cancellingOrderId === order.id} style={{ color: 'var(--color-profit)' }}>
+                            {savingOrderId === order.id ? '...' : 'Save'}
+                          </button>
+                          <button className="btn btn-ghost btn-sm ord-btn" onClick={resetOrderEditor} disabled={savingOrderId === order.id || cancellingOrderId === order.id}>
+                            Close
+                          </button>
+                        </>
+                      ) : (
+                        <button className="btn btn-ghost btn-sm ord-btn" onClick={() => startOrderEdit(order)} disabled={savingOrderId === order.id || cancellingOrderId === order.id}>
+                          Modify
+                        </button>
+                      )}
+                      <button className="btn btn-ghost btn-sm ord-btn" onClick={() => handleCancelOrder(order.id)} disabled={savingOrderId === order.id || cancellingOrderId === order.id} style={{ color: '#ef5350' }}>
+                        {cancellingOrderId === order.id ? '...' : 'Cancel'}
+                      </button>
+                    </div>
                   ) : order.status === 'REJECTED' && order.rejectedReason ? (
                     <span className="ord-reject" style={{ color: 'var(--color-loss)', maxWidth: '140px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={order.rejectedReason}>{order.rejectedReason}</span>
                   ) : null}

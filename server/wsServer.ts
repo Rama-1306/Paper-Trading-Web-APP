@@ -492,8 +492,22 @@ async function processPositionSLTarget(tickMap: Record<string, number>) {
       ],
     },
   });
+  const pendingLinkedExitOrders = await prisma.order.findMany({
+    where: {
+      status: 'PENDING',
+      positionId: { not: null },
+      orderType: { in: ['LIMIT', 'SL', 'SL-M'] },
+    },
+    select: { positionId: true },
+  });
+  const positionsWithPendingExits = new Set(
+    pendingLinkedExitOrders
+      .map((o) => o.positionId)
+      .filter((positionId): positionId is string => !!positionId)
+  );
 
   for (const pos of positions) {
+    if (positionsWithPendingExits.has(pos.id)) continue;
     const ltp = tickMap[pos.symbol];
     if (ltp === undefined || ltp <= 0) continue;
 
@@ -823,27 +837,140 @@ async function fillPendingOrder(order: any, fillPrice: number) {
     if (order.symbol.includes('CE')) instrumentType = 'CE';
     else if (order.symbol.includes('PE')) instrumentType = 'PE';
 
-    const marginRequired = wsGetQuickMargin(order.symbol, order.quantity, order.side);
 
     const result = await prisma.$transaction(async (tx) => {
       const current = await tx.order.findFirst({
         where: { id: order.id, status: 'PENDING' },
       });
       if (!current) return null;
+      const liveOrder = current;
+
+      if (liveOrder.positionId) {
+        const linkedPosition = await tx.position.findFirst({
+          where: { id: liveOrder.positionId, accountId: liveOrder.accountId, isOpen: true },
+        });
+        if (!linkedPosition) {
+          await tx.order.update({
+            where: { id: liveOrder.id },
+            data: { status: 'CANCELLED', rejectedReason: 'Linked position is already closed' },
+          });
+          return { positionId: liveOrder.positionId, averaged: false, netted: false, cancelled: true, filledQuantity: 0 };
+        }
+
+        const expectedExitSide = linkedPosition.side === 'BUY' ? 'SELL' : 'BUY';
+        if (liveOrder.side !== expectedExitSide) {
+          await tx.order.update({
+            where: { id: liveOrder.id },
+            data: { status: 'REJECTED', rejectedReason: 'Invalid side for linked exit order' },
+          });
+          return { positionId: linkedPosition.id, averaged: false, netted: false, cancelled: true, filledQuantity: 0 };
+        }
+
+        const executableQty = Math.min(liveOrder.quantity, linkedPosition.quantity);
+        if (executableQty <= 0) {
+          await tx.order.update({
+            where: { id: liveOrder.id },
+            data: { status: 'CANCELLED', rejectedReason: 'Linked position has no quantity left' },
+          });
+          return { positionId: linkedPosition.id, averaged: false, netted: false, cancelled: true, filledQuantity: 0 };
+        }
+
+        const pnlPerUnit = linkedPosition.side === 'BUY'
+          ? fillPrice - linkedPosition.entryPrice
+          : linkedPosition.entryPrice - fillPrice;
+        const pnl = pnlPerUnit * executableQty;
+        const marginPerUnit = linkedPosition.marginUsed > 0
+          ? linkedPosition.marginUsed / linkedPosition.quantity
+          : 0;
+        const marginToRelease = marginPerUnit * executableQty;
+
+        if (executableQty < linkedPosition.quantity) {
+          await tx.position.update({
+            where: { id: linkedPosition.id },
+            data: {
+              quantity: linkedPosition.quantity - executableQty,
+              currentPrice: fillPrice,
+              marginUsed: Math.max(0, linkedPosition.marginUsed - marginToRelease),
+            },
+          });
+        } else {
+          await tx.position.update({
+            where: { id: linkedPosition.id },
+            data: {
+              isOpen: false,
+              currentPrice: fillPrice,
+              pnl,
+              marginUsed: 0,
+              exitReason: 'NET_OFF',
+              closedAt: new Date(),
+            },
+          });
+
+          await tx.order.updateMany({
+            where: {
+              accountId: liveOrder.accountId,
+              positionId: linkedPosition.id,
+              status: 'PENDING',
+              id: { not: liveOrder.id },
+            },
+            data: {
+              status: 'CANCELLED',
+              rejectedReason: 'Linked position is closed',
+            },
+          });
+        }
+
+        await tx.trade.create({
+          data: {
+            accountId: liveOrder.accountId,
+            symbol: liveOrder.symbol,
+            displayName: liveOrder.displayName,
+            side: linkedPosition.side,
+            quantity: executableQty,
+            entryPrice: linkedPosition.entryPrice,
+            exitPrice: fillPrice,
+            pnl,
+            exitReason: 'NET_OFF',
+            entryTime: linkedPosition.createdAt,
+          },
+        });
+
+        await tx.account.update({
+          where: { id: liveOrder.accountId },
+          data: {
+            balance: { increment: pnl },
+            realizedPnl: { increment: pnl },
+            usedMargin: { decrement: Math.max(0, marginToRelease) },
+          },
+        });
+
+        await tx.order.update({
+          where: { id: liveOrder.id },
+          data: {
+            status: 'FILLED',
+            filledPrice: fillPrice,
+            filledAt: new Date(),
+            quantity: executableQty,
+            positionId: linkedPosition.id,
+          },
+        });
+
+        return { positionId: linkedPosition.id, averaged: false, netted: true, cancelled: false, filledQuantity: executableQty };
+      }
 
       const isOption = instrumentType === 'CE' || instrumentType === 'PE';
 
       // --- Position netting: check for opposite-side position first ---
-      const oppositeSide = order.side === 'BUY' ? 'SELL' : 'BUY';
+      const oppositeSide = liveOrder.side === 'BUY' ? 'SELL' : 'BUY';
       const oppositePosition = await tx.position.findFirst({
-        where: { accountId: order.accountId, symbol: order.symbol, side: oppositeSide, isOpen: true },
+        where: { accountId: liveOrder.accountId, symbol: liveOrder.symbol, side: oppositeSide, isOpen: true },
       });
 
       if (oppositePosition) {
-        const pnlPerUnit = order.side === 'BUY'
+        const pnlPerUnit = liveOrder.side === 'BUY'
           ? oppositePosition.entryPrice - fillPrice
           : fillPrice - oppositePosition.entryPrice;
-        const netQty = Math.min(order.quantity, oppositePosition.quantity);
+        const netQty = Math.min(liveOrder.quantity, oppositePosition.quantity);
         const pnl = pnlPerUnit * netQty;
         const marginPerUnit = oppositePosition.marginUsed > 0
           ? oppositePosition.marginUsed / oppositePosition.quantity : 0;
@@ -867,9 +994,9 @@ async function fillPendingOrder(order: any, fillPrice: number) {
 
         await tx.trade.create({
           data: {
-            accountId: order.accountId,
-            symbol: order.symbol,
-            displayName: order.displayName,
+            accountId: liveOrder.accountId,
+            symbol: liveOrder.symbol,
+            displayName: liveOrder.displayName,
             side: oppositeSide,
             quantity: netQty,
             entryPrice: oppositePosition.entryPrice,
@@ -881,7 +1008,7 @@ async function fillPendingOrder(order: any, fillPrice: number) {
         });
 
         await tx.account.update({
-          where: { id: order.accountId },
+          where: { id: liveOrder.accountId },
           data: {
             balance: { increment: pnl },
             realizedPnl: { increment: pnl },
@@ -890,16 +1017,16 @@ async function fillPendingOrder(order: any, fillPrice: number) {
         });
 
         let finalPositionId = oppositePosition.id;
-        const remainingQty = order.quantity - netQty;
+        const remainingQty = liveOrder.quantity - netQty;
         if (remainingQty > 0) {
-          const newMargin = wsGetQuickMargin(order.symbol, remainingQty, order.side);
+          const newMargin = wsGetQuickMargin(liveOrder.symbol, remainingQty, liveOrder.side);
           const newPos = await tx.position.create({
             data: {
-              accountId: order.accountId,
-              symbol: order.symbol,
-              displayName: order.displayName,
+              accountId: liveOrder.accountId,
+              symbol: liveOrder.symbol,
+              displayName: liveOrder.displayName,
               instrumentType,
-              side: order.side,
+              side: liveOrder.side,
               quantity: remainingQty,
               entryPrice: fillPrice,
               currentPrice: fillPrice,
@@ -907,32 +1034,32 @@ async function fillPendingOrder(order: any, fillPrice: number) {
             },
           });
           await tx.account.update({
-            where: { id: order.accountId },
+            where: { id: liveOrder.accountId },
             data: { usedMargin: { increment: newMargin } },
           });
           finalPositionId = newPos.id;
         }
 
         await tx.order.update({
-          where: { id: order.id },
+          where: { id: liveOrder.id },
           data: { status: 'FILLED', filledPrice: fillPrice, filledAt: new Date(), positionId: finalPositionId },
         });
-
-        return { positionId: finalPositionId, averaged: false, netted: true };
+        return { positionId: finalPositionId, averaged: false, netted: true, cancelled: false, filledQuantity: liveOrder.quantity };
       }
 
       // --- Same-side: average or open new ---
       const existingPosition = await tx.position.findFirst({
-        where: { accountId: order.accountId, symbol: order.symbol, side: order.side, isOpen: true },
+        where: { accountId: liveOrder.accountId, symbol: liveOrder.symbol, side: liveOrder.side, isOpen: true },
       });
+      const marginRequired = wsGetQuickMargin(liveOrder.symbol, liveOrder.quantity, liveOrder.side);
 
       let positionId: string;
 
       if (existingPosition) {
         const oldQty = existingPosition.quantity;
         const oldPrice = existingPosition.entryPrice;
-        const newQty = oldQty + order.quantity;
-        const avgPrice = (oldPrice * oldQty + fillPrice * order.quantity) / newQty;
+        const newQty = oldQty + liveOrder.quantity;
+        const avgPrice = (oldPrice * oldQty + fillPrice * liveOrder.quantity) / newQty;
 
         await tx.position.update({
           where: { id: existingPosition.id },
@@ -947,12 +1074,12 @@ async function fillPendingOrder(order: any, fillPrice: number) {
       } else {
         const position = await tx.position.create({
           data: {
-            accountId: order.accountId,
-            symbol: order.symbol,
-            displayName: order.displayName,
+            accountId: liveOrder.accountId,
+            symbol: liveOrder.symbol,
+            displayName: liveOrder.displayName,
             instrumentType,
-            side: order.side,
-            quantity: order.quantity,
+            side: liveOrder.side,
+            quantity: liveOrder.quantity,
             entryPrice: fillPrice,
             currentPrice: fillPrice,
             marginUsed: marginRequired,
@@ -962,7 +1089,7 @@ async function fillPendingOrder(order: any, fillPrice: number) {
       }
 
       await tx.order.update({
-        where: { id: order.id },
+        where: { id: liveOrder.id },
         data: {
           status: 'FILLED',
           filledPrice: fillPrice,
@@ -971,22 +1098,26 @@ async function fillPendingOrder(order: any, fillPrice: number) {
         },
       });
 
-      const premium = isOption ? fillPrice * order.quantity : 0;
-      const balanceChange = isOption ? (order.side === 'BUY' ? -premium : premium) : 0;
+      const premium = isOption ? fillPrice * liveOrder.quantity : 0;
+      const balanceChange = isOption ? (liveOrder.side === 'BUY' ? -premium : premium) : 0;
 
       await tx.account.update({
-        where: { id: order.accountId },
+        where: { id: liveOrder.accountId },
         data: {
           usedMargin: { increment: marginRequired },
           ...(balanceChange !== 0 ? { balance: { increment: balanceChange } } : {}),
         },
       });
-
-      return { positionId, averaged: !!existingPosition, netted: false };
+      return { positionId, averaged: !!existingPosition, netted: false, cancelled: false, filledQuantity: liveOrder.quantity };
     });
 
     if (!result) {
       console.log(`⚠️ Order ${order.id} already filled/cancelled, skipping`);
+      return;
+    }
+
+    if (result.cancelled) {
+      console.log(`⚠️ Pending order ${order.id} cancelled during fill due to linked-position state`);
       return;
     }
 
@@ -1002,7 +1133,7 @@ async function fillPendingOrder(order: any, fillPrice: number) {
       side: order.side,
       orderType: order.orderType,
       fillPrice,
-      quantity: order.quantity,
+      quantity: result.filledQuantity ?? order.quantity,
       averaged: result.averaged,
     });
 
