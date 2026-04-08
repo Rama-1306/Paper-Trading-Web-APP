@@ -149,7 +149,9 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
   }, 0);
   const todayClosedPnl = todayClosedTrades.reduce((sum, t) => sum + t.pnl, 0);
   const dayPnl = openUnrealizedPnl + todayClosedPnl;
-  const dayPnlInfo = formatPnL(dayPnl);
+  const realizedPnlInfo = formatPnL(todayClosedPnl);
+  const unrealizedPnlInfo = formatPnL(openUnrealizedPnl);
+  const totalPnlInfo = formatPnL(dayPnl);
 
   if (openPositions.length === 0 && todayClosedTrades.length === 0) {
     return (
@@ -447,14 +449,33 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: '8px',
+          flexWrap: 'wrap',
           flexShrink: 0,
         }}>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Day P&L
           </span>
-          <span className={dayPnlInfo.className} style={{ fontSize: '15px', fontWeight: 700 }}>
-            {dayPnlInfo.text}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Realized:{' '}
+              <span className={realizedPnlInfo.className} style={{ fontWeight: 700 }}>
+                {realizedPnlInfo.text}
+              </span>
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Unrealized:{' '}
+              <span className={unrealizedPnlInfo.className} style={{ fontWeight: 700 }}>
+                {unrealizedPnlInfo.text}
+              </span>
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Total:{' '}
+              <span className={totalPnlInfo.className} style={{ fontWeight: 800, fontSize: '14px' }}>
+                {totalPnlInfo.text}
+              </span>
+            </span>
+          </div>
         </div>
       )}
 
