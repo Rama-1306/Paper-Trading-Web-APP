@@ -1,0 +1,4 @@
+There is a problem with Live feed in User accounts. " Admin account Live Feed is working Properly"
+01- I have restartred ws server many times.
+02- In User Account, Only one instrument getting live feed. Either BN Futures. ot CrudeoilM Futures.
+Please resolve the issue without effecting other functionalities. then push to github.
