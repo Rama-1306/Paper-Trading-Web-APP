@@ -12,9 +12,16 @@ type Signal = {
   exchange:      string;
   signal_type:   string;
   score:         number;
+  source:        string;
   candle_high:   number | null;
   candle_low:    number | null;
   close:         number | null;
+  entry:         number | null;
+  sl:            number | null;
+  t1:            number | null;
+  t2:            number | null;
+  t3:            number | null;
+  timeframe:     string | null;
   bot_notified:  boolean;
   order_created: boolean;
   order_id:      string | null;
@@ -38,6 +45,11 @@ function formatTime(iso: string): string {
 function shortId(id: string | null): string {
   if (!id) return "—";
   return id.slice(-8).toUpperCase();
+}
+
+function fmtPrice(v: number | null): string {
+  if (v == null) return "—";
+  return v.toLocaleString("en-IN", { maximumFractionDigits: 1 });
 }
 
 export default function SignalLogPage() {
@@ -101,9 +113,9 @@ export default function SignalLogPage() {
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div style={header}>
         <div>
-          <div style={title}>Signal Flow Log</div>
+          <div style={titleStyle}>Signal Flow Log</div>
           <div style={subtitle}>
-            TradingView → Bot → Paper Order · full audit trail
+            CCC Engine + Webhook → Signal Router → Bot → Paper Order
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -125,6 +137,15 @@ export default function SignalLogPage() {
         <span style={{ color: "#555a65" }}>{signals.length} signals</span>
       </div>
 
+      {/* ── Source legend ───────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+        <span style={sourceBadge("ccc_engine")}>CCC Engine</span>
+        <span style={sourceBadge("webhook")}>Webhook</span>
+        <span style={{ color: "#3a3f4a", fontSize: 11, alignSelf: "center" }}>
+          — signal source badges
+        </span>
+      </div>
+
       {/* ── Error ──────────────────────────────────────────────────── */}
       {error && (
         <div style={errorBox}>{error}</div>
@@ -136,12 +157,15 @@ export default function SignalLogPage() {
           <thead>
             <tr>
               <th style={th}>Time</th>
+              <th style={th}>Source</th>
               <th style={th}>Symbol</th>
-              <th style={th}>Exch</th>
+              <th style={th}>TF</th>
               <th style={th}>Action</th>
               <th style={th}>Type</th>
               <th style={{ ...th, textAlign: "center" }}>Score</th>
-              <th style={th}>Close</th>
+              <th style={th}>Entry</th>
+              <th style={th}>SL</th>
+              <th style={th}>T1</th>
               <th style={{ ...th, textAlign: "center" }}>Bot</th>
               <th style={{ ...th, textAlign: "center" }}>Order</th>
               <th style={th}>Order ID</th>
@@ -151,8 +175,8 @@ export default function SignalLogPage() {
           <tbody>
             {signals.length === 0 && !loading && (
               <tr>
-                <td colSpan={11} style={{ ...td, textAlign: "center", color: "#555a65", padding: "32px 0" }}>
-                  No signals yet. Waiting for TradingView alerts.
+                <td colSpan={14} style={{ ...td, textAlign: "center", color: "#555a65", padding: "32px 0" }}>
+                  No signals yet. Waiting for CCC Engine or TradingView alerts.
                 </td>
               </tr>
             )}
@@ -161,11 +185,14 @@ export default function SignalLogPage() {
                 <td style={{ ...td, color: "#8b8f98", fontSize: 11, whiteSpace: "nowrap" }}>
                   {formatTime(s.created_at)}
                 </td>
+                <td style={td}>
+                  <span style={sourceBadge(s.source)}>{sourceLabel(s.source)}</span>
+                </td>
                 <td style={{ ...td, fontWeight: 700, color: "#e8eaed" }}>
                   {s.symbol}
                 </td>
-                <td style={{ ...td, color: "#8b8f98" }}>
-                  {s.exchange}
+                <td style={{ ...td, color: "#8b8f98", fontSize: 11 }}>
+                  {s.timeframe ? `${s.timeframe}m` : "—"}
                 </td>
                 <td style={td}>
                   <span style={s.action === "BUY" ? tagBuy : tagSell}>
@@ -178,8 +205,14 @@ export default function SignalLogPage() {
                 <td style={{ ...td, textAlign: "center" }}>
                   <span style={scoreTag(s.score)}>{s.score}</span>
                 </td>
-                <td style={{ ...td, color: "#8b8f98", fontSize: 11 }}>
-                  {s.close != null ? s.close.toLocaleString("en-IN") : "—"}
+                <td style={{ ...td, color: "#e8eaed", fontSize: 11 }}>
+                  {fmtPrice(s.entry)}
+                </td>
+                <td style={{ ...td, color: "#ff6b6b", fontSize: 11 }}>
+                  {fmtPrice(s.sl)}
+                </td>
+                <td style={{ ...td, color: "#00e676", fontSize: 11 }}>
+                  {fmtPrice(s.t1)}
                 </td>
                 <td style={{ ...td, textAlign: "center" }}>
                   <span style={s.bot_notified ? dotGreen : dotGrey} title={s.bot_notified ? "Bot notified" : "Bot not notified"} />
@@ -217,6 +250,31 @@ export default function SignalLogPage() {
   );
 }
 
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
+
+function sourceLabel(source: string): string {
+  if (source === 'ccc_engine') return 'CCC Engine';
+  if (source === 'webhook')    return 'Webhook';
+  return source;
+}
+
+function sourceBadge(source: string): CSSProperties {
+  if (source === 'ccc_engine') {
+    return {
+      display: "inline-block", fontSize: 10, fontWeight: 700,
+      padding: "2px 7px", borderRadius: 4, whiteSpace: "nowrap",
+      background: "rgba(99,102,241,0.15)", color: "#818cf8",
+      border: "1px solid rgba(99,102,241,0.35)",
+    };
+  }
+  return {
+    display: "inline-block", fontSize: 10, fontWeight: 700,
+    padding: "2px 7px", borderRadius: 4, whiteSpace: "nowrap",
+    background: "rgba(34,197,94,0.12)", color: "#22c55e",
+    border: "1px solid rgba(34,197,94,0.3)",
+  };
+}
+
 /* ── Styles ──────────────────────────────────────────────────────────────── */
 
 const pageWrap: CSSProperties = {
@@ -236,7 +294,7 @@ const header: CSSProperties = {
   gap:            8,
 };
 
-const title: CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize:   18,
   fontWeight: 700,
   color:      "#ffffff",
@@ -279,19 +337,19 @@ const table: CSSProperties = {
 };
 
 const th: CSSProperties = {
-  padding:         "10px 12px",
-  textAlign:       "left",
-  color:           "#555a65",
-  fontWeight:      600,
-  fontSize:        11,
-  background:      "#0f1420",
-  borderBottom:    "1px solid rgba(255,255,255,0.06)",
-  whiteSpace:      "nowrap",
+  padding:      "10px 12px",
+  textAlign:    "left",
+  color:        "#555a65",
+  fontWeight:   600,
+  fontSize:     11,
+  background:   "#0f1420",
+  borderBottom: "1px solid rgba(255,255,255,0.06)",
+  whiteSpace:   "nowrap",
 };
 
 const td: CSSProperties = {
-  padding:      "9px 12px",
-  borderBottom: "1px solid rgba(255,255,255,0.04)",
+  padding:       "9px 12px",
+  borderBottom:  "1px solid rgba(255,255,255,0.04)",
   verticalAlign: "middle",
 };
 
@@ -321,10 +379,7 @@ const tagSell: CSSProperties = {
 
 function scoreTag(score: number): CSSProperties {
   const colors: Record<number, string> = {
-    1: "#555a65",
-    2: "#ffab00",
-    3: "#ff6d00",
-    4: "#00e676",
+    1: "#555a65", 2: "#ffab00", 3: "#ff6d00", 4: "#00e676",
   };
   return {
     display:      "inline-block",
@@ -342,31 +397,14 @@ function scoreTag(score: number): CSSProperties {
 }
 
 const dotGreen: CSSProperties = {
-  display:      "inline-block",
-  width:        8,
-  height:       8,
-  borderRadius: "50%",
-  background:   "#00e676",
+  display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#00e676",
 };
-
 const dotGrey: CSSProperties = {
-  display:      "inline-block",
-  width:        8,
-  height:       8,
-  borderRadius: "50%",
-  background:   "#2a2f3a",
-  border:       "1px solid rgba(255,255,255,0.1)",
+  display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+  background: "#2a2f3a", border: "1px solid rgba(255,255,255,0.1)",
 };
-
-const pnlProfit: CSSProperties = {
-  color:      "#00e676",
-  fontWeight: 700,
-};
-
-const pnlLoss: CSSProperties = {
-  color:      "#ff1744",
-  fontWeight: 700,
-};
+const pnlProfit: CSSProperties = { color: "#00e676", fontWeight: 700 };
+const pnlLoss:   CSSProperties = { color: "#ff1744", fontWeight: 700 };
 
 const btnRefresh: CSSProperties = {
   background:   "rgba(99,102,241,0.12)",

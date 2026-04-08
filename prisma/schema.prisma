@@ -134,13 +134,31 @@ model WebhookSignal {
   candle_high   Float?                           // High of signal candle
   candle_low    Float?                           // Low of signal candle
   close         Float?                           // Close price of signal candle
-  source        String    @default("tradingview") // Where the signal came from
+  source        String    @default("webhook")    // 'ccc_engine' | 'webhook'
+  entry         Float?                           // Entry price level
+  sl            Float?                           // Stop-loss level
+  t1            Float?                           // Target 1
+  t2            Float?                           // Target 2
+  t3            Float?                           // Target 3
+  timeframe     String?                          // Candle timeframe e.g. "3","5","15"
   bot_notified  Boolean   @default(false)        // Did broadcast reach the bot?
   order_created Boolean   @default(false)        // Did bot create a paper order?
   order_id      String?                          // Paper order ID once created
   created_at    DateTime  @default(now())
 
   @@map("webhook_signals")
+}
+
+// ── Signal Source Settings ───────────────────────────────────────────────────
+// Singleton row (id=1) storing per-source on/off state.
+
+model SignalSettings {
+  id                  Int      @id @default(1)
+  ccc_engine_enabled  Boolean  @default(true)
+  webhook_enabled     Boolean  @default(true)
+  updated_at          DateTime @updatedAt
+
+  @@map("signal_settings")
 }
 
 // ── SAHAAI Algo Bot ─────────────────────────────────────────────────────────

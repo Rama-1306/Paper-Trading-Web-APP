@@ -10,6 +10,7 @@ import { OptionChainTable } from '@/components/OptionChain/OptionChainTable';
 import { TradeHistory } from '@/components/Trading/TradeHistory';
 import { WatchlistPanel } from '@/components/Trading/WatchlistPanel';
 import { AlertsPanel } from '@/components/Trading/AlertsPanel';
+import { SignalSourcePanel } from '@/components/Trading/SignalSourcePanel';
 import { ToastContainer } from '@/components/common/ToastContainer';
 import { PullToRefresh } from '@/components/common/PullToRefresh';
 import { InstrumentSearch } from '@/components/Trading/InstrumentSearch';
@@ -20,8 +21,9 @@ import { useMarketStore, registerTickPositionUpdater, registerServerEventHandler
 import { useAlertStore } from '@/stores/alertStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useCCCEngine } from '@/hooks/useCCCEngine';
 import type { Tick } from '@/types/market';
-type ActiveView = 'chart' | 'positions' | 'orders' | 'trades' | 'option-chain' | 'watchlist' | 'alerts' | 'place-order';
+type ActiveView = 'chart' | 'positions' | 'orders' | 'trades' | 'option-chain' | 'watchlist' | 'alerts' | 'place-order' | 'signals';
 
 const NAV_ITEMS: { id: ActiveView; label: string }[] = [
   { id: 'chart',        label: 'Chart'    },
@@ -31,6 +33,7 @@ const NAV_ITEMS: { id: ActiveView; label: string }[] = [
   { id: 'option-chain', label: 'Chain'    },
   { id: 'watchlist',    label: 'Watch'    },
   { id: 'alerts',       label: 'Alerts'   },
+  { id: 'signals',      label: 'Signals'  },
 ];
 
 type MobileNavItem =
@@ -51,6 +54,10 @@ const MOBILE_NAV_ITEMS: MobileNavItem[] = [
 export default function Dashboard() {
   const [activeView, setActiveView] = useState<ActiveView>('chart');
   const [sidebarTab, setSidebarTab] = useState<'order' | 'positions'>('order');
+  const [cccEngineEnabled, setCCCEngineEnabled] = useState(false);
+
+  // CCC Engine — SOURCE 1: fires signals on confirmed closed candles
+  useCCCEngine(cccEngineEnabled);
   const [sidebarWidth, setSidebarWidth] = useState(340);
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
@@ -327,6 +334,11 @@ export default function Dashboard() {
             {activeView === 'alerts' && (
               <div style={{ height: '100%', overflow: 'auto' }}>
                 <AlertsPanel />
+              </div>
+            )}
+            {activeView === 'signals' && (
+              <div style={{ height: '100%', overflow: 'auto', padding: '16px' }}>
+                <SignalSourcePanel onCCCEngineChange={setCCCEngineEnabled} />
               </div>
             )}
             {activeView === 'place-order' && (
