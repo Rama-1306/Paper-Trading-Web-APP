@@ -581,6 +581,17 @@ async function processPendingOrders(tickMap: Record<string, number>) {
     where: { status: 'PENDING' },
   });
 
+  // SL/SL-M orders must fire before LIMIT (target) orders for the same position.
+  // This ensures a stop always takes priority over a profit target when both
+  // trigger on the same price bar.
+  pendingOrders.sort((a, b) => {
+    const aIsSL = a.orderType === 'SL' || a.orderType === 'SL-M';
+    const bIsSL = b.orderType === 'SL' || b.orderType === 'SL-M';
+    if (aIsSL && !bIsSL) return -1;
+    if (!aIsSL && bIsSL) return 1;
+    return 0;
+  });
+
   for (const order of pendingOrders) {
     const ltp = tickMap[order.symbol];
     if (ltp === undefined || ltp <= 0) continue;
@@ -875,6 +886,11 @@ async function fillPendingOrder(order: any, fillPrice: number) {
           return { positionId: linkedPosition.id, averaged: false, netted: false, cancelled: true, filledQuantity: 0 };
         }
 
+        // Determine the correct exit reason based on the order type that triggered
+        const exitReason = (liveOrder.orderType === 'SL' || liveOrder.orderType === 'SL-M')
+          ? 'SL_HIT'
+          : 'TARGET_HIT';
+
         const pnlPerUnit = linkedPosition.side === 'BUY'
           ? fillPrice - linkedPosition.entryPrice
           : linkedPosition.entryPrice - fillPrice;
@@ -884,7 +900,9 @@ async function fillPendingOrder(order: any, fillPrice: number) {
           : 0;
         const marginToRelease = marginPerUnit * executableQty;
 
-        if (executableQty < linkedPosition.quantity) {
+        const positionFullyClosed = executableQty >= linkedPosition.quantity;
+
+        if (!positionFullyClosed) {
           await tx.position.update({
             where: { id: linkedPosition.id },
             data: {
@@ -901,11 +919,12 @@ async function fillPendingOrder(order: any, fillPrice: number) {
               currentPrice: fillPrice,
               pnl,
               marginUsed: 0,
-              exitReason: 'NET_OFF',
+              exitReason,
               closedAt: new Date(),
             },
           });
 
+          // Cancel all other pending orders tied to this position
           await tx.order.updateMany({
             where: {
               accountId: liveOrder.accountId,
@@ -915,7 +934,7 @@ async function fillPendingOrder(order: any, fillPrice: number) {
             },
             data: {
               status: 'CANCELLED',
-              rejectedReason: 'Linked position is closed',
+              rejectedReason: 'Position fully closed',
             },
           });
         }
@@ -930,15 +949,20 @@ async function fillPendingOrder(order: any, fillPrice: number) {
             entryPrice: linkedPosition.entryPrice,
             exitPrice: fillPrice,
             pnl,
-            exitReason: 'NET_OFF',
+            exitReason,
             entryTime: linkedPosition.createdAt,
           },
         });
 
+        const isOption = linkedPosition.instrumentType === 'CE' || linkedPosition.instrumentType === 'PE';
+        const balanceAdjust = isOption
+          ? (linkedPosition.side === 'BUY' ? fillPrice * executableQty : -(fillPrice * executableQty))
+          : pnl;
+
         await tx.account.update({
           where: { id: liveOrder.accountId },
           data: {
-            balance: { increment: pnl },
+            balance: { increment: balanceAdjust },
             realizedPnl: { increment: pnl },
             usedMargin: { decrement: Math.max(0, marginToRelease) },
           },
@@ -955,7 +979,7 @@ async function fillPendingOrder(order: any, fillPrice: number) {
           },
         });
 
-        return { positionId: linkedPosition.id, averaged: false, netted: true, cancelled: false, filledQuantity: executableQty };
+        return { positionId: linkedPosition.id, averaged: false, netted: true, cancelled: false, filledQuantity: executableQty, exitReason, positionFullyClosed };
       }
 
       const isOption = instrumentType === 'CE' || instrumentType === 'PE';
@@ -1121,8 +1145,8 @@ async function fillPendingOrder(order: any, fillPrice: number) {
       return;
     }
 
-    const label = result.netted ? '✅ Order filled (netted)' : result.averaged ? '✅ Order filled (averaged)' : '✅ Order filled';
-    console.log(`${label}: ${order.displayName} ${order.side} ${order.orderType} @ ${fillPrice.toFixed(2)}`);
+    const label = result.netted ? '✅ Order filled (exit)' : result.averaged ? '✅ Order filled (averaged)' : '✅ Order filled';
+    console.log(`${label}: ${order.displayName} ${order.side} ${order.orderType} @ ${fillPrice.toFixed(2)}${result.exitReason ? ` [${result.exitReason}]` : ''}`);
 
     io.emit('order_filled', {
       accountId: order.accountId,
@@ -1136,6 +1160,17 @@ async function fillPendingOrder(order: any, fillPrice: number) {
       quantity: result.filledQuantity ?? order.quantity,
       averaged: result.averaged,
     });
+
+    // Emit position_closed only when the linked exit order fully closed a position
+    if (result.netted && result.positionFullyClosed && result.exitReason) {
+      io.emit('position_closed', {
+        accountId: order.accountId,
+        positionId: result.positionId,
+        symbol: order.symbol,
+        exitReason: result.exitReason,
+        exitPrice: fillPrice,
+      });
+    }
 
     activeSymbols.add(order.symbol);
     handleSymbolSync();
