@@ -304,9 +304,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const intent: string = (body as Record<string, unknown>).intent
+    let intent: string = (body as Record<string, unknown>).intent
       ? String((body as Record<string, unknown>).intent).toUpperCase()
       : 'OPEN';
+
+    // ── Auto-detect CLOSE intent ────────────────────────────────────────────
+    // If an opposite-side open position exists for this symbol, this order is
+    // an exit — not a new position.  Reject if qty exceeds position qty.
+    if (intent === 'OPEN') {
+      const oppositeSide = side === 'BUY' ? 'SELL' : 'BUY';
+      const oppositePos = await prisma.position.findFirst({
+        where: { accountId: account.id, symbol, side: oppositeSide, isOpen: true },
+      });
+      if (oppositePos) {
+        if (quantity > oppositePos.quantity) {
+          return NextResponse.json(
+            { error: `Exit qty (${quantity}) exceeds open position qty (${oppositePos.quantity}) for ${symbol}` },
+            { status: 400 }
+          );
+        }
+        intent = 'CLOSE';
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const order = await prisma.order.create({
       data: {
@@ -517,37 +537,6 @@ export async function POST(request: NextRequest) {
           where: { id: order.id },
           data: { positionId: oppositePosition.id },
         });
-
-        // If order qty > opposite position qty, open a new position for the remainder
-        const remainingQty = quantity - netQty;
-        if (remainingQty > 0) {
-          const newMargin = getQuickMargin(symbol, remainingQty, sideNum);
-          const newPosition = await prisma.position.create({
-            data: {
-              accountId: account.id,
-              symbol,
-              displayName: displayName || symbol,
-              instrumentType,
-              side,
-              quantity: remainingQty,
-              entryPrice: fillPrice,
-              currentPrice: fillPrice,
-              marginUsed: newMargin,
-              stopLoss: stopLoss || null,
-              targetPrice: targetPrice || null,
-              trailingSL: trailingSL || false,
-              trailingDistance: trailingDistance || null,
-            },
-          });
-          await prisma.account.update({
-            where: { id: account.id },
-            data: { usedMargin: { increment: newMargin } },
-          });
-          await prisma.order.update({
-            where: { id: order.id },
-            data: { positionId: newPosition.id },
-          });
-        }
 
         return NextResponse.json(order, { status: 201 });
       }

@@ -991,16 +991,26 @@ async function fillPendingOrder(order: any, fillPrice: number) {
       });
 
       if (oppositePosition) {
+        // Exit qty must not exceed position qty — never create a reverse position
+        if (liveOrder.quantity > oppositePosition.quantity) {
+          await tx.order.update({
+            where: { id: liveOrder.id },
+            data: { status: 'REJECTED', rejectedReason: `Exit qty (${liveOrder.quantity}) exceeds position qty (${oppositePosition.quantity})` },
+          });
+          return { positionId: oppositePosition.id, averaged: false, netted: false, cancelled: true, filledQuantity: 0 };
+        }
+
+        const netQty = liveOrder.quantity;
         const pnlPerUnit = liveOrder.side === 'BUY'
           ? oppositePosition.entryPrice - fillPrice
           : fillPrice - oppositePosition.entryPrice;
-        const netQty = Math.min(liveOrder.quantity, oppositePosition.quantity);
         const pnl = pnlPerUnit * netQty;
         const marginPerUnit = oppositePosition.marginUsed > 0
           ? oppositePosition.marginUsed / oppositePosition.quantity : 0;
         const marginToRelease = marginPerUnit * netQty;
+        const positionFullyClosed = netQty >= oppositePosition.quantity;
 
-        if (netQty < oppositePosition.quantity) {
+        if (!positionFullyClosed) {
           await tx.position.update({
             where: { id: oppositePosition.id },
             data: {
@@ -1013,6 +1023,16 @@ async function fillPendingOrder(order: any, fillPrice: number) {
           await tx.position.update({
             where: { id: oppositePosition.id },
             data: { isOpen: false, currentPrice: fillPrice, pnl, marginUsed: 0, exitReason: 'NET_OFF', closedAt: new Date() },
+          });
+          // Cancel all other pending orders tied to this position
+          await tx.order.updateMany({
+            where: {
+              accountId: liveOrder.accountId,
+              positionId: oppositePosition.id,
+              status: 'PENDING',
+              id: { not: liveOrder.id },
+            },
+            data: { status: 'CANCELLED', rejectedReason: 'Position fully closed' },
           });
         }
 
@@ -1031,44 +1051,25 @@ async function fillPendingOrder(order: any, fillPrice: number) {
           },
         });
 
+        const isOpt = oppositePosition.instrumentType === 'CE' || oppositePosition.instrumentType === 'PE';
+        const balanceAdjust = isOpt
+          ? (oppositePosition.side === 'BUY' ? fillPrice * netQty : -(fillPrice * netQty))
+          : pnl;
+
         await tx.account.update({
           where: { id: liveOrder.accountId },
           data: {
-            balance: { increment: pnl },
+            balance: { increment: balanceAdjust },
             realizedPnl: { increment: pnl },
             usedMargin: { decrement: Math.max(0, marginToRelease) },
           },
         });
 
-        let finalPositionId = oppositePosition.id;
-        const remainingQty = liveOrder.quantity - netQty;
-        if (remainingQty > 0) {
-          const newMargin = wsGetQuickMargin(liveOrder.symbol, remainingQty, liveOrder.side);
-          const newPos = await tx.position.create({
-            data: {
-              accountId: liveOrder.accountId,
-              symbol: liveOrder.symbol,
-              displayName: liveOrder.displayName,
-              instrumentType,
-              side: liveOrder.side,
-              quantity: remainingQty,
-              entryPrice: fillPrice,
-              currentPrice: fillPrice,
-              marginUsed: newMargin,
-            },
-          });
-          await tx.account.update({
-            where: { id: liveOrder.accountId },
-            data: { usedMargin: { increment: newMargin } },
-          });
-          finalPositionId = newPos.id;
-        }
-
         await tx.order.update({
           where: { id: liveOrder.id },
-          data: { status: 'FILLED', filledPrice: fillPrice, filledAt: new Date(), positionId: finalPositionId },
+          data: { status: 'FILLED', filledPrice: fillPrice, filledAt: new Date(), positionId: oppositePosition.id },
         });
-        return { positionId: finalPositionId, averaged: false, netted: true, cancelled: false, filledQuantity: liveOrder.quantity };
+        return { positionId: oppositePosition.id, averaged: false, netted: true, cancelled: false, filledQuantity: netQty, positionFullyClosed };
       }
 
       // --- Same-side: average or open new ---
