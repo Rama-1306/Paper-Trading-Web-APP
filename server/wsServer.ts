@@ -902,6 +902,16 @@ async function fillPendingOrder(order: any, fillPrice: number) {
 
         const positionFullyClosed = executableQty >= linkedPosition.quantity;
 
+        // Clear the position's SL/target fields so processPositionSLTarget
+        // doesn't trigger a second exit on the next tick
+        const clearFields: Record<string, null> = {};
+        if (liveOrder.orderType === 'LIMIT') {
+          clearFields.targetPrice = null;
+          clearFields.targetQty = null;
+        } else if (liveOrder.orderType === 'SL' || liveOrder.orderType === 'SL-M') {
+          clearFields.stopLoss = null;
+        }
+
         if (!positionFullyClosed) {
           await tx.position.update({
             where: { id: linkedPosition.id },
@@ -909,6 +919,7 @@ async function fillPendingOrder(order: any, fillPrice: number) {
               quantity: linkedPosition.quantity - executableQty,
               currentPrice: fillPrice,
               marginUsed: Math.max(0, linkedPosition.marginUsed - marginToRelease),
+              ...clearFields,
             },
           });
         } else {

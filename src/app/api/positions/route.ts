@@ -161,6 +161,17 @@ export async function PUT(request: NextRequest) {
       const createdExitOrders: Array<{ id: string; orderType: string; quantity: number; price: number | null; triggerPrice: number | null }> = [];
 
       if (shouldCreateTargetOrder) {
+        // Delete ALL existing pending target orders for this position first
+        // to prevent stacking multiple LIMIT orders on repeated modifies
+        await tx.order.deleteMany({
+          where: {
+            accountId: account.id,
+            positionId,
+            status: 'PENDING',
+            side: exitSide,
+            orderType: 'LIMIT',
+          },
+        });
         const targetOrder = await tx.order.create({
           data: {
             accountId: account.id,
@@ -186,6 +197,17 @@ export async function PUT(request: NextRequest) {
       }
 
       if (shouldCreateStopOrder) {
+        // Delete ALL existing pending SL orders for this position first
+        // to prevent stacking multiple SL orders on repeated modifies
+        await tx.order.deleteMany({
+          where: {
+            accountId: account.id,
+            positionId,
+            status: 'PENDING',
+            side: exitSide,
+            orderType: { in: ['SL', 'SL-M'] },
+          },
+        });
         const stopOrder = await tx.order.create({
           data: {
             accountId: account.id,
