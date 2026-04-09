@@ -555,6 +555,12 @@ async function processTicksForOrders(ticks: any[]) {
     const tickMap: Record<string, number> = {};
     ticks.forEach(t => { tickMap[t.symbol] = t.ltp; globalTickCache[t.symbol] = t.ltp; });
 
+    // Reap any position whose quantity has hit zero BEFORE evaluating SL/
+    // target or firing pending orders. Without this, an orphaned SL on a
+    // zero-qty position can fire and create a phantom new opposite-side
+    // position when fillPendingOrder falls through to the same-side branch.
+    await reapAllZeroQtyPositions(tickMap);
+
     await processPositionSLTarget(tickMap);
     await processPendingOrders(tickMap);
   } catch (err) {
@@ -564,10 +570,93 @@ async function processTicksForOrders(ticks: any[]) {
   }
 }
 
+// Atomically close a position whose quantity has reached 0 (or below)
+// and cancel every pending exit order tied to it. Used as a safety reaper
+// so orphaned SL/target orders can never fire against a zero-qty position
+// and create a phantom new position on the opposite side.
+async function reapZeroQtyPosition(positionId: string, exitPrice: number, reason = 'ZERO_QTY_REAPED') {
+  try {
+    const closed = await prisma.$transaction(async (tx) => {
+      const current = await tx.position.findFirst({
+        where: { id: positionId, isOpen: true },
+      });
+      if (!current) return null;
+      if (current.quantity > 0) return null;
+
+      await tx.position.update({
+        where: { id: positionId },
+        data: {
+          isOpen: false,
+          currentPrice: exitPrice || current.currentPrice || current.entryPrice,
+          pnl: 0,
+          marginUsed: 0,
+          stopLoss: null,
+          targetPrice: null,
+          target2: null,
+          target3: null,
+          targetQty: null,
+          trailingSL: false,
+          exitReason: reason,
+          closedAt: new Date(),
+        },
+      });
+
+      const cancelled = await tx.order.updateMany({
+        where: {
+          positionId,
+          status: 'PENDING',
+        },
+        data: {
+          status: 'CANCELLED',
+          rejectedReason: 'Position reached zero quantity',
+        },
+      });
+
+      return { current, cancelledCount: cancelled.count };
+    });
+
+    if (closed) {
+      console.log(
+        `🧹 Reaped zero-qty position ${closed.current.displayName || closed.current.symbol} ` +
+        `(${closed.current.side}) — cancelled ${closed.cancelledCount} pending order(s)`
+      );
+      io.emit('position_closed', {
+        accountId: closed.current.accountId,
+        positionId,
+        symbol: closed.current.symbol,
+        displayName: closed.current.displayName,
+        side: closed.current.side,
+        entryPrice: closed.current.entryPrice,
+        exitPrice: exitPrice || closed.current.currentPrice || closed.current.entryPrice,
+        pnl: 0,
+        exitReason: reason,
+      });
+    }
+  } catch (err) {
+    console.error(`Failed to reap zero-qty position ${positionId}:`, err);
+  }
+}
+
+// Sweep all open positions whose quantity has hit zero. Called from the
+// tick loop so any bad state created by races in the order/position routes
+// is cleaned up before SL/target evaluation runs.
+async function reapAllZeroQtyPositions(tickMap: Record<string, number>) {
+  const empties = await prisma.position.findMany({
+    where: { isOpen: true, quantity: { lte: 0 } },
+    select: { id: true, symbol: true, currentPrice: true, entryPrice: true },
+  });
+  for (const p of empties) {
+    const lastPrice =
+      tickMap[p.symbol] ?? p.currentPrice ?? p.entryPrice ?? 0;
+    await reapZeroQtyPosition(p.id, lastPrice);
+  }
+}
+
 async function processPositionSLTarget(tickMap: Record<string, number>) {
   const positions = await prisma.position.findMany({
     where: {
       isOpen: true,
+      quantity: { gt: 0 },
       OR: [
         { stopLoss: { not: null } },
         { targetPrice: { not: null } },
@@ -664,6 +753,50 @@ async function processPendingOrders(tickMap: Record<string, number>) {
     where: { status: 'PENDING' },
   });
 
+  // Pre-pass: any pending order whose linked position is closed or has
+  // quantity ≤ 0 must be cancelled before we even consider firing it.
+  // The reaper will normally have done this, but a pending order created
+  // late (after the reaper ran but before this fire-pass) would otherwise
+  // execute against missing position state and create a phantom new position.
+  const linkedPositionIds = Array.from(
+    new Set(
+      pendingOrders
+        .map((o) => o.positionId)
+        .filter((id): id is string => !!id)
+    )
+  );
+  if (linkedPositionIds.length > 0) {
+    const linkedPositions = await prisma.position.findMany({
+      where: { id: { in: linkedPositionIds } },
+      select: { id: true, isOpen: true, quantity: true },
+    });
+    const invalidPositionIds = new Set(
+      linkedPositions
+        .filter((p) => !p.isOpen || p.quantity <= 0)
+        .map((p) => p.id)
+    );
+    // Also treat orders whose linked position vanished from the DB as invalid.
+    const knownIds = new Set(linkedPositions.map((p) => p.id));
+    for (const id of linkedPositionIds) {
+      if (!knownIds.has(id)) invalidPositionIds.add(id);
+    }
+    if (invalidPositionIds.size > 0) {
+      const cancelled = await prisma.order.updateMany({
+        where: {
+          status: 'PENDING',
+          positionId: { in: Array.from(invalidPositionIds) },
+        },
+        data: {
+          status: 'CANCELLED',
+          rejectedReason: 'Linked position has no quantity remaining',
+        },
+      });
+      if (cancelled.count > 0) {
+        console.log(`🧹 Cancelled ${cancelled.count} pending order(s) tied to closed/zero-qty positions`);
+      }
+    }
+  }
+
   // SL/SL-M orders must fire before LIMIT (target) orders for the same position.
   // This ensures a stop always takes priority over a profit target when both
   // trigger on the same price bar.
@@ -722,29 +855,65 @@ async function processPendingOrders(tickMap: Record<string, number>) {
 
 async function partialCloseOnTarget(position: any, exitPrice: number) {
   try {
-    const exitQty = position.targetQty as number;
-    const pnl = position.side === 'BUY'
-      ? (exitPrice - position.entryPrice) * exitQty
-      : (position.entryPrice - exitPrice) * exitQty;
-
     const result = await prisma.$transaction(async (tx) => {
       const current = await tx.position.findFirst({ where: { id: position.id, isOpen: true } });
       if (!current) return null;
 
+      // Cap exit qty at the *fresh* remaining quantity. Reading from
+      // `current` (not the stale `position` snapshot) prevents leaving
+      // the position at quantity = 0 with isOpen = true when another
+      // partial close raced ahead of us.
+      const requestedExitQty = Math.max(0, Number(position.targetQty) || 0);
+      const exitQty = Math.min(requestedExitQty, current.quantity);
+      if (exitQty <= 0) return null;
+
+      const pnl = current.side === 'BUY'
+        ? (exitPrice - current.entryPrice) * exitQty
+        : (current.entryPrice - exitPrice) * exitQty;
+
       const marginPerUnit = current.marginUsed > 0 ? current.marginUsed / current.quantity : 0;
       const marginToRelease = marginPerUnit * exitQty;
+      const remainingQty = current.quantity - exitQty;
+      const fullyClosed = remainingQty <= 0;
 
-      // Reduce position, clear targetPrice + targetQty so it won't trigger again
-      await tx.position.update({
-        where: { id: position.id },
-        data: {
-          quantity: current.quantity - exitQty,
-          currentPrice: exitPrice,
-          marginUsed: Math.max(0, current.marginUsed - marginToRelease),
-          targetPrice: null,
-          targetQty: null,
-        },
-      });
+      if (fullyClosed) {
+        // Promoted to a full close — set isOpen=false and cancel any other
+        // pending exit orders so an orphaned SL can never fire later.
+        await tx.position.update({
+          where: { id: position.id },
+          data: {
+            quantity: 0,
+            isOpen: false,
+            currentPrice: exitPrice,
+            pnl,
+            marginUsed: 0,
+            stopLoss: null,
+            targetPrice: null,
+            target2: null,
+            target3: null,
+            targetQty: null,
+            trailingSL: false,
+            exitReason: 'TARGET_HIT',
+            closedAt: new Date(),
+          },
+        });
+        await tx.order.updateMany({
+          where: { positionId: position.id, status: 'PENDING' },
+          data: { status: 'CANCELLED', rejectedReason: 'Position fully closed by target' },
+        });
+      } else {
+        // Reduce position, clear targetPrice + targetQty so it won't trigger again
+        await tx.position.update({
+          where: { id: position.id },
+          data: {
+            quantity: remainingQty,
+            currentPrice: exitPrice,
+            marginUsed: Math.max(0, current.marginUsed - marginToRelease),
+            targetPrice: null,
+            targetQty: null,
+          },
+        });
+      }
 
       await tx.trade.create({
         data: {
@@ -791,16 +960,17 @@ async function partialCloseOnTarget(position: any, exitPrice: number) {
         },
       });
 
-      return true;
+      return { pnl, exitQty, remainingQty, fullyClosed };
     });
 
     if (!result) {
-      console.log(`⚠️ Position ${position.id} already closed, skipping partial target`);
+      console.log(`⚠️ Position ${position.id} already closed or empty, skipping partial target`);
       return;
     }
 
-    const pnlStr = pnl >= 0 ? `+${pnl.toFixed(2)}` : pnl.toFixed(2);
-    console.log(`🎯 Partial Target Hit: ${position.displayName} ${position.side} ${exitQty}/${position.quantity} qty @ ${exitPrice.toFixed(2)} | P&L: ${pnlStr}`);
+    const pnlStr = result.pnl >= 0 ? `+${result.pnl.toFixed(2)}` : result.pnl.toFixed(2);
+    const label = result.fullyClosed ? '🎯 Final Target Hit (full close)' : '🎯 Partial Target Hit';
+    console.log(`${label}: ${position.displayName} ${position.side} ${result.exitQty} qty @ ${exitPrice.toFixed(2)} | P&L: ${pnlStr}`);
 
     io.emit('position_closed', {
       accountId: position.accountId,
@@ -810,11 +980,11 @@ async function partialCloseOnTarget(position: any, exitPrice: number) {
       side: position.side,
       entryPrice: position.entryPrice,
       exitPrice,
-      pnl,
+      pnl: result.pnl,
       exitReason: 'TARGET_HIT',
-      isPartial: true,
-      exitQty,
-      remainingQty: position.quantity - exitQty,
+      isPartial: !result.fullyClosed,
+      exitQty: result.exitQty,
+      remainingQty: result.remainingQty,
     });
   } catch (err) {
     console.error(`Failed to partial-close position ${position.id}:`, err);
