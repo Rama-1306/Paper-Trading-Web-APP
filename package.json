@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "npm run dev:next",
     "dev:next": "DATABASE_URL='file:/home/runner/workspace/bank-nifty-paper-trader/prisma/dev.db' next dev -p 5000",
+    "dev:ws": "tsx server/wsServer.ts",
     "build": "prisma generate && next build --webpack",
     "start": "next start",
+    "start:ws": "tsx server/wsServer.ts",
     "db:push": "prisma db push",
     "lint": "next lint"
   },
@@ -30,6 +32,7 @@
     "recharts": "^3.8.1",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
+    "tsx": "^4.21.0",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
@@ -40,7 +43,6 @@
     "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
-    "tsx": "^4.21.0",
     "typescript": "^5",
     "xlsx": "^0.18.5"
   }

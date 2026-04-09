@@ -49,7 +49,10 @@ function wsGetQuickMargin(symbol: string, qty: number, side: string): number {
   return (MARGIN_PER_LOT[underlying.toUpperCase()] || 25000) * lots;
 }
 
-const PORT = 3002;
+// Railway (and most PaaS) inject the public-facing port via process.env.PORT.
+// Hardcoding 3002 means the platform router cannot reach the service in prod.
+const PORT = Number(process.env.PORT) || 3002;
+const HOST = '0.0.0.0';
 const globalTickCache: Record<string, number> = {};
 
 function sendJson(res: any, status: number, payload: any) {
@@ -1290,8 +1293,8 @@ io.on('connection', (socket) => {
   }
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Fyers Live Data Server running on ws://localhost:${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+  console.log(`🚀 Fyers Live Data Server running on ws://${HOST}:${PORT}`);
   console.log(`   FYERS_APP_ID:   ${process.env.FYERS_APP_ID ? '✅ loaded' : '❌ missing — set in .env or .env.local'}`);
   console.log(`   DATABASE_URL:   ${process.env.DATABASE_URL ? '✅ loaded' : '❌ missing'}`);
 });
