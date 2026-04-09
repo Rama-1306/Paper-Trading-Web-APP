@@ -101,7 +101,15 @@ export async function PATCH(
 
       if (position && position.isOpen) {
         const exitedQty  = order.quantity;
-        const isFullExit = ['SL_HIT', 'T3_HIT', 'EOD_EXIT', 'CLOSED', 'NET_OFF'].includes(status);
+        // Cap exit at remaining qty so we never go negative.
+        const cappedExit = Math.min(exitedQty, position.quantity);
+        const remaining  = position.quantity - cappedExit;
+        // Promote to a full exit if the status says so OR if there's nothing
+        // left after this exit. Without the qty check, a T1_HIT that drains
+        // the last contract leaves the row at quantity=0, isOpen=true — the
+        // orphan-position bug.
+        const isFullExit = remaining <= 0
+          || ['SL_HIT', 'T3_HIT', 'EOD_EXIT', 'CLOSED', 'NET_OFF'].includes(status);
 
         closedPosition = await prisma.position.update({
           where: { id: position.id },
@@ -111,9 +119,33 @@ export async function PATCH(
             pnl:          { increment: Number(pnl) },
             exitReason:   isFullExit ? status : undefined,
             closedAt:     isFullExit ? (exit_time ? new Date(exit_time) : new Date()) : undefined,
-            quantity:     isFullExit ? position.quantity : Math.max(0, position.quantity - exitedQty),
+            quantity:     isFullExit ? 0 : remaining,
+            // Clear all exit-trigger fields on a full exit so the WS server's
+            // SL/target sweeper can never refire on a closed position.
+            ...(isFullExit ? {
+              stopLoss:    null,
+              targetPrice: null,
+              target2:     null,
+              target3:     null,
+              targetQty:   null,
+              trailingSL:  false,
+            } : {}),
           },
         });
+
+        // On a full exit, cancel any remaining pending exit orders for this
+        // position so an orphaned SL-M / LIMIT can never fire later.
+        if (isFullExit) {
+          await prisma.order.updateMany({
+            where: {
+              accountId:  order.accountId,
+              positionId: position.id,
+              status:     'PENDING',
+              id:         { not: order.id },
+            },
+            data: { status: 'CANCELLED', rejectedReason: `Position closed via ${status}` },
+          });
+        }
 
         // ── 6. Create Trade record ────────────────────────────────────────────
         await prisma.trade.create({
@@ -122,7 +154,7 @@ export async function PATCH(
             symbol:      order.symbol,
             displayName: order.displayName,
             side:        order.side,
-            quantity:    exitedQty,
+            quantity:    cappedExit,
             entryPrice:  position.entryPrice,
             exitPrice:   exit_price,
             pnl:         Number(pnl),
@@ -135,7 +167,7 @@ export async function PATCH(
         // ── 7. Update account balance and margin ──────────────────────────────
         const marginReleased = isFullExit
           ? position.marginUsed
-          : (position.marginUsed / position.quantity) * exitedQty;
+          : (position.marginUsed / position.quantity) * cappedExit;
 
         await prisma.account.update({
           where: { id: order.accountId },
