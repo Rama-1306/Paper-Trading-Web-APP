@@ -263,6 +263,10 @@ let ensureSharedStatePromise: Promise<void> | null = null;
 let skt: any = null;
 let isProcessingOrders = false;
 let fyersFeedLive = false;
+// Backoff state for managed reconnect after auth/network errors.
+// Reset to 0 on every successful Fyers `connect`.
+let reconnectAttempts = 0;
+let reconnectTimer: NodeJS.Timeout | null = null;
 
 function isFyersSocketConnected(): boolean {
   return fyersFeedLive;
@@ -297,6 +301,38 @@ function resetFyersSocket(reason: string) {
   }
   skt = null;
   activeSocketToken = null;
+}
+
+// Reload the latest token from PostgreSQL (bypassing the in-memory cache),
+// then reconnect Fyers with it. Used after auth errors, on close, and by
+// the periodic poller. Schedules a retry with exponential backoff if no
+// fresh token is available yet (e.g. user hasn't re-logged in).
+async function refreshTokenAndReconnect(reason: string): Promise<void> {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
+  const fresh = await loadFreshSharedBrokerToken();
+  if (!fresh) {
+    reconnectAttempts += 1;
+    const delayMs = Math.min(60_000, 2_000 * Math.pow(2, Math.min(reconnectAttempts, 5)));
+    console.warn(`⚠️ Token refresh (${reason}): no token in DB. Retrying in ${delayMs}ms (attempt ${reconnectAttempts})`);
+    reconnectTimer = setTimeout(() => {
+      void refreshTokenAndReconnect(reason);
+    }, delayMs);
+    return;
+  }
+
+  // If the DB token matches the one we're already using AND the feed is healthy,
+  // there's nothing to do. Otherwise force a reconnect.
+  if (fresh === activeSocketToken && isFyersSocketConnected()) {
+    reconnectAttempts = 0;
+    return;
+  }
+
+  console.log(`🔄 Token refresh (${reason}): reconnecting Fyers with fresh DB token`);
+  initFyersSocket(fresh, true);
 }
 
 async function ensureSharedBrokerStateTable(): Promise<void> {
@@ -356,6 +392,20 @@ async function ensurePrimaryBrokerTokenLoaded(): Promise<string | null> {
   return primaryBrokerToken;
 }
 
+// Always hits the DB — bypasses the in-memory cache so refresh paths
+// (token expiry, periodic poller, post-error reconnect) see the latest
+// token written by the Next.js callback after a re-login.
+async function loadFreshSharedBrokerToken(): Promise<string | null> {
+  try {
+    const fresh = await loadPersistedSharedBrokerToken();
+    if (fresh) primaryBrokerToken = fresh;
+    return fresh;
+  } catch (error) {
+    console.error('Failed to load fresh shared broker token:', error);
+    return null;
+  }
+}
+
 function initFyersSocket(token: string, forceReconnect = false) {
   const normalizedToken = token?.trim();
   if (!normalizedToken) return;
@@ -392,6 +442,11 @@ function initFyersSocket(token: string, forceReconnect = false) {
     skt = fyersSocket; // Reassign in case it was cleared after a previous close
     activeSocketToken = normalizedToken;
     fyersFeedLive = true;
+    reconnectAttempts = 0;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     io.emit('feed_status', { live: true });
 
     if (activeSymbols.size > 0) {
@@ -404,6 +459,22 @@ function initFyersSocket(token: string, forceReconnect = false) {
 
   fyersSocket.on('message', (message: any) => {
     const items = Array.isArray(message) ? message : [message];
+
+    // Fyers occasionally surfaces auth failures (codes -15 / -16) as data
+    // messages instead of error events. Detect them here so we still kick
+    // off the DB-token refresh path.
+    for (const item of items) {
+      const code = typeof item?.code === 'number' ? item.code : null;
+      const status = typeof item?.s === 'string' ? item.s.toLowerCase() : '';
+      if (code === -15 || code === -16 || status === 'error') {
+        console.error('❌ Fyers auth error in message stream:', item);
+        fyersFeedLive = false;
+        io.emit('feed_status', { live: false });
+        resetFyersSocket(`auth error code ${code ?? status}`);
+        void refreshTokenAndReconnect('message auth error');
+        return;
+      }
+    }
 
     const ticks: any[] = [];
     items.forEach((item: any) => {
@@ -438,33 +509,42 @@ function initFyersSocket(token: string, forceReconnect = false) {
     console.error('❌ Fyers WS Error:', err);
     fyersFeedLive = false;
     io.emit('feed_status', { live: false });
+    const code = typeof err?.code === 'number' ? err.code : null;
     const msg = String(err?.message || err || '').toLowerCase();
     const isAuthError =
+      code === -15 || code === -16 ||
       msg.includes('invalid') ||
       msg.includes('expired') ||
       msg.includes('unauthor') ||
       msg.includes('auth') ||
-      msg.includes('token');
+      msg.includes('token') ||
+      msg.includes('-15') ||
+      msg.includes('-16');
     if (isAuthError) {
+      // Don't trust the in-memory token any more — reload from DB.
+      // The Next.js callback writes the new token there on every re-login.
       resetFyersSocket('authentication error');
+      void refreshTokenAndReconnect('auth error');
     }
   });
 
   fyersSocket.on('close', () => {
-    console.log('🔌 Fyers WS Closed — autoreconnect will retry');
+    console.log('🔌 Fyers WS Closed — refreshing token from DB and reconnecting');
     fyersFeedLive = false;
     io.emit('feed_status', { live: false });
     skt = null;
     activeSocketToken = null;
+    // Always reload from DB on close — cheap, and the only way to recover
+    // from a token rotation that happened while we were connected.
+    void refreshTokenAndReconnect('socket close');
   });
   try {
     fyersSocket.connect();
-    fyersSocket.autoreconnect();
   } catch (error) {
     console.error('Failed to start Fyers socket:', error);
     resetFyersSocket('startup failure');
+    void refreshTokenAndReconnect('startup failure');
   }
-  fyersSocket.autoreconnect();
 }
 
 async function processTicksForOrders(ticks: any[]) {
@@ -1305,3 +1385,34 @@ void ensurePrimaryBrokerTokenLoaded().then((token) => {
     initFyersSocket(token);
   }
 });
+
+// Periodically poll PostgreSQL for a new Fyers access token. This is the
+// safety net for the daily expiry case: when the admin re-authenticates in
+// the Next.js app, the callback writes a new row to SharedBrokerState. This
+// poller picks it up even if no browser is connected to the WS server.
+// Frequency is conservative — Fyers tokens are valid ~24h, so 30s is plenty.
+const TOKEN_POLL_INTERVAL_MS = 30_000;
+setInterval(() => {
+  void (async () => {
+    try {
+      const fresh = await loadFreshSharedBrokerToken();
+      if (!fresh) return;
+
+      // Token rotated in DB → reconnect Fyers with the new one.
+      if (fresh !== activeSocketToken) {
+        console.log('🔄 Token poller: detected new token in DB — reconnecting Fyers');
+        initFyersSocket(fresh, true);
+        return;
+      }
+
+      // Token unchanged but feed is dead → kick a reconnect attempt
+      // (e.g. recovering from a transient close).
+      if (!isFyersSocketConnected()) {
+        console.log('🔄 Token poller: feed is down — attempting reconnect');
+        initFyersSocket(fresh, true);
+      }
+    } catch (error) {
+      console.error('Token poller error:', error);
+    }
+  })();
+}, TOKEN_POLL_INTERVAL_MS);
