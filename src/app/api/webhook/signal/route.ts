@@ -62,8 +62,8 @@ export async function POST(req: NextRequest) {
     if (!['BUY', 'SELL'].includes(action.toUpperCase())) {
       return NextResponse.json({ message: "action must be 'BUY' or 'SELL'" }, { status: 400 });
     }
-    if (!['NSE', 'MCX'].includes(exchange.toUpperCase())) {
-      return NextResponse.json({ message: "exchange must be 'NSE' or 'MCX'" }, { status: 400 });
+    if (!['NSE', 'MCX', 'BSE'].includes(exchange.toUpperCase())) {
+      return NextResponse.json({ message: "exchange must be 'NSE', 'MCX', or 'BSE'" }, { status: 400 });
     }
 
     console.log(
