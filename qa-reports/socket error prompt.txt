@@ -1,0 +1,22 @@
+I have a Next.js 16 paper trading web app deployed on Railway at https://sahaai.tech. 
+The app uses Fyers API v3 for live BankNifty data via WebSocket.
+
+PROBLEM: After migrating from the old Railway URL to custom domain sahaai.tech, 
+the live Fyers data feed is not connecting. App loads fine, login works, 
+but live price feed is not working.
+
+Current env variables:
+- NEXT_PUBLIC_WS_URL = wss://sahaai.tech
+- FYERS_REDIRECT_URI = https://sahaai.tech/api/auth/callback
+- NEXTAUTH_URL = https://sahaai.tech
+
+WHAT I NEED YOU TO DO:
+1. Read the entire codebase and understand the WebSocket/Fyers data flow
+2. Find where NEXT_PUBLIC_WS_URL is used and how WebSocket connection is established
+3. Check if the WebSocket server path is correct for the custom domain
+4. Check Fyers token refresh logic — token may be invalid after domain change
+5. Check if there are any hardcoded old railway.app URLs anywhere in the code
+6. Fix all issues found and show me exactly what changed
+
+Please start by reading the project structure, then trace the live data flow 
+from Fyers API → WebSocket server → frontend client.

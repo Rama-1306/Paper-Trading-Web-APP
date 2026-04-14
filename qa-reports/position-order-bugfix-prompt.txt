@@ -1,0 +1,55 @@
+The partial exit / position reduction bug is still not fixed.
+The specific problem:
+
+When I manually place a SELL order while holding a BUY position 
+on the same instrument, the system creates a NEW SELL position 
+instead of reducing the existing BUY position.
+
+EXACT FIX NEEDED in the order placement handler (wherever 
+a new order is processed before being added to positions):
+
+Step 1 — INTENT DETECTION (add this logic):
+Before creating any new position, check:
+  - Does an open position already exist for this instrument?
+  - Is the new order on the OPPOSITE side? (BUY position + SELL order)
+  
+  If YES to both → this is a CLOSE order, not an OPEN order.
+  Set intent = 'CLOSE'
+  
+  If NO → this is an OPEN order.
+  Set intent = 'OPEN'
+
+Step 2 — CLOSE ORDER EXECUTION:
+  closeQty = order.qty
+  existingQty = position.qty
+  
+  if closeQty < existingQty:
+    → reduce position.qty by closeQty
+    → record partial realized P&L
+    → do NOT create any new position row
+    → do NOT create any SELL position
+  
+  if closeQty === existingQty:
+    → remove position row entirely
+    → cancel all pending SL/Target orders for that positionId
+    → record full realized P&L
+  
+  if closeQty > existingQty:
+    → reject order with error: "Exit qty exceeds position qty"
+    → do NOT create reverse position
+
+Step 3 — NEVER create opposite position from exit:
+  Remove any logic that creates a new position when 
+  closeQty > existingQty. This should be a hard error, 
+  not a reversal.
+
+The SAME logic must apply to:
+  - Manual SELL button in positions tab
+  - Partial exit SELL button  
+  - Pending SL order fill
+  - Pending Target order fill
+
+All four paths must use identical CLOSE logic.
+
+Please show me the exact code change in the order 
+placement function before applying it.

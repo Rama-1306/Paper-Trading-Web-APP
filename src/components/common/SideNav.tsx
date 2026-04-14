@@ -5,11 +5,15 @@ import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 
 const NAV_ITEMS = [
-  { href: '/',          icon: 'dashboard',              label: 'Dashboard'  },
-  { href: '/trade',     icon: 'candlestick_chart',       label: 'Markets'    },
-  { href: '/positions', icon: 'account_balance_wallet',  label: 'Positions'  },
-  { href: '/backtester',icon: 'query_stats',             label: 'Backtester' },
-  { href: '/signal-log',icon: 'bolt',                    label: 'Signals'    },
+  { href: '/', icon: 'dashboard', label: 'Dashboard' },
+  { href: '/trade', icon: 'candlestick_chart', label: 'Chart' },
+  { href: '/positions', icon: 'account_balance_wallet', label: 'Positions' },
+  { href: '/orders', icon: 'receipt_long', label: 'Orders' },
+  { href: '/trades', icon: 'swap_horiz', label: 'Trades' },
+  { href: '/watchlist', icon: 'visibility', label: 'Watchlist' },
+  { href: '/alerts', icon: 'notifications', label: 'Alerts' },
+  { href: '/backtester', icon: 'query_stats', label: 'Backtester' },
+  { href: '/signal-log', icon: 'bolt', label: 'Signals' },
 ];
 
 export function SideNav() {
@@ -49,11 +53,10 @@ export function SideNav() {
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-4 px-3 py-3 rounded-none transition-all duration-200 ${
-                active
+              className={`flex items-center gap-4 px-3 py-3 rounded-none transition-all duration-200 ${active
                   ? 'bg-primary-container text-on-primary-fixed border-l-4 border-on-primary-fixed'
                   : 'text-on-surface hover:bg-surface-dim/40'
-              }`}
+                }`}
             >
               <span className="material-symbols-outlined shrink-0 text-xl">{icon}</span>
               <span className="font-bold text-[10px] uppercase tracking-widest opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200">
@@ -66,11 +69,10 @@ export function SideNav() {
         {isAdmin && (
           <Link
             href="/admin"
-            className={`flex items-center gap-4 px-3 py-3 rounded-none transition-all duration-200 ${
-              pathname === '/admin'
+            className={`flex items-center gap-4 px-3 py-3 rounded-none transition-all duration-200 ${pathname === '/admin'
                 ? 'bg-primary-container text-on-primary-fixed border-l-4 border-on-primary-fixed'
                 : 'text-on-surface hover:bg-surface-dim/40'
-            }`}
+              }`}
           >
             <span className="material-symbols-outlined shrink-0 text-xl">admin_panel_settings</span>
             <span className="font-bold text-[10px] uppercase tracking-widest opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200">

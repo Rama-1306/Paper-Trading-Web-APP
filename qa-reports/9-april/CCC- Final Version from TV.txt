@@ -1,0 +1,734 @@
+//@version=6
+indicator("Confirmation Colour Candles", overlay=true, max_boxes_count=500, max_labels_count=500, max_lines_count=500)
+
+// ==========================================
+// --- INPUTS ---
+// ==========================================
+showTargets = input.bool(true, "Show Targets & SL", group="Display")
+enableTrail = input.bool(true, "Enable Trailing SL", group="Display")
+labelSize   = input.string("Normal", "Label Size", options=["Tiny", "Small", "Normal", "Large", "Huge"], group="Display")
+proxPct     = input.float(0.5, "% Proximity", step=0.1, minval=0.1, maxval=2.0, group="Display")
+colBull     = input.color(#00CC00, "Bull Trend Color", group="Candle Colors")
+colBear     = input.color(#CC0000, "Bear Trend Color", group="Candle Colors")
+colBullRev  = input.color(color.orange, "Bull Reversal Color", group="Candle Colors")
+colBearRev  = input.color(#2196F3, "Bear Reversal Color", group="Candle Colors")
+colWait     = input.color(color.gray, "Waiting Color", group="Candle Colors")
+
+lblSz = labelSize == "Tiny" ? size.tiny : labelSize == "Small" ? size.small : labelSize == "Normal" ? size.normal : labelSize == "Large" ? size.large : size.huge
+
+stAtrLen   = 21
+stMult     = 1.0
+emaPeriod  = 5
+sahaPeriod = 5
+
+// ==========================================
+// --- SAHA LOGIC ---
+// ==========================================
+f_saha_logic(src) =>
+    var float v1 = na
+    var float v2 = na
+    v1 := 0.2 * (src - nz(src[1])) + 0.8 * nz(v1)
+    v2 := 0.1 * ta.tr + 0.8 * nz(v2)
+    lam = math.abs(v1 / v2)
+    alp = (-math.pow(lam, 2) + math.sqrt(math.pow(lam, 4) + 16 * math.pow(lam, 2))) / 8
+    var float v3 = na
+    v3 := alp * src + (1 - alp) * nz(v3)
+    v3
+
+f_shema(src, period) =>
+    lag = math.round((period - 1) / 2)
+    ed = src + (src - src[lag])
+    ta.ema(ed, period)
+
+// ==========================================
+// --- CORE CALCULATIONS ---
+// ==========================================
+ema5 = ta.ema(close, emaPeriod)
+sahaLine = f_shema(f_saha_logic(close), sahaPeriod)
+[superTrend, direction] = ta.supertrend(stMult, stAtrLen)
+
+isBullishST = direction < 0
+isBearishST = direction > 0
+trendChanged = ta.change(direction) != 0
+stBullBreak = trendChanged and isBullishST
+stBearBreak = trendChanged and isBearishST
+
+plotshape(stBullBreak, "ST Bull Break", style=shape.triangleup, location=location.belowbar, color=#00CC00, size=size.small)
+plotshape(stBearBreak, "ST Bear Break", style=shape.triangledown, location=location.abovebar, color=#CC0000, size=size.small)
+
+// ==========================================
+// --- PROXIMITY LINES: VWAP, EMA50, EMA100 ---
+// ==========================================
+vwapVal  = ta.vwap(hlc3)
+ema50    = ta.ema(close, 50)
+ema100   = ta.ema(close, 100)
+
+var line ln_vwap   = na
+var line ln_ema50  = na
+var line ln_ema100 = na
+var label lb_vwap   = na
+var label lb_ema50  = na
+var label lb_ema100 = na
+
+if barstate.islast
+    proxThresh = close * proxPct / 100.0
+
+    if not na(ln_vwap)
+        line.delete(ln_vwap)
+    if not na(lb_vwap)
+        label.delete(lb_vwap)
+    ln_vwap := na
+    lb_vwap := na
+    if math.abs(close - vwapVal) <= proxThresh
+        ln_vwap := line.new(bar_index - 20, vwapVal, bar_index + 10, vwapVal, color=#FF9800, style=line.style_dashed, width=2)
+        lb_vwap := label.new(bar_index + 10, vwapVal, str.tostring(vwapVal, "#.##"), style=label.style_label_left, color=color.new(#FF9800, 40), textcolor=color.white, size=size.small)
+
+    if not na(ln_ema50)
+        line.delete(ln_ema50)
+    if not na(lb_ema50)
+        label.delete(lb_ema50)
+    ln_ema50 := na
+    lb_ema50 := na
+    if math.abs(close - ema50) <= proxThresh
+        ln_ema50 := line.new(bar_index - 20, ema50, bar_index + 10, ema50, color=#E040FB, style=line.style_dashed, width=2)
+        lb_ema50 := label.new(bar_index + 10, ema50, str.tostring(ema50, "#.##"), style=label.style_label_left, color=color.new(#E040FB, 40), textcolor=color.white, size=size.small)
+
+    if not na(ln_ema100)
+        line.delete(ln_ema100)
+    if not na(lb_ema100)
+        label.delete(lb_ema100)
+    ln_ema100 := na
+    lb_ema100 := na
+    if math.abs(close - ema100) <= proxThresh
+        ln_ema100 := line.new(bar_index - 20, ema100, bar_index + 10, ema100, color=#00BCD4, style=line.style_dashed, width=2)
+        lb_ema100 := label.new(bar_index + 10, ema100, str.tostring(ema100, "#.##"), style=label.style_label_left, color=color.new(#00BCD4, 40), textcolor=color.white, size=size.small)
+
+var float prevSTLine = na
+
+var float lastBearFlipH = na
+var float lastBearFlipL = na
+var float lastBullFlipH = na
+var float lastBullFlipL = na
+
+// ==========================================
+// --- MULTI-TIMEFRAME TREND ---
+// ==========================================
+f_mtf_trend(tf) =>
+    [mtfST, mtfDir] = request.security(syminfo.tickerid, tf, ta.supertrend(stMult, stAtrLen))
+    mtfEma = request.security(syminfo.tickerid, tf, ta.ema(close, emaPeriod))
+    mtfSaha = request.security(syminfo.tickerid, tf, f_shema(f_saha_logic(close), sahaPeriod))
+    mtfBull = mtfDir < 0
+    mtfBear = mtfDir > 0
+    trendStr = mtfBull and mtfEma > mtfSaha ? "BULL" : mtfBear and mtfEma < mtfSaha ? "BEAR" : "WAIT"
+    trendStr
+
+trend1m  = f_mtf_trend("1")
+trend3m  = f_mtf_trend("3")
+trend5m  = f_mtf_trend("5")
+trend15m = f_mtf_trend("15")
+trend30m = f_mtf_trend("30")
+
+
+// ==========================================
+// --- STATE MACHINE ---
+// ==========================================
+var string state = "INIT"
+var string candleCol = "GREY"
+
+var float breakH = na
+var float breakL = na
+
+// Target line/label references (6 targets now)
+var line ln_entry = na
+var line ln_sl    = na
+var line ln_t1    = na
+var line ln_t2    = na
+var line ln_t3    = na
+var line ln_t4    = na
+var line ln_t5    = na
+var line ln_t6    = na
+var label lb_entry = na
+var label lb_sl    = na
+var label lb_t1    = na
+var label lb_t2    = na
+var label lb_t3    = na
+var label lb_t4    = na
+var label lb_t5    = na
+var label lb_t6    = na
+
+// EMA entry line/label
+var line  ln_emaEntry  = na
+var label lb_emaEntry  = na
+var bool  emaEntryActive = false
+var bool  emaEntryTouched = false
+
+var float lvl_entry = na
+var float lvl_sl    = na
+var float lvl_t1    = na
+var float lvl_t2    = na
+var float lvl_t3    = na
+var float lvl_t4    = na
+var float lvl_t5    = na
+var float lvl_t6    = na
+var float lvl_origEntry = na
+var float lvl_risk  = na
+var int   tgtStartBar = na
+var int   targetsHit  = 0
+var int   signalDir   = 0
+var bool  needRedraw  = false
+var bool  t4Extended  = false
+
+// ==========================================
+// --- ALL LOGIC AFTER BAR CLOSE ONLY ---
+// ==========================================
+if barstate.isconfirmed
+    if trendChanged
+        prevSTLine := superTrend[1]
+        if isBearishST
+            lastBearFlipH := high
+            lastBearFlipL := low
+        if isBullishST
+            lastBullFlipH := high
+            lastBullFlipL := low
+
+    bool drawBear = false
+    bool drawBull = false
+    float tgtH = high
+    float tgtL = low
+    int tgtBar = bar_index
+
+    // ========== INIT ==========
+    if state == "INIT"
+        if isBullishST and ema5 > sahaLine
+            state := "BULL"
+            candleCol := "GREEN"
+        else if isBearishST and ema5 < sahaLine
+            state := "BEAR"
+            candleCol := "RED"
+        else
+            candleCol := "GREY"
+
+    // ========== BULL (GREEN) ==========
+    else if state == "BULL"
+        candleCol := "GREEN"
+        if isBearishST
+            if trendChanged
+                breakH := high
+                breakL := low
+            else
+                breakH := nz(lastBearFlipH, high)
+                breakL := nz(lastBearFlipL, low)
+            state := "BREAK_B"
+            candleCol := "GREY"
+
+    // ========== ST breakdown, waiting for bearish confirmation ==========
+    else if state == "BREAK_B"
+        candleCol := "GREY"
+        if isBullishST
+            if trendChanged
+                breakH := high
+                breakL := low
+            else
+                breakH := nz(lastBullFlipH, high)
+                breakL := nz(lastBullFlipL, low)
+            state := "BREAK_S"
+            candleCol := "GREY"
+        else if close < breakL and ema5 < sahaLine and not na(prevSTLine) and ema5 < prevSTLine
+            state := "BEAR"
+            candleCol := "RED"
+            drawBear := true
+            tgtH := breakH
+            tgtL := breakL
+            tgtBar := bar_index
+
+    // ========== BEAR (RED) ==========
+    else if state == "BEAR"
+        candleCol := "RED"
+        if isBullishST
+            if trendChanged
+                breakH := high
+                breakL := low
+            else
+                breakH := nz(lastBullFlipH, high)
+                breakL := nz(lastBullFlipL, low)
+            state := "BREAK_S"
+            candleCol := "GREY"
+
+    // ========== ST breakup, waiting for bullish confirmation ==========
+    else if state == "BREAK_S"
+        candleCol := "GREY"
+        if isBearishST
+            if trendChanged
+                breakH := high
+                breakL := low
+            else
+                breakH := nz(lastBearFlipH, high)
+                breakL := nz(lastBearFlipL, low)
+            state := "BREAK_B"
+            candleCol := "GREY"
+        else if close > breakH and ema5 > sahaLine and not na(prevSTLine) and ema5 > prevSTLine
+            state := "BULL"
+            candleCol := "GREEN"
+            drawBull := true
+            tgtH := breakH
+            tgtL := breakL
+            tgtBar := bar_index
+
+    // ==========================================
+    // --- INDEPENDENT REVERSAL COLOR ---
+    // ==========================================
+    if not trendChanged
+        if candleCol == "GREEN" and not na(low[1]) and low[1] > close
+            candleCol := "ORANGE"
+        if candleCol == "RED" and not na(high[1]) and high[1] < close
+            candleCol := "BLUE"
+
+    // ==========================================
+    // --- NEW SIGNAL: CALCULATE LEVELS ---
+    // ==========================================
+    needRedraw := false
+
+    if showTargets and (drawBear or drawBull)
+        // Delete old lines
+        if not na(ln_entry)
+            line.delete(ln_entry)
+        if not na(ln_sl)
+            line.delete(ln_sl)
+        if not na(ln_t1)
+            line.delete(ln_t1)
+        if not na(ln_t2)
+            line.delete(ln_t2)
+        if not na(ln_t3)
+            line.delete(ln_t3)
+        if not na(ln_t4)
+            line.delete(ln_t4)
+        if not na(ln_t5)
+            line.delete(ln_t5)
+        if not na(ln_t6)
+            line.delete(ln_t6)
+        if not na(lb_entry)
+            label.delete(lb_entry)
+        if not na(lb_sl)
+            label.delete(lb_sl)
+        if not na(lb_t1)
+            label.delete(lb_t1)
+        if not na(lb_t2)
+            label.delete(lb_t2)
+        if not na(lb_t3)
+            label.delete(lb_t3)
+        if not na(lb_t4)
+            label.delete(lb_t4)
+        if not na(lb_t5)
+            label.delete(lb_t5)
+        if not na(lb_t6)
+            label.delete(lb_t6)
+        if not na(ln_emaEntry)
+            line.delete(ln_emaEntry)
+        if not na(lb_emaEntry)
+            label.delete(lb_emaEntry)
+        ln_entry := na
+        ln_sl := na
+        ln_t1 := na
+        ln_t2 := na
+        ln_t3 := na
+        ln_t4 := na
+        ln_t5 := na
+        ln_t6 := na
+        lb_entry := na
+        lb_sl := na
+        lb_t1 := na
+        lb_t2 := na
+        lb_t3 := na
+        lb_t4 := na
+        lb_t5 := na
+        lb_t6 := na
+        ln_emaEntry := na
+        lb_emaEntry := na
+
+        rng = tgtH - tgtL
+        risk = 1.618 * rng
+        lvl_risk := risk
+        tgtStartBar := tgtBar
+        targetsHit := 0
+        t4Extended := false
+
+        if drawBear
+            signalDir    := -1
+            lvl_entry    := tgtL
+            lvl_origEntry := lvl_entry
+            lvl_sl       := lvl_entry + risk
+            lvl_t1       := lvl_entry - 0.76 * risk
+            lvl_t2       := lvl_entry - 1.2 * risk
+            lvl_t3       := lvl_entry - 1.6 * risk
+            lvl_t4       := lvl_entry - 2.6 * risk
+            lvl_t5       := na
+            lvl_t6       := na
+
+        else if drawBull
+            signalDir    := 1
+            lvl_entry    := tgtH
+            lvl_origEntry := lvl_entry
+            lvl_sl       := lvl_entry - risk
+            lvl_t1       := lvl_entry + 0.76 * risk
+            lvl_t2       := lvl_entry + 1.2 * risk
+            lvl_t3       := lvl_entry + 1.6 * risk
+            lvl_t4       := lvl_entry + 2.6 * risk
+            lvl_t5       := na
+            lvl_t6       := na
+
+        emaEntryActive  := true
+        emaEntryTouched := false
+        needRedraw := true
+
+    // ==========================================
+    // --- TRAILING: CHECK TARGET HITS ---
+    // ==========================================
+    if showTargets and signalDir != 0 and not (drawBear or drawBull)
+        if signalDir == 1
+            if targetsHit == 0 and high >= lvl_t1
+                targetsHit := 1
+                if enableTrail
+                    lvl_sl := lvl_entry
+                needRedraw := true
+            if targetsHit == 1 and high >= lvl_t2
+                targetsHit := 2
+                if enableTrail
+                    lvl_entry := lvl_t1
+                    lvl_sl    := lvl_t1
+                needRedraw := true
+            if targetsHit == 2 and high >= lvl_t3
+                targetsHit := 3
+                if enableTrail
+                    lvl_entry := lvl_t2
+                    lvl_sl    := lvl_t2
+                needRedraw := true
+            if targetsHit == 3 and high >= lvl_t4
+                targetsHit := 4
+                if enableTrail
+                    lvl_entry := lvl_t3
+                    lvl_sl    := lvl_t3
+                if not t4Extended
+                    lvl_t5 := lvl_origEntry + 3.6 * nz(lvl_risk, 0)
+                    lvl_t6 := lvl_origEntry + 4.6 * nz(lvl_risk, 0)
+                    t4Extended := true
+                needRedraw := true
+            if targetsHit == 4 and not na(lvl_t5) and high >= lvl_t5
+                targetsHit := 5
+                if enableTrail
+                    lvl_entry := lvl_t4
+                    lvl_sl    := lvl_t4
+                needRedraw := true
+            if targetsHit == 5 and not na(lvl_t6) and high >= lvl_t6
+                targetsHit := 6
+                if enableTrail
+                    lvl_entry := lvl_t5
+                    lvl_sl    := lvl_t5
+                needRedraw := true
+
+        else if signalDir == -1
+            if targetsHit == 0 and low <= lvl_t1
+                targetsHit := 1
+                if enableTrail
+                    lvl_sl := lvl_entry
+                needRedraw := true
+            if targetsHit == 1 and low <= lvl_t2
+                targetsHit := 2
+                if enableTrail
+                    lvl_entry := lvl_t1
+                    lvl_sl    := lvl_t1
+                needRedraw := true
+            if targetsHit == 2 and low <= lvl_t3
+                targetsHit := 3
+                if enableTrail
+                    lvl_entry := lvl_t2
+                    lvl_sl    := lvl_t2
+                needRedraw := true
+            if targetsHit == 3 and low <= lvl_t4
+                targetsHit := 4
+                if enableTrail
+                    lvl_entry := lvl_t3
+                    lvl_sl    := lvl_t3
+                if not t4Extended
+                    lvl_t5 := lvl_origEntry - 3.6 * nz(lvl_risk, 0)
+                    lvl_t6 := lvl_origEntry - 4.6 * nz(lvl_risk, 0)
+                    t4Extended := true
+                needRedraw := true
+            if targetsHit == 4 and not na(lvl_t5) and low <= lvl_t5
+                targetsHit := 5
+                if enableTrail
+                    lvl_entry := lvl_t4
+                    lvl_sl    := lvl_t4
+                needRedraw := true
+            if targetsHit == 5 and not na(lvl_t6) and low <= lvl_t6
+                targetsHit := 6
+                if enableTrail
+                    lvl_entry := lvl_t5
+                    lvl_sl    := lvl_t5
+                needRedraw := true
+
+    // ==========================================
+    // --- EMA ENTRY: CHECK IF TOUCHED ---
+    // ==========================================
+    if emaEntryActive and not emaEntryTouched and signalDir != 0 and not (drawBear or drawBull)
+        if signalDir == 1 and low <= ema5
+            emaEntryTouched := true
+            if not na(ln_emaEntry)
+                line.delete(ln_emaEntry)
+            if not na(lb_emaEntry)
+                label.delete(lb_emaEntry)
+            ln_emaEntry := na
+            lb_emaEntry := na
+            emaEntryActive := false
+        if signalDir == -1 and high >= ema5
+            emaEntryTouched := true
+            if not na(ln_emaEntry)
+                line.delete(ln_emaEntry)
+            if not na(lb_emaEntry)
+                label.delete(lb_emaEntry)
+            ln_emaEntry := na
+            lb_emaEntry := na
+            emaEntryActive := false
+
+    // ==========================================
+    // --- REDRAW LINES & LABELS ---
+    // ==========================================
+    if needRedraw
+        if not na(ln_entry)
+            line.delete(ln_entry)
+        if not na(ln_sl)
+            line.delete(ln_sl)
+        if not na(ln_t1)
+            line.delete(ln_t1)
+        if not na(ln_t2)
+            line.delete(ln_t2)
+        if not na(ln_t3)
+            line.delete(ln_t3)
+        if not na(ln_t4)
+            line.delete(ln_t4)
+        if not na(ln_t5)
+            line.delete(ln_t5)
+        if not na(ln_t6)
+            line.delete(ln_t6)
+        if not na(lb_entry)
+            label.delete(lb_entry)
+        if not na(lb_sl)
+            label.delete(lb_sl)
+        if not na(lb_t1)
+            label.delete(lb_t1)
+        if not na(lb_t2)
+            label.delete(lb_t2)
+        if not na(lb_t3)
+            label.delete(lb_t3)
+        if not na(lb_t4)
+            label.delete(lb_t4)
+        if not na(lb_t5)
+            label.delete(lb_t5)
+        if not na(lb_t6)
+            label.delete(lb_t6)
+
+        startB = nz(tgtStartBar, bar_index)
+        endB   = bar_index + 50
+        hitCol = color.new(color.gray, 60)
+
+        oE = nz(lvl_origEntry, lvl_entry)
+        slPts = math.abs(lvl_sl - oE)
+        t1Pts = math.abs(lvl_t1 - oE)
+        t2Pts = math.abs(lvl_t2 - oE)
+        t3Pts = math.abs(lvl_t3 - oE)
+        t4Pts = math.abs(lvl_t4 - oE)
+
+        ln_entry := line.new(startB, lvl_entry, endB, lvl_entry, color=color.white, style=line.style_dashed, width=1)
+        lb_entry := label.new(startB, lvl_entry, "Entry " + str.tostring(lvl_entry, "#.##"), style=label.style_label_right, color=color.new(color.white, 40), textcolor=color.black, size=lblSz)
+
+        slTxt = not enableTrail ? "SL " : targetsHit == 0 ? "SL " : targetsHit == 1 ? "SL>BE " : "Trail SL "
+        ln_sl := line.new(startB, lvl_sl, endB, lvl_sl, color=#FF4444, style=line.style_dashed, width=1)
+        lb_sl := label.new(startB, lvl_sl, slTxt + str.tostring(lvl_sl, "#.##") + " (" + str.tostring(slPts, "#.#") + " pts)", style=label.style_label_right, color=color.new(#FF4444, 40), textcolor=color.white, size=lblSz)
+
+        t1c = targetsHit >= 1 ? hitCol : #00CC00
+        t2c = targetsHit >= 2 ? hitCol : #00CC00
+        t3c = targetsHit >= 3 ? hitCol : #00CC00
+        t4c = targetsHit >= 4 ? hitCol : #00CC00
+        t1s = targetsHit >= 1 ? line.style_dotted : line.style_dashed
+        t2s = targetsHit >= 2 ? line.style_dotted : line.style_dashed
+        t3s = targetsHit >= 3 ? line.style_dotted : line.style_dashed
+        t4s = targetsHit >= 4 ? line.style_dotted : line.style_dashed
+        t1hit = targetsHit >= 1 ? " HIT" : ""
+        t2hit = targetsHit >= 2 ? " HIT" : ""
+        t3hit = targetsHit >= 3 ? " HIT" : ""
+        t4hit = targetsHit >= 4 ? " HIT" : ""
+
+        ln_t1 := line.new(startB, lvl_t1, endB, lvl_t1, color=t1c, style=t1s, width=1)
+        lb_t1 := label.new(startB, lvl_t1, "T1" + t1hit + " " + str.tostring(lvl_t1, "#.##") + " (" + str.tostring(t1Pts, "#.#") + " pts)", style=label.style_label_right, color=color.new(t1c, 40), textcolor=targetsHit >= 1 ? color.gray : color.black, size=lblSz)
+
+        ln_t2 := line.new(startB, lvl_t2, endB, lvl_t2, color=t2c, style=t2s, width=1)
+        lb_t2 := label.new(startB, lvl_t2, "T2" + t2hit + " " + str.tostring(lvl_t2, "#.##") + " (" + str.tostring(t2Pts, "#.#") + " pts)", style=label.style_label_right, color=color.new(t2c, 40), textcolor=targetsHit >= 2 ? color.gray : color.black, size=lblSz)
+
+        ln_t3 := line.new(startB, lvl_t3, endB, lvl_t3, color=t3c, style=t3s, width=1)
+        lb_t3 := label.new(startB, lvl_t3, "T3" + t3hit + " " + str.tostring(lvl_t3, "#.##") + " (" + str.tostring(t3Pts, "#.#") + " pts)", style=label.style_label_right, color=color.new(t3c, 40), textcolor=targetsHit >= 3 ? color.gray : color.black, size=lblSz)
+
+        ln_t4 := line.new(startB, lvl_t4, endB, lvl_t4, color=t4c, style=t4s, width=1)
+        lb_t4 := label.new(startB, lvl_t4, "T4" + t4hit + " " + str.tostring(lvl_t4, "#.##") + " (" + str.tostring(t4Pts, "#.#") + " pts)", style=label.style_label_right, color=color.new(t4c, 40), textcolor=targetsHit >= 4 ? color.gray : color.black, size=lblSz)
+
+        // T5 & T6 only shown after T4 is hit
+        if t4Extended and not na(lvl_t5)
+            t5Pts = math.abs(lvl_t5 - oE)
+            t6Pts = math.abs(nz(lvl_t6, 0) - oE)
+            t5c = targetsHit >= 5 ? hitCol : #FFD700
+            t6c = targetsHit >= 6 ? hitCol : #FFD700
+            t5s = targetsHit >= 5 ? line.style_dotted : line.style_dashed
+            t6s = targetsHit >= 6 ? line.style_dotted : line.style_dashed
+            t5hit = targetsHit >= 5 ? " HIT" : ""
+            t6hit = targetsHit >= 6 ? " HIT" : ""
+
+            ln_t5 := line.new(startB, lvl_t5, endB, lvl_t5, color=t5c, style=t5s, width=1)
+            lb_t5 := label.new(startB, lvl_t5, "T5" + t5hit + " " + str.tostring(lvl_t5, "#.##") + " (" + str.tostring(t5Pts, "#.#") + " pts)", style=label.style_label_right, color=color.new(t5c, 40), textcolor=targetsHit >= 5 ? color.gray : color.black, size=lblSz)
+
+            if not na(lvl_t6)
+                ln_t6 := line.new(startB, lvl_t6, endB, lvl_t6, color=t6c, style=t6s, width=1)
+                lb_t6 := label.new(startB, lvl_t6, "T6" + t6hit + " " + str.tostring(nz(lvl_t6, 0), "#.##") + " (" + str.tostring(t6Pts, "#.#") + " pts)", style=label.style_label_right, color=color.new(t6c, 40), textcolor=targetsHit >= 6 ? color.gray : color.black, size=lblSz)
+
+    // ==========================================
+    // --- EMA ENTRY LINE (moves with EMA5) ---
+    // ==========================================
+    if showTargets and emaEntryActive and not emaEntryTouched and signalDir != 0
+        if not na(ln_emaEntry)
+            line.delete(ln_emaEntry)
+        if not na(lb_emaEntry)
+            label.delete(lb_emaEntry)
+        startB2 = nz(tgtStartBar, bar_index)
+        endB2   = bar_index + 20
+        ln_emaEntry := line.new(startB2, ema5, endB2, ema5, color=#FFEB3B, style=line.style_dotted, width=2)
+        lb_emaEntry := label.new(startB2, ema5, "EMA Entry " + str.tostring(ema5, "#.##"), style=label.style_label_right, color=color.new(#FFEB3B, 40), textcolor=color.black, size=lblSz)
+
+    // ==========================================
+    // --- SAHAAI WEBHOOK SIGNAL ---
+    // Fires once per confirmed signal bar (drawBull or drawBear only).
+    // Levels are computed inline from tgtH/tgtL so the alert works
+    // even when "Show Targets & SL" is disabled.
+    // In TradingView: create alert → condition "Any alert() function call"
+    //                 Notifications → Webhook URL → https://sahaai.tech/api/webhook/signal
+    // ==========================================
+    if drawBull or drawBear
+        _rng   = tgtH - tgtL
+        _risk  = 1.618 * _rng
+        _act   = drawBull ? "BUY" : "SELL"
+        _type  = drawBull ? "CCC_BULL" : "CCC_BEAR"
+        _entry = drawBull ? tgtH : tgtL
+        _sl    = drawBull ? _entry - _risk : _entry + _risk
+        _t1    = drawBull ? _entry + 0.76 * _risk : _entry - 0.76 * _risk
+        _t2    = drawBull ? _entry + 1.2  * _risk : _entry - 1.2  * _risk
+        _t3    = drawBull ? _entry + 1.6  * _risk : _entry - 1.6  * _risk
+        _exch  = syminfo.prefix == "BSE" ? "BSE" : syminfo.prefix == "MCX" ? "MCX" : "NSE"
+        _msg   = '{"action":"' + _act + '","symbol":"' + syminfo.ticker + '","exchange":"' + _exch + '","signal_type":"' + _type + '","score":4,"entry":' + str.tostring(_entry, "#.##") + ',"sl":' + str.tostring(_sl, "#.##") + ',"t1":' + str.tostring(_t1, "#.##") + ',"t2":' + str.tostring(_t2, "#.##") + ',"t3":' + str.tostring(_t3, "#.##") + ',"timeframe":"' + timeframe.period + '","close":' + str.tostring(close, "#.##") + ',"candle_high":' + str.tostring(high, "#.##") + ',"candle_low":' + str.tostring(low, "#.##") + '}'
+        alert(_msg, alert.freq_once_per_bar_close)
+
+// ==========================================
+// --- CANDLE COLOR ---
+// ==========================================
+var color barCol = na
+
+if barstate.isconfirmed
+    if candleCol == "GREEN"
+        barCol := colBull
+    else if candleCol == "RED"
+        barCol := colBear
+    else if candleCol == "ORANGE"
+        barCol := colBullRev
+    else if candleCol == "BLUE"
+        barCol := colBearRev
+    else
+        barCol := colWait
+
+barcolor(barstate.isconfirmed or barstate.ishistory ? barCol : na)
+
+// ==========================================
+// --- ALERT CONDITIONS ---
+// ==========================================
+var string prevCandleCol = "GREY"
+bool colChanged = barstate.isconfirmed and candleCol != prevCandleCol
+if barstate.isconfirmed
+    prevCandleCol := candleCol
+
+isGreen  = colChanged and candleCol == "GREEN"
+isRed    = colChanged and candleCol == "RED"
+isOrange = colChanged and candleCol == "ORANGE"
+isBlue   = colChanged and candleCol == "BLUE"
+isGrey   = colChanged and candleCol == "GREY"
+
+alertcondition(isGreen,  "Bull Trend (GREEN)",     "CCC: Bull Trend confirmed - GREEN candle")
+alertcondition(isRed,    "Bear Trend (RED)",        "CCC: Bear Trend confirmed - RED candle")
+alertcondition(isOrange, "Bull Reversal (ORANGE)",  "CCC: Bull Reversal warning - ORANGE candle")
+alertcondition(isBlue,   "Bear Reversal (BLUE)",    "CCC: Bear Reversal warning - BLUE candle")
+alertcondition(isGrey,   "Waiting (GREY)",          "CCC: Waiting for confirmation - GREY candle")
+alertcondition(colChanged, "Any Color Change",      "CCC: Candle color changed")
+
+// ==========================================
+// --- CCC DASHBOARD (Top Right) ---
+// ==========================================
+var table dash = table.new(position.top_right, 2, 6, bgcolor=color.new(color.black, 20), border_width=1, border_color=color.gray)
+
+if barstate.islast
+    hBg  = color.new(#1a1a2e, 0)
+    lBg  = color.new(#0a1628, 0)
+    sz   = size.tiny
+    dsz  = size.large
+
+    sLbl = candleCol == "GREEN" ? "BULL TREND" : candleCol == "RED" ? "BEAR TREND" : candleCol == "ORANGE" ? "BULL REVERSAL" : candleCol == "BLUE" ? "BEAR REVERSAL" : "WAITING"
+    sClr = candleCol == "GREEN" ? colBull : candleCol == "RED" ? colBear : candleCol == "ORANGE" ? colBullRev : candleCol == "BLUE" ? colBearRev : colWait
+
+    table.cell(dash, 0, 0, "CCC", text_color=color.white, bgcolor=hBg, text_size=sz)
+    table.cell(dash, 1, 0, sLbl, text_color=sClr, bgcolor=hBg, text_size=sz)
+
+    table.cell(dash, 0, 1, "⬤", text_color=colBull, bgcolor=lBg, text_halign=text.align_center, text_size=dsz)
+    table.cell(dash, 1, 1, "BULL TREND", text_color=colBull, bgcolor=lBg, text_halign=text.align_left, text_size=sz)
+
+    table.cell(dash, 0, 2, "⬤", text_color=colBear, bgcolor=lBg, text_halign=text.align_center, text_size=dsz)
+    table.cell(dash, 1, 2, "BEAR TREND", text_color=colBear, bgcolor=lBg, text_halign=text.align_left, text_size=sz)
+
+    table.cell(dash, 0, 3, "⬤", text_color=colBullRev, bgcolor=lBg, text_halign=text.align_center, text_size=dsz)
+    table.cell(dash, 1, 3, "BULL REVERSAL", text_color=colBullRev, bgcolor=lBg, text_halign=text.align_left, text_size=sz)
+
+    table.cell(dash, 0, 4, "⬤", text_color=colBearRev, bgcolor=lBg, text_halign=text.align_center, text_size=dsz)
+    table.cell(dash, 1, 4, "BEAR REVERSAL", text_color=colBearRev, bgcolor=lBg, text_halign=text.align_left, text_size=sz)
+
+    table.cell(dash, 0, 5, "⬤", text_color=colWait, bgcolor=lBg, text_halign=text.align_center, text_size=dsz)
+    table.cell(dash, 1, 5, "WAITING", text_color=colWait, bgcolor=lBg, text_halign=text.align_left, text_size=sz)
+
+
+// ==========================================
+// --- MTF TREND DASHBOARD (Bottom Right) ---
+// ==========================================
+f_trendColor(t) =>
+    t == "BULL" ? #00CC00 : t == "BEAR" ? #CC0000 : color.gray
+
+var table mtfDash = table.new(position.bottom_right, 3, 6, bgcolor=color.new(color.black, 20), border_width=1, border_color=color.gray)
+
+if barstate.islast
+    mhBg = color.new(#1a1a2e, 0)
+    mlBg = color.new(#0a1628, 0)
+    msz  = size.tiny
+    mdsz = size.large
+
+    table.cell(mtfDash, 0, 0, "TF", text_color=color.white, bgcolor=mhBg, text_size=msz)
+    table.cell(mtfDash, 1, 0, "", bgcolor=mhBg, text_size=msz)
+    table.cell(mtfDash, 2, 0, "TREND", text_color=color.white, bgcolor=mhBg, text_size=msz)
+
+    table.cell(mtfDash, 0, 1, "1m", text_color=color.silver, bgcolor=mlBg, text_halign=text.align_center, text_size=msz)
+    table.cell(mtfDash, 1, 1, "⬤", text_color=f_trendColor(trend1m), bgcolor=mlBg, text_halign=text.align_center, text_size=mdsz)
+    table.cell(mtfDash, 2, 1, trend1m, text_color=f_trendColor(trend1m), bgcolor=mlBg, text_halign=text.align_left, text_size=msz)
+
+    table.cell(mtfDash, 0, 2, "3m", text_color=color.silver, bgcolor=mlBg, text_halign=text.align_center, text_size=msz)
+    table.cell(mtfDash, 1, 2, "⬤", text_color=f_trendColor(trend3m), bgcolor=mlBg, text_halign=text.align_center, text_size=mdsz)
+    table.cell(mtfDash, 2, 2, trend3m, text_color=f_trendColor(trend3m), bgcolor=mlBg, text_halign=text.align_left, text_size=msz)
+
+    table.cell(mtfDash, 0, 3, "5m", text_color=color.silver, bgcolor=mlBg, text_halign=text.align_center, text_size=msz)
+    table.cell(mtfDash, 1, 3, "⬤", text_color=f_trendColor(trend5m), bgcolor=mlBg, text_halign=text.align_center, text_size=mdsz)
+    table.cell(mtfDash, 2, 3, trend5m, text_color=f_trendColor(trend5m), bgcolor=mlBg, text_halign=text.align_left, text_size=msz)
+
+    table.cell(mtfDash, 0, 4, "15m", text_color=color.silver, bgcolor=mlBg, text_halign=text.align_center, text_size=msz)
+    table.cell(mtfDash, 1, 4, "⬤", text_color=f_trendColor(trend15m), bgcolor=mlBg, text_halign=text.align_center, text_size=mdsz)
+    table.cell(mtfDash, 2, 4, trend15m, text_color=f_trendColor(trend15m), bgcolor=mlBg, text_halign=text.align_left, text_size=msz)
+
+    table.cell(mtfDash, 0, 5, "30m", text_color=color.silver, bgcolor=mlBg, text_halign=text.align_center, text_size=msz)
+    table.cell(mtfDash, 1, 5, "⬤", text_color=f_trendColor(trend30m), bgcolor=mlBg, text_halign=text.align_center, text_size=mdsz)
+    table.cell(mtfDash, 2, 5, trend30m, text_color=f_trendColor(trend30m), bgcolor=mlBg, text_halign=text.align_left, text_size=msz)
