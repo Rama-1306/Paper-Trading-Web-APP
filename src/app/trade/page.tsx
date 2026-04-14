@@ -61,6 +61,8 @@ export default function Dashboard() {
   useCCCEngine(cccEngineEnabled);
   const [sidebarWidth, setSidebarWidth] = useState(340);
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
+  const [leftNavWidth, setLeftNavWidth] = useState(56);
+  const [isLeftNavDragging, setIsLeftNavDragging] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const initSocket = useMarketStore(s => s.initSocket);
   const reconnectSocket = useMarketStore(s => s.reconnectSocket);
@@ -201,23 +203,40 @@ export default function Dashboard() {
   }, 0);
   const dayPnl = todayRealizedPnl + unrealizedPnl;
 
-  // ── Sidebar horizontal resize ──────────────────────────────
+  // ── Right Sidebar horizontal resize ──────────────────────────────
   const handleSidebarDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsSidebarDragging(true);
   }, []);
 
+  // ── Left Navigation horizontal resize ──────────────────────────────
+  const handleLeftNavDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsLeftNavDragging(true);
+  }, []);
+
   useEffect(() => {
-    if (!isSidebarDragging) return;
+    if (!isSidebarDragging && !isLeftNavDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!mainRef.current) return;
       const rect = mainRef.current.getBoundingClientRect();
-      const newWidth = rect.right - e.clientX;
-      setSidebarWidth(Math.min(600, Math.max(240, newWidth)));
+
+      if (isSidebarDragging) {
+        const newWidth = rect.right - e.clientX;
+        setSidebarWidth(Math.min(600, Math.max(240, newWidth)));
+      }
+
+      if (isLeftNavDragging) {
+        const newWidth = e.clientX - rect.left;
+        setLeftNavWidth(Math.min(120, Math.max(40, newWidth)));
+      }
     };
 
-    const handleMouseUp = () => setIsSidebarDragging(false);
+    const handleMouseUp = () => {
+      setIsSidebarDragging(false);
+      setIsLeftNavDragging(false);
+    };
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
@@ -230,7 +249,7 @@ export default function Dashboard() {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isSidebarDragging]);
+  }, [isSidebarDragging, isLeftNavDragging]);
 
   const handleRefresh = useCallback(async () => {
     reconnectSocket();
@@ -255,8 +274,17 @@ export default function Dashboard() {
         <TopNav />
 
         <main className="main-content" ref={mainRef}>
+          {/* ── Left Navigation Resize Handle ── */}
+          <div
+            className={`left-nav-resize-handle${isLeftNavDragging ? ' dragging' : ''}`}
+            onMouseDown={handleLeftNavDragStart}
+            title="Drag to resize left navigation"
+          >
+            <div className="left-nav-resize-grip" />
+          </div>
+
           {/* ── Left Vertical Navigation ── */}
-          <div className="left-nav">
+          <div className="left-nav" style={{ width: `${leftNavWidth}px` }}>
             {NAV_ITEMS.map(item => (
               <button
                 key={item.id}

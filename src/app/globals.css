@@ -340,6 +340,38 @@ textarea:focus {
   flex-shrink: 0;
 }
 
+/* Left Navigation Resize Handle */
+.left-nav-resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.left-nav-resize-handle:hover {
+  background: #d4a012;
+}
+
+.left-nav-resize-handle.dragging {
+  background: #d4a012;
+}
+
+.left-nav-resize-grip {
+  width: 2px;
+  height: 32px;
+  background: #3a3d45;
+  border-radius: 1px;
+}
+
+.left-nav-resize-handle:hover .left-nav-resize-grip,
+.left-nav-resize-handle.dragging .left-nav-resize-grip {
+  background: #ffffff;
+}
+
 .left-nav-tab {
   display: flex;
   align-items: center;
