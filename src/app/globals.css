@@ -302,3 +302,16 @@ textarea:focus {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* ─── Trade Page Legacy Variables (for backward compatibility) ─── */
+:root {
+  --bg-primary: #fbf9f5;
+  --bg-secondary: #f0ede6;
+  --bg-card: #ffffff;
+  --border-primary: #e4e2de;
+  --text-primary: #1b1c1a;
+  --text-secondary: #4e4632;
+  --text-muted: #80765f;
+  --text-bright: #000000;
+  --color-accent: #d4a012;
+}

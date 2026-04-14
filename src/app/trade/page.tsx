@@ -1,6 +1,7 @@
 'use client';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
-import { Header } from '@/components/common/Header';
+import { TopNav } from '@/components/common/TopNav';
+import { SideNav } from '@/components/common/SideNav';
 import { StatusBar } from '@/components/common/StatusBar';
 import { TradingChart } from '@/components/Chart/TradingChart';
 import { ChartControls } from '@/components/Chart/ChartControls';
@@ -26,14 +27,14 @@ import type { Tick } from '@/types/market';
 type ActiveView = 'chart' | 'positions' | 'orders' | 'trades' | 'option-chain' | 'watchlist' | 'alerts' | 'place-order' | 'signals';
 
 const NAV_ITEMS: { id: ActiveView; label: string }[] = [
-  { id: 'chart',        label: 'Chart'    },
-  { id: 'positions',    label: 'Pos'      },
-  { id: 'orders',       label: 'Orders'   },
-  { id: 'trades',       label: 'Trades'   },
-  { id: 'option-chain', label: 'Chain'    },
-  { id: 'watchlist',    label: 'Watch'    },
-  { id: 'alerts',       label: 'Alerts'   },
-  { id: 'signals',      label: 'Signals'  },
+  { id: 'chart', label: 'Chart' },
+  { id: 'positions', label: 'Pos' },
+  { id: 'orders', label: 'Orders' },
+  { id: 'trades', label: 'Trades' },
+  { id: 'option-chain', label: 'Chain' },
+  { id: 'watchlist', label: 'Watch' },
+  { id: 'alerts', label: 'Alerts' },
+  { id: 'signals', label: 'Signals' },
 ];
 
 type MobileNavItem =
@@ -41,14 +42,14 @@ type MobileNavItem =
   | { kind: 'link'; href: string; label: string; icon: string };
 
 const MOBILE_NAV_ITEMS: MobileNavItem[] = [
-  { kind: 'view', id: 'place-order',  label: 'Order',   icon: '🏠' },
-  { kind: 'view', id: 'positions',    label: 'Pos',      icon: '📈' },
-  { kind: 'view', id: 'orders',       label: 'Orders',   icon: '📋' },
-  { kind: 'view', id: 'trades',       label: 'Trades',   icon: '🔄' },
-  { kind: 'view', id: 'watchlist',    label: 'Watch',    icon: '👁' },
-  { kind: 'view', id: 'alerts',       label: 'Alerts',   icon: '🔔' },
-  { kind: 'view', id: 'option-chain', label: 'Chain',    icon: '🔗' },
-  { kind: 'link', href: '/backtester', label: 'BTest',   icon: '🧪' },
+  { kind: 'view', id: 'place-order', label: 'Order', icon: '🏠' },
+  { kind: 'view', id: 'positions', label: 'Pos', icon: '📈' },
+  { kind: 'view', id: 'orders', label: 'Orders', icon: '📋' },
+  { kind: 'view', id: 'trades', label: 'Trades', icon: '🔄' },
+  { kind: 'view', id: 'watchlist', label: 'Watch', icon: '👁' },
+  { kind: 'view', id: 'alerts', label: 'Alerts', icon: '🔔' },
+  { kind: 'view', id: 'option-chain', label: 'Chain', icon: '🔗' },
+  { kind: 'link', href: '/backtester', label: 'BTest', icon: '🧪' },
 ];
 
 export default function Dashboard() {
@@ -251,7 +252,7 @@ export default function Dashboard() {
     <ProtectedRoute>
       <PullToRefresh onRefresh={handleRefresh} />
       <div className="app-container">
-        <Header />
+        <TopNav />
 
         <main className="main-content" ref={mainRef}>
           {/* ── Left Vertical Navigation ── */}
