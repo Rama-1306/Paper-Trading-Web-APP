@@ -370,6 +370,7 @@ textarea:focus {
   flex-direction: column;
   overflow: hidden;
   background: #0a0e17;
+  height: calc(100vh - 64px);
 }
 
 .sidebar {
