@@ -1,9 +1,14 @@
-"use client";
+'use client';
 
-import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import ProtectedRoute from '@/components/common/ProtectedRoute';
+import { TopNav } from '@/components/common/TopNav';
+import { SideNav } from '@/components/common/SideNav';
+import { ToastContainer } from '@/components/common/ToastContainer';
+import { formatINR } from '@/lib/utils/formatters';
 
 interface AccountData {
   id: string;
@@ -18,274 +23,277 @@ export default function ProfilePage() {
   const router = useRouter();
   const [account, setAccount] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(true);
-  const isAdmin = session?.user?.role === "ADMIN";
+  const isAdmin = session?.user?.role === 'ADMIN';
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/signin");
-    }
+    if (status === 'unauthenticated') router.push('/auth/signin');
   }, [status, router]);
 
   useEffect(() => {
     if (session?.user) {
-      fetch("/api/account", { cache: "no-store" })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.account) setAccount(data.account);
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
+      fetch('/api/account', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(data => { if (data.account) setAccount(data.account); })
+        .catch(() => null)
+        .finally(() => setLoading(false));
     }
   }, [session]);
 
   const handleLogout = async () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("fyers_access_token");
-      localStorage.removeItem("activeSymbol");
-      localStorage.removeItem("activeLotSize");
-      if ("caches" in window) {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('fyers_access_token');
+      localStorage.removeItem('activeSymbol');
+      localStorage.removeItem('activeLotSize');
+      if ('caches' in window) {
         const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
+        await Promise.all(keys.map(k => caches.delete(k)));
       }
     }
-    await signOut({ callbackUrl: "/auth/signin" });
+    await signOut({ callbackUrl: '/auth/signin' });
   };
 
-  if (status === "loading" || loading) {
+  if (status === 'loading' || loading) {
     return (
-      <div style={styles.loadingContainer}>
-        <div style={styles.loadingText}>Loading profile...</div>
+      <div className="min-h-screen bg-surface flex items-center justify-center font-sans">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary-container border-t-transparent rounded-full animate-spin" />
+          <p className="text-on-surface-variant text-sm">Loading profile…</p>
+        </div>
       </div>
     );
   }
 
   if (!session) return null;
 
-  const balance = account?.balance ?? 1000000;
-  const initialBalance = account?.initialBalance ?? 1000000;
-  const realizedPnl = account?.realizedPnl ?? 0;
-  const totalReturn = ((balance - initialBalance + realizedPnl) / initialBalance) * 100;
+  const balance      = account?.balance        ?? 1_000_000;
+  const initial      = account?.initialBalance ?? 1_000_000;
+  const realizedPnl  = account?.realizedPnl    ?? 0;
+  const totalReturn  = initial > 0
+    ? ((balance - initial + realizedPnl) / initial * 100).toFixed(2)
+    : '0.00';
+  const initials = session.user?.name
+    ? session.user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'U';
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>My Profile</h1>
-          <Link href="/" style={styles.backLink}>
-            &larr; Back to Dashboard
-          </Link>
+    <ProtectedRoute>
+      <div className="min-h-screen bg-surface font-sans">
+        <TopNav />
+
+        <div className="flex">
+          <SideNav />
+
+          <main className="flex-1 ml-20 p-8 lg:p-12">
+
+            {/* ── Profile Header ───────────────────────── */}
+            <section className="mb-12 flex flex-col md:flex-row items-start md:items-end justify-between gap-8">
+              <div className="flex items-center gap-8">
+                {/* Avatar */}
+                <div className="relative">
+                  <div className="w-32 h-32 md:w-36 md:h-36 rounded-full bg-primary-container flex items-center justify-center text-on-primary-fixed text-4xl font-black border-4 border-surface-container-lowest shadow-lg">
+                    {initials}
+                  </div>
+                  <div className="absolute bottom-2 right-1 bg-primary-container text-on-primary-fixed p-1.5 rounded-full shadow-md">
+                    <span className="material-symbols-outlined text-sm">edit</span>
+                  </div>
+                </div>
+                {/* Name block */}
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-on-background">
+                      {session.user?.name ?? 'Trader'}
+                    </h1>
+                    <span className="bg-tertiary-container text-on-tertiary-fixed-variant px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        verified
+                      </span>
+                      {isAdmin ? 'Admin' : 'Verified'}
+                    </span>
+                  </div>
+                  <p className="text-on-surface-variant font-medium text-lg">
+                    {isAdmin ? 'Administrator Account' : 'Paper Trading Account'}
+                  </p>
+                  <p className="text-on-surface-variant/60 text-sm mt-1">
+                    {session.user?.email}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3">
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="px-6 py-3 bg-surface-container-highest text-on-surface font-bold rounded-lg hover:bg-surface-container-high transition-colors text-sm"
+                  >
+                    Admin Panel
+                  </Link>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="px-8 py-3 bg-primary-container text-on-primary-fixed font-bold rounded-lg active:scale-95 transition-transform shadow-md text-sm"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </section>
+
+            {/* ── Bento Grid ───────────────────────────── */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+
+              {/* Personal Information */}
+              <div className="md:col-span-8 bg-surface-container-low p-8 rounded-xl">
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-lg font-bold tracking-tight uppercase text-on-background">
+                    Account Information
+                  </h2>
+                  <span className="material-symbols-outlined text-on-surface-variant">person</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                  {[
+                    { label: 'Full Name',      value: session.user?.name  ?? '—' },
+                    { label: 'Email Address',  value: session.user?.email ?? '—' },
+                    { label: 'Account Role',   value: isAdmin ? 'Administrator' : 'Trader' },
+                    { label: 'Account Status', value: 'Active' },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="border-b border-outline-variant/30 pb-2">
+                      <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">
+                        {label}
+                      </label>
+                      <p className="text-on-surface font-semibold">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Financial Info */}
+              <div className="md:col-span-4 bg-surface-container-highest/40 p-8 rounded-xl flex flex-col border border-outline-variant/10">
+                <h2 className="text-lg font-bold tracking-tight uppercase text-on-background mb-8">
+                  Financial Info
+                </h2>
+                <div className="space-y-6 flex-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        Current Balance
+                      </p>
+                      <p className="font-bold text-on-surface">{formatINR(balance)}</p>
+                    </div>
+                    <span className="material-symbols-outlined text-primary">account_balance</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        Initial Capital
+                      </p>
+                      <p className="font-bold text-on-surface">{formatINR(initial)}</p>
+                    </div>
+                    <span className="material-symbols-outlined text-primary">savings</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-white p-4 rounded-lg">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        Account Status
+                      </p>
+                      <p className="font-bold text-on-surface">Active</p>
+                    </div>
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                  </div>
+                </div>
+                <Link
+                  href="/"
+                  className="mt-6 w-full py-3 text-center bg-surface-container-highest text-on-surface font-bold rounded-lg hover:bg-surface-container-high transition-colors text-sm"
+                >
+                  View Portfolio
+                </Link>
+              </div>
+
+              {/* Trading Performance */}
+              <div className="md:col-span-8 bg-white p-8 rounded-xl shadow-sm border border-outline-variant/10">
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-lg font-bold tracking-tight uppercase text-on-background">
+                    Trading Performance
+                  </h2>
+                  <span className="material-symbols-outlined text-on-surface-variant">trending_up</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    {
+                      label: 'Current Balance',
+                      value: formatINR(balance),
+                      color: 'text-on-background',
+                    },
+                    {
+                      label: 'Initial Balance',
+                      value: formatINR(initial),
+                      color: 'text-on-background',
+                    },
+                    {
+                      label: 'Realized P&L',
+                      value: `${realizedPnl >= 0 ? '+' : ''}${formatINR(realizedPnl)}`,
+                      color: realizedPnl >= 0 ? 'text-green-600' : 'text-error',
+                    },
+                    {
+                      label: 'Total Return',
+                      value: `${Number(totalReturn) >= 0 ? '+' : ''}${totalReturn}%`,
+                      color: Number(totalReturn) >= 0 ? 'text-primary' : 'text-error',
+                    },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="bg-surface-container-low rounded-lg p-5">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">
+                        {label}
+                      </p>
+                      <p className={`text-xl font-black ${color}`}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Trading Preferences */}
+              <div className="md:col-span-4 bg-surface-container-high/60 p-8 rounded-xl">
+                <h2 className="text-lg font-bold tracking-tight uppercase text-on-background mb-8">
+                  Quick Actions
+                </h2>
+                <div className="space-y-3">
+                  <Link
+                    href="/trade"
+                    className="flex items-center justify-between w-full py-4 px-5 bg-primary-container text-on-primary-fixed font-bold rounded-lg hover:brightness-95 transition-all"
+                  >
+                    Open Trading Terminal
+                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </Link>
+                  <Link
+                    href="/positions"
+                    className="flex items-center justify-between w-full py-4 px-5 bg-surface-container-lowest text-on-surface font-bold rounded-lg border border-outline-variant/20 hover:border-primary transition-all"
+                  >
+                    View Positions
+                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </Link>
+                  <Link
+                    href="/backtester"
+                    className="flex items-center justify-between w-full py-4 px-5 bg-surface-container-lowest text-on-surface font-bold rounded-lg border border-outline-variant/20 hover:border-primary transition-all"
+                  >
+                    Open Backtester
+                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center justify-between w-full py-4 px-5 bg-surface-container-lowest text-error font-bold rounded-lg border border-error/20 hover:border-error hover:bg-error-container/30 transition-all"
+                  >
+                    Sign Out
+                    <span className="material-symbols-outlined text-sm">logout</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            <div className="h-16" />
+          </main>
         </div>
 
-        <div style={styles.section}>
-          <div style={styles.avatar}>
-            {session.user?.name?.charAt(0).toUpperCase() || "U"}
-          </div>
-          <h2 style={styles.userName}>{session.user?.name || "Trader"}</h2>
-          <p style={styles.userEmail}>{session.user?.email}</p>
-        </div>
-
-        <div style={styles.divider} />
-        {isAdmin && (
-          <>
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>Admin</h3>
-              <Link href="/admin" style={styles.adminLink}>
-                Open Admin Dashboard
-              </Link>
-            </div>
-            <div style={styles.divider} />
-          </>
-        )}
-
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Trading Account</h3>
-          <div style={styles.statsGrid}>
-            <div style={styles.statBox}>
-              <span style={styles.statLabel}>Current Balance</span>
-              <span style={styles.statValue}>
-                {"\u20B9"}{balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            <div style={styles.statBox}>
-              <span style={styles.statLabel}>Initial Balance</span>
-              <span style={styles.statValue}>
-                {"\u20B9"}{initialBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            <div style={styles.statBox}>
-              <span style={styles.statLabel}>Realized P&L</span>
-              <span style={{
-                ...styles.statValue,
-                color: realizedPnl >= 0 ? "#00e676" : "#ff1744",
-              }}>
-                {realizedPnl >= 0 ? "+" : ""}{"\u20B9"}{Math.abs(realizedPnl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            <div style={styles.statBox}>
-              <span style={styles.statLabel}>Total Return</span>
-              <span style={{
-                ...styles.statValue,
-                color: totalReturn >= 0 ? "#00e676" : "#ff1744",
-              }}>
-                {totalReturn >= 0 ? "+" : ""}{totalReturn.toFixed(2)}%
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div style={styles.divider} />
-
-        <div style={styles.section}>
-          <button
-            onClick={handleLogout}
-            style={styles.logoutButton}
-          >
-            Sign Out
-          </button>
-        </div>
+        <ToastContainer />
       </div>
-    </div>
+    </ProtectedRoute>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "center",
-    background: "#0d0f14",
-    padding: "20px",
-    paddingBottom: "60px",
-    overflowY: "auto",
-    boxSizing: "border-box",
-  },
-  loadingContainer: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#0d0f14",
-  },
-  loadingText: {
-    color: "#666",
-    fontSize: "18px",
-  },
-  card: {
-    background: "#1a1d23",
-    borderRadius: "16px",
-    border: "1px solid rgba(255,255,255,0.08)",
-    boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
-    padding: "40px",
-    width: "100%",
-    maxWidth: "500px",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "32px",
-  },
-  title: {
-    fontSize: "24px",
-    fontWeight: 700,
-    color: "#fff",
-    margin: 0,
-  },
-  backLink: {
-    color: "#667eea",
-    textDecoration: "none",
-    fontSize: "14px",
-    fontWeight: 600,
-  },
-  section: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "8px",
-  },
-  avatar: {
-    width: "72px",
-    height: "72px",
-    borderRadius: "50%",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "28px",
-    fontWeight: 700,
-    color: "#fff",
-  },
-  userName: {
-    fontSize: "20px",
-    fontWeight: 700,
-    color: "#fff",
-    margin: 0,
-  },
-  userEmail: {
-    fontSize: "14px",
-    color: "#888",
-    margin: 0,
-  },
-  divider: {
-    height: "1px",
-    background: "rgba(255,255,255,0.08)",
-    margin: "24px 0",
-  },
-  sectionTitle: {
-    fontSize: "14px",
-    fontWeight: 600,
-    color: "#888",
-    textTransform: "uppercase" as const,
-    letterSpacing: "1px",
-    marginBottom: "12px",
-  },
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "12px",
-    width: "100%",
-  },
-  statBox: {
-    background: "rgba(255,255,255,0.04)",
-    borderRadius: "10px",
-    padding: "16px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "4px",
-  },
-  statLabel: {
-    fontSize: "11px",
-    color: "#888",
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.5px",
-  },
-  statValue: {
-    fontSize: "16px",
-    fontWeight: 700,
-    color: "#fff",
-  },
-  logoutButton: {
-    background: "rgba(255, 23, 68, 0.15)",
-    color: "#ff1744",
-    border: "1px solid rgba(255, 23, 68, 0.3)",
-    padding: "12px 32px",
-    borderRadius: "10px",
-    fontSize: "14px",
-    fontWeight: 600,
-    cursor: "pointer",
-    width: "100%",
-    marginTop: "8px",
-  },
-  adminLink: {
-    background: "rgba(255, 183, 77, 0.14)",
-    color: "#ffb74d",
-    border: "1px solid rgba(255, 183, 77, 0.3)",
-    padding: "10px 14px",
-    borderRadius: "10px",
-    fontSize: "13px",
-    fontWeight: 600,
-    textDecoration: "none",
-    display: "inline-flex",
-  },
-};
