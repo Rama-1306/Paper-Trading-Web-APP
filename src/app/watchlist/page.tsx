@@ -51,8 +51,10 @@ export default function WatchlistPage() {
         <div className="flex flex-1 overflow-hidden">
           <SideNav />
           <div className="flex flex-1 ml-20 overflow-hidden">
-            <div className="flex-1 overflow-auto">
-              <WatchlistPanel />
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-auto">
+                <WatchlistPanel />
+              </div>
             </div>
             <TradingSidebar />
           </div>

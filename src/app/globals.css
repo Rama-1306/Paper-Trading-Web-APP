@@ -791,3 +791,266 @@ textarea:focus {
   z-index: 40;
   height: 28px;
 }
+
+/* ─── Watchlist Panel ──────────────────────────────────────── */
+.wl-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fbf9f5;
+  overflow: hidden;
+}
+
+.wl-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #1b1c1a;
+  border-bottom: 1px solid #2a2d35;
+  flex-shrink: 0;
+}
+
+.wl-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #ffffff;
+}
+
+.wl-add-btn {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffcc00;
+  background: transparent;
+  border: 1px solid rgba(255,204,0,0.4);
+  border-radius: 5px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.wl-add-btn:hover {
+  background: rgba(255,204,0,0.12);
+}
+
+.wl-new-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f5f3ef;
+  border-bottom: 1px solid #e4e2de;
+  flex-shrink: 0;
+}
+
+.wl-input {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: #ffffff;
+  border: 1px solid #e4e2de;
+  border-radius: 4px;
+  color: #1b1c1a;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.wl-input:focus {
+  border-color: #ffcc00;
+  box-shadow: 0 0 0 2px rgba(255,204,0,0.15);
+}
+
+.wl-rename-input {
+  font-weight: 600;
+}
+
+.wl-btn-confirm {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #00875a;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.wl-btn-confirm:hover {
+  background: #006b47;
+}
+
+.wl-btn-cancel {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #f5f3ef;
+  color: #4e4632;
+  border: 1px solid #e4e2de;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.wl-btn-cancel:hover {
+  background: #e4e2de;
+}
+
+.wl-lists {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wl-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid #e4e2de;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #80765f;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.wl-action:hover {
+  background: #e4e2de;
+  color: #1b1c1a;
+}
+
+.wl-action-delete {
+  color: #ba1a1a;
+  border-color: rgba(186,26,26,0.25);
+}
+
+.wl-action-delete:hover {
+  background: rgba(186,26,26,0.08);
+  color: #ba1a1a;
+}
+
+.wl-add-symbol-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #f5f3ef;
+  border-bottom: 1px solid #e4e2de;
+  flex-shrink: 0;
+}
+
+.wl-empty-list {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #80765f;
+}
+
+/* Watchlist item rows */
+.wl-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e4e2de;
+  transition: background 0.12s;
+  position: relative;
+}
+
+.wl-item:hover {
+  background: #f5f3ef;
+}
+
+.wl-item:hover .wl-item-remove {
+  opacity: 1;
+}
+
+.wl-item-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1b1c1a;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wl-item-price-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.wl-item-ltp {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b1c1a;
+}
+
+.wl-item-change {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.wl-item-no-data {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #d2c5ab;
+  flex-shrink: 0;
+}
+
+.wl-item-remove {
+  opacity: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #ba1a1a;
+  font-size: 12px;
+  padding: 0 0 0 4px;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.wl-item-remove:hover {
+  opacity: 1 !important;
+}
+
+/* ─── Page Heading Bar ─────────────────────────────────────── */
+.page-heading-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #1b1c1a;
+  border-bottom: 1px solid #2a2d35;
+  flex-shrink: 0;
+}
+
+.page-heading-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #ffffff;
+}
+
+.page-heading-meta {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+}

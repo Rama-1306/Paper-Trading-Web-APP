@@ -310,15 +310,16 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
                   left: 0,
                   right: 0,
                   zIndex: 100,
-                  background: 'var(--bg-secondary, #1a1d23)',
-                  border: '1px solid var(--border-primary, rgba(255,255,255,0.1))',
+                  background: '#ffffff',
+                  border: '1px solid #e4e2de',
                   borderRadius: '4px',
                   maxHeight: '200px',
                   overflowY: 'auto',
                   marginTop: '2px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
                 }}>
                   {searchLoading && (
-                    <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    <div style={{ padding: '8px 12px', fontSize: '11px', color: '#80765f' }}>
                       Searching...
                     </div>
                   )}
@@ -327,16 +328,16 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
                       key={r.value}
                       onClick={() => selectSearchResult(activeWl.id, r)}
                       style={{
-                        padding: '6px 12px',
+                        padding: '8px 12px',
                         cursor: 'pointer',
-                        fontSize: '11px',
-                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                        fontSize: '12px',
+                        borderBottom: '1px solid #e4e2de',
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.15)')}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f3ef')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
-                      <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{r.label}</span>
-                      <span style={{ color: 'var(--text-muted)', marginLeft: '8px', fontSize: '10px' }}>{r.value}</span>
+                      <span style={{ color: '#1b1c1a', fontWeight: 600 }}>{r.label}</span>
+                      <span style={{ color: '#80765f', marginLeft: '8px', fontSize: '10px' }}>{r.value}</span>
                     </div>
                   ))}
                 </div>
@@ -345,6 +346,7 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
           )}
 
           {/* Instrument list */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
           {activeWl.items.length === 0 && addingTo !== activeWl.id && (
             <div className="wl-empty-list">No symbols added. Click + to add.</div>
           )}
@@ -382,6 +384,7 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
               </div>
             );
           })}
+          </div>
         </div>
       )}
     </div>

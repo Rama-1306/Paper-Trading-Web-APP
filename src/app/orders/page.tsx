@@ -51,8 +51,14 @@ export default function OrdersPage() {
         <div className="flex flex-1 overflow-hidden">
           <SideNav />
           <div className="flex flex-1 ml-20 overflow-hidden">
-            <div className="flex-1 overflow-auto">
-              <TradeHistory type="orders" />
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="page-heading-bar">
+                <span className="page-heading-title">Orders</span>
+                <span className="page-heading-meta">Today&apos;s order book</span>
+              </div>
+              <div className="flex-1 overflow-auto">
+                <TradeHistory type="orders" />
+              </div>
             </div>
             <TradingSidebar />
           </div>
