@@ -328,7 +328,11 @@ textarea:focus {
   display: flex;
   flex: 1;
   overflow: hidden;
-  margin-top: 64px;
+}
+
+.mobile-nav-label {
+  font-size: 9px;
+  font-weight: 600;
 }
 
 .left-nav {

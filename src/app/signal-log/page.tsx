@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import Link from "next/link";
+import ProtectedRoute from "@/components/common/ProtectedRoute";
+import { TopNav } from "@/components/common/TopNav";
+import { SideNav } from "@/components/common/SideNav";
+import { ToastContainer } from "@/components/common/ToastContainer";
+import { TradingSidebar } from "@/components/common/TradingSidebar";
+import { useMarketStore } from "@/stores/marketStore";
+import { useTradingStore } from "@/stores/tradingStore";
 
 type Signal = {
   id:            string;
@@ -108,40 +114,53 @@ export default function SignalLogPage() {
     countRef.current = setInterval(() => { setCountdown((c) => (c > 0 ? c - 1 : 0)); }, 1000);
   };
 
-  return (
-    <div style={pageWrap}>
-      {/* ── Header ─────────────────────────────────────────────────── */}
-      <div style={header}>
-        <div>
-          <div style={titleStyle}>Signal Flow Log</div>
-          <div style={subtitle}>
-            CCC Engine + Webhook → Signal Router → Bot → Paper Order
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button onClick={handleRefresh} style={btnRefresh} disabled={loading}>
-            {loading ? "Loading…" : "Refresh"}
-          </button>
-          <Link href="/" style={backLink}>← Dashboard</Link>
-        </div>
-      </div>
+  const initSocket = useMarketStore(s => s.initSocket);
+  useEffect(() => {
+    useTradingStore.getState().fetchAccount();
+    useTradingStore.getState().fetchPositions().then(() => {
+      const open = useTradingStore.getState().positions.filter(p => p.isOpen).map(p => p.symbol);
+      if (open.length) useMarketStore.getState().subscribePositionSymbols(open);
+    });
+    useTradingStore.getState().fetchOrders();
+    useTradingStore.getState().fetchTrades();
+    initSocket();
+  }, [initSocket]);
 
-      {/* ── Status bar ─────────────────────────────────────────────── */}
-      <div style={statusBar}>
-        <span style={{ color: "#555a65" }}>
-          {lastRefresh
-            ? `Last updated: ${lastRefresh.toLocaleTimeString("en-IN", { hour12: false })}`
-            : "Loading…"}
-        </span>
-        <span style={{ color: "#555a65" }}>Auto-refresh in {countdown}s</span>
-        <span style={{ color: "#555a65" }}>{signals.length} signals</span>
-      </div>
+  return (
+    <ProtectedRoute>
+      <div className="h-screen bg-surface font-sans flex flex-col overflow-hidden">
+        <TopNav />
+        <div className="flex flex-1 overflow-hidden">
+          <SideNav />
+          <div className="flex flex-1 ml-20 overflow-hidden">
+            {/* Main content */}
+            <div className="flex-1 overflow-auto p-6">
+              {/* Page header */}
+              <div className="flex items-start justify-between mb-6 gap-4">
+                <div>
+                  <h1 className="text-3xl font-black text-on-background tracking-tighter mb-1">Signal Flow Log</h1>
+                  <p className="text-sm text-on-surface-variant">CCC Engine + Webhook → Signal Router → Bot → Paper Order</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-on-surface-variant">
+                    {lastRefresh
+                      ? `Updated ${lastRefresh.toLocaleTimeString("en-IN", { hour12: false })}`
+                      : "Loading…"}
+                    {" · "}Refresh in {countdown}s
+                    {" · "}{signals.length} signals
+                  </div>
+                  <button onClick={handleRefresh} disabled={loading}
+                    className="px-4 py-2 bg-primary-container text-on-primary-fixed text-xs font-bold rounded-lg hover:brightness-95 active:scale-95 transition-all disabled:opacity-50">
+                    {loading ? "Loading…" : "Refresh"}
+                  </button>
+                </div>
+              </div>
 
       {/* ── Source legend ───────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
         <span style={sourceBadge("ccc_engine")}>CCC Engine</span>
         <span style={sourceBadge("webhook")}>Webhook</span>
-        <span style={{ color: "#3a3f4a", fontSize: 11, alignSelf: "center" }}>
+        <span style={{ color: "#80765f", fontSize: 11, alignSelf: "center" }}>
           — signal source badges
         </span>
       </div>
@@ -175,23 +194,23 @@ export default function SignalLogPage() {
           <tbody>
             {signals.length === 0 && !loading && (
               <tr>
-                <td colSpan={14} style={{ ...td, textAlign: "center", color: "#555a65", padding: "32px 0" }}>
+                <td colSpan={14} style={{ ...td, textAlign: "center", color: "#80765f", padding: "32px 0" }}>
                   No signals yet. Waiting for CCC Engine or TradingView alerts.
                 </td>
               </tr>
             )}
             {signals.map((s) => (
               <tr key={s.id} style={trStyle}>
-                <td style={{ ...td, color: "#8b8f98", fontSize: 11, whiteSpace: "nowrap" }}>
+                <td style={{ ...td, color: "#80765f", fontSize: 11, whiteSpace: "nowrap" }}>
                   {formatTime(s.created_at)}
                 </td>
                 <td style={td}>
                   <span style={sourceBadge(s.source)}>{sourceLabel(s.source)}</span>
                 </td>
-                <td style={{ ...td, fontWeight: 700, color: "#e8eaed" }}>
+                <td style={{ ...td, fontWeight: 700, color: "#1b1c1a" }}>
                   {s.symbol}
                 </td>
-                <td style={{ ...td, color: "#8b8f98", fontSize: 11 }}>
+                <td style={{ ...td, color: "#80765f", fontSize: 11 }}>
                   {s.timeframe ? `${s.timeframe}m` : "—"}
                 </td>
                 <td style={td}>
@@ -199,19 +218,19 @@ export default function SignalLogPage() {
                     {s.action}
                   </span>
                 </td>
-                <td style={{ ...td, color: "#8b8f98", fontSize: 11 }}>
+                <td style={{ ...td, color: "#4e4632", fontSize: 11 }}>
                   {s.signal_type}
                 </td>
                 <td style={{ ...td, textAlign: "center" }}>
                   <span style={scoreTag(s.score)}>{s.score}</span>
                 </td>
-                <td style={{ ...td, color: "#e8eaed", fontSize: 11 }}>
+                <td style={{ ...td, color: "#1b1c1a", fontSize: 11 }}>
                   {fmtPrice(s.entry)}
                 </td>
-                <td style={{ ...td, color: "#ff6b6b", fontSize: 11 }}>
+                <td style={{ ...td, color: "#ba1a1a", fontSize: 11 }}>
                   {fmtPrice(s.sl)}
                 </td>
-                <td style={{ ...td, color: "#00e676", fontSize: 11 }}>
+                <td style={{ ...td, color: "#00a550", fontSize: 11 }}>
                   {fmtPrice(s.t1)}
                 </td>
                 <td style={{ ...td, textAlign: "center" }}>
@@ -220,7 +239,7 @@ export default function SignalLogPage() {
                 <td style={{ ...td, textAlign: "center" }}>
                   <span style={s.order_created ? dotGreen : dotGrey} title={s.order_created ? "Order created" : "No order"} />
                 </td>
-                <td style={{ ...td, fontFamily: "monospace", fontSize: 11, color: "#6366f1" }}>
+                <td style={{ ...td, fontFamily: "monospace", fontSize: 11, color: "#745b00" }}>
                   {shortId(s.order_id)}
                 </td>
                 <td style={{ ...td, textAlign: "right" }}>
@@ -230,7 +249,7 @@ export default function SignalLogPage() {
                       {s.pnl.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                     </span>
                   ) : (
-                    <span style={{ color: "#555a65" }}>—</span>
+                    <span style={{ color: "#80765f" }}>—</span>
                   )}
                 </td>
               </tr>
@@ -243,10 +262,17 @@ export default function SignalLogPage() {
       <div style={legend}>
         <span><span style={dotGreen} /> = Yes</span>
         <span><span style={dotGrey} />  = No / Pending</span>
-        <span style={{ color: "#555a65" }}>Score 1–4 = confluence strength</span>
-        <span style={{ color: "#555a65" }}>Order ID = last 8 chars of paper order</span>
+        <span style={{ color: "#80765f" }}>Score 1–4 = confluence strength</span>
+        <span style={{ color: "#80765f" }}>Order ID = last 8 chars of paper order</span>
       </div>
-    </div>
+            </div>
+            {/* Right sidebar */}
+            <TradingSidebar />
+          </div>
+        </div>
+        <ToastContainer />
+      </div>
+    </ProtectedRoute>
   );
 }
 
@@ -277,48 +303,11 @@ function sourceBadge(source: string): CSSProperties {
 
 /* ── Styles ──────────────────────────────────────────────────────────────── */
 
-const pageWrap: CSSProperties = {
-  minHeight:  "100vh",
-  background: "#0a0e17",
-  color:      "#e8eaed",
-  fontFamily: "Inter, sans-serif",
-  padding:    "16px 12px 40px",
-};
-
-const header: CSSProperties = {
-  display:        "flex",
-  justifyContent: "space-between",
-  alignItems:     "flex-start",
-  marginBottom:   12,
-  flexWrap:       "wrap",
-  gap:            8,
-};
-
-const titleStyle: CSSProperties = {
-  fontSize:   18,
-  fontWeight: 700,
-  color:      "#ffffff",
-};
-
-const subtitle: CSSProperties = {
-  fontSize:  12,
-  color:     "#555a65",
-  marginTop: 2,
-};
-
-const statusBar: CSSProperties = {
-  display:      "flex",
-  gap:          16,
-  fontSize:     11,
-  marginBottom: 10,
-  flexWrap:     "wrap",
-};
-
 const errorBox: CSSProperties = {
-  background:   "rgba(255, 23, 68, 0.08)",
-  border:       "1px solid rgba(255, 23, 68, 0.25)",
+  background:   "rgba(186, 26, 26, 0.06)",
+  border:       "1px solid rgba(186, 26, 26, 0.25)",
   borderRadius: 6,
-  color:        "#ff6b6b",
+  color:        "#ba1a1a",
   fontSize:     12,
   padding:      "8px 12px",
   marginBottom: 10,
@@ -327,7 +316,7 @@ const errorBox: CSSProperties = {
 const tableWrap: CSSProperties = {
   overflowX:    "auto",
   borderRadius: 10,
-  border:       "1px solid rgba(255,255,255,0.06)",
+  border:       "1px solid #e4e2de",
 };
 
 const table: CSSProperties = {
@@ -339,18 +328,21 @@ const table: CSSProperties = {
 const th: CSSProperties = {
   padding:      "10px 12px",
   textAlign:    "left",
-  color:        "#555a65",
-  fontWeight:   600,
-  fontSize:     11,
-  background:   "#0f1420",
-  borderBottom: "1px solid rgba(255,255,255,0.06)",
+  color:        "#ffffff",
+  fontWeight:   700,
+  fontSize:     10,
+  background:   "#1b1c1a",
+  borderBottom: "1px solid #2a2d35",
   whiteSpace:   "nowrap",
+  textTransform: "uppercase",
+  letterSpacing: "0.5px",
 };
 
 const td: CSSProperties = {
   padding:       "9px 12px",
-  borderBottom:  "1px solid rgba(255,255,255,0.04)",
+  borderBottom:  "1px solid #e4e2de",
   verticalAlign: "middle",
+  color:         "#1b1c1a",
 };
 
 const trStyle: CSSProperties = {
@@ -401,33 +393,16 @@ const dotGreen: CSSProperties = {
 };
 const dotGrey: CSSProperties = {
   display: "inline-block", width: 8, height: 8, borderRadius: "50%",
-  background: "#2a2f3a", border: "1px solid rgba(255,255,255,0.1)",
+  background: "#d2c5ab", border: "1px solid #80765f",
 };
 const pnlProfit: CSSProperties = { color: "#00e676", fontWeight: 700 };
 const pnlLoss:   CSSProperties = { color: "#ff1744", fontWeight: 700 };
-
-const btnRefresh: CSSProperties = {
-  background:   "rgba(99,102,241,0.12)",
-  border:       "1px solid rgba(99,102,241,0.3)",
-  borderRadius: 6,
-  color:        "#818cf8",
-  fontSize:     12,
-  fontWeight:   700,
-  padding:      "6px 14px",
-  cursor:       "pointer",
-};
-
-const backLink: CSSProperties = {
-  color:          "#555a65",
-  textDecoration: "none",
-  fontSize:       12,
-};
 
 const legend: CSSProperties = {
   display:    "flex",
   gap:        16,
   fontSize:   11,
-  color:      "#8b8f98",
+  color:      "#80765f",
   marginTop:  12,
   flexWrap:   "wrap",
   alignItems: "center",
