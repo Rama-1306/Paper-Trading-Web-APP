@@ -107,12 +107,22 @@ body {
 /* ─── Toast Container ─────────────────────────────────────── */
 .toast-container {
   position: fixed;
-  top: 80px;
-  right: 16px;
+  top: 70px;
+  right: 8px;
+  left: 8px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .toast-container {
+    left: auto;
+    right: 16px;
+    top: 80px;
+  }
 }
 
 .toast {
@@ -124,10 +134,11 @@ body {
   border: 1px solid #d2c5ab;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  min-width: 300px;
+  width: 100%;
   max-width: 420px;
   animation: slideIn 0.3s ease-out;
   backdrop-filter: blur(12px);
+  pointer-events: all;
 }
 
 .toast.success {
@@ -461,14 +472,16 @@ textarea:focus {
 .mobile-bottom-nav {
   display: flex;
   justify-content: space-around;
-  background: #1b1c1a;
-  border-top: 1px solid #2a2d35;
-  padding: 8px 0;
+  align-items: center;
+  background: #ffffff;
+  border-top: 1px solid #e4e2de;
+  padding: 6px 0 max(6px, env(safe-area-inset-bottom));
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 100;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
 }
 
 @media (min-width: 768px) {
@@ -482,20 +495,30 @@ textarea:focus {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 4px 8px;
+  padding: 4px 12px;
   background: transparent;
   border: none;
-  color: #8b8f98;
+  color: #80765f;
   cursor: pointer;
   font-size: 9px;
+  text-decoration: none;
+  min-width: 48px;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-nav-tab.active {
-  color: #d4a012;
+  color: #745b00;
 }
 
 .mobile-nav-icon {
-  font-size: 18px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.mobile-nav-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
 }
 
 /* Desktop place order fallback */
@@ -572,7 +595,7 @@ textarea:focus {
 .tf-btn.active {
   background: #ffcc00;
   color: #241a00;
-  border-color: rgba(116,91,0,0.3);
+  border-color: rgba(116, 91, 0, 0.3);
 }
 
 .chart-separator {
@@ -606,7 +629,7 @@ textarea:focus {
 
 .header-search-input-wrap:focus-within {
   border-color: #ffcc00;
-  box-shadow: 0 0 0 3px rgba(255,204,0,0.15);
+  box-shadow: 0 0 0 3px rgba(255, 204, 0, 0.15);
 }
 
 .header-search-icon {
@@ -729,23 +752,23 @@ textarea:focus {
 }
 
 .btn-ghost.btn-buy {
-  background: rgba(0,135,90,0.08);
+  background: rgba(0, 135, 90, 0.08);
   color: #00875a;
-  border: 1px solid rgba(0,135,90,0.35);
+  border: 1px solid rgba(0, 135, 90, 0.35);
 }
 
 .btn-ghost.btn-buy:hover {
-  background: rgba(0,135,90,0.15);
+  background: rgba(0, 135, 90, 0.15);
 }
 
 .btn-ghost.btn-sell {
-  background: rgba(186,26,26,0.08);
+  background: rgba(186, 26, 26, 0.08);
   color: #ba1a1a;
-  border: 1px solid rgba(186,26,26,0.35);
+  border: 1px solid rgba(186, 26, 26, 0.35);
 }
 
 .btn-ghost.btn-sell:hover {
-  background: rgba(186,26,26,0.15);
+  background: rgba(186, 26, 26, 0.15);
 }
 
 /* ─── Form Inputs ──────────────────────────────────────────── */
@@ -765,7 +788,7 @@ textarea:focus {
 .input:focus {
   border-color: #ffcc00;
   outline: none;
-  box-shadow: 0 0 0 3px rgba(255,204,0,0.15);
+  box-shadow: 0 0 0 3px rgba(255, 204, 0, 0.15);
 }
 
 .input-group {
@@ -824,7 +847,7 @@ textarea:focus {
   font-weight: 700;
   color: #ffcc00;
   background: transparent;
-  border: 1px solid rgba(255,204,0,0.4);
+  border: 1px solid rgba(255, 204, 0, 0.4);
   border-radius: 5px;
   padding: 3px 10px;
   cursor: pointer;
@@ -832,7 +855,7 @@ textarea:focus {
 }
 
 .wl-add-btn:hover {
-  background: rgba(255,204,0,0.12);
+  background: rgba(255, 204, 0, 0.12);
 }
 
 .wl-new-form {
@@ -860,7 +883,7 @@ textarea:focus {
 
 .wl-input:focus {
   border-color: #ffcc00;
-  box-shadow: 0 0 0 2px rgba(255,204,0,0.15);
+  box-shadow: 0 0 0 2px rgba(255, 204, 0, 0.15);
 }
 
 .wl-rename-input {
@@ -931,11 +954,11 @@ textarea:focus {
 
 .wl-action-delete {
   color: #ba1a1a;
-  border-color: rgba(186,26,26,0.25);
+  border-color: rgba(186, 26, 26, 0.25);
 }
 
 .wl-action-delete:hover {
-  background: rgba(186,26,26,0.08);
+  background: rgba(186, 26, 26, 0.08);
   color: #ba1a1a;
 }
 
@@ -1052,5 +1075,5 @@ textarea:focus {
 
 .page-heading-meta {
   font-size: 11px;
-  color: rgba(255,255,255,0.5);
+  color: rgba(255, 255, 255, 0.5);
 }

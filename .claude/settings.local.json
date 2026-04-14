@@ -27,7 +27,9 @@
       "Bash(unzip -o \"stitch_Profile-Portfolio.zip\" -d profile)",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}, indent=2\\)\\)\")",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); deps={**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}; [print\\(k,v\\) for k,v in deps.items\\(\\)]\")",
-      "Bash(npm list:*)"
+      "Bash(npm list:*)",
+      "Bash(git show:*)",
+      "Read(//tmp/**)"
     ]
   }
 }

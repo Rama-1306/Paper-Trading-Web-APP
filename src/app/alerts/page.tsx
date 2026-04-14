@@ -50,9 +50,15 @@ export default function AlertsPage() {
         <TopNav />
         <div className="flex flex-1 overflow-hidden">
           <SideNav />
-          <div className="flex flex-1 ml-20 overflow-hidden">
-            <div className="flex-1 overflow-auto">
-              <AlertsPanel />
+          <div className="flex flex-1 md:ml-20 overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="page-heading-bar">
+                <span className="page-heading-title">Alerts</span>
+                <span className="page-heading-meta">Price & event alerts</span>
+              </div>
+              <div className="flex-1 overflow-auto pb-16 md:pb-0">
+                <AlertsPanel />
+              </div>
             </div>
             <TradingSidebar />
           </div>

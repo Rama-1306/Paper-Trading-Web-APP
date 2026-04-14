@@ -50,13 +50,13 @@ export default function TradesPage() {
         <TopNav />
         <div className="flex flex-1 overflow-hidden">
           <SideNav />
-          <div className="flex flex-1 ml-20 overflow-hidden">
+          <div className="flex flex-1 md:ml-20 overflow-hidden">
             <div className="flex-1 flex flex-col overflow-hidden">
               <div className="page-heading-bar">
                 <span className="page-heading-title">Trade History</span>
                 <span className="page-heading-meta">Closed trades calendar</span>
               </div>
-              <div className="flex-1 overflow-auto">
+              <div className="flex-1 overflow-auto pb-16 md:pb-0">
                 <TradeHistory type="trades" />
               </div>
             </div>

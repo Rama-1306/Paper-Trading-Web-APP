@@ -32,7 +32,7 @@ export function StatusBar() {
       : '🟡 Feed Down';
 
   return (
-    <footer className="status-bar" style={{
+    <footer className="status-bar hidden md:flex" style={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',

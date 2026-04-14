@@ -54,11 +54,10 @@ export function TopNav() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`text-sm font-medium transition-colors duration-150 pb-0.5 ${
-                  active
+                className={`text-sm font-medium transition-colors duration-150 pb-0.5 ${active
                     ? 'text-on-background border-b-2 border-primary-container font-bold'
                     : 'text-surface-dim hover:text-on-background'
-                }`}
+                  }`}
               >
                 {link.label}
               </Link>
@@ -72,9 +71,8 @@ export function TopNav() {
         {/* WS connection indicator */}
         <div
           title={connectionStatus.isFeedLive ? 'Live feed connected' : 'Feed disconnected'}
-          className={`w-2 h-2 rounded-full ${
-            connectionStatus.isFeedLive ? 'bg-green-500' : 'bg-amber-500'
-          }`}
+          className={`w-2 h-2 rounded-full ${connectionStatus.isFeedLive ? 'bg-green-500' : 'bg-amber-500'
+            }`}
         />
 
         {/* Fyers connect (admin only) */}
@@ -132,7 +130,7 @@ export function TopNav() {
         {/* Trade Now CTA */}
         <Link
           href="/trade"
-          className="bg-primary-container text-on-primary-fixed px-5 py-2 rounded-lg font-bold text-sm hover:brightness-95 active:scale-95 transition-all"
+          className="hidden md:inline-flex bg-primary-container text-on-primary-fixed px-5 py-2 rounded-lg font-bold text-sm hover:brightness-95 active:scale-95 transition-all"
         >
           Trade Now
         </Link>

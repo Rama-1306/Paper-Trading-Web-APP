@@ -8,6 +8,7 @@ import { TradingSidebar } from '@/components/common/TradingSidebar';
 import { ToastContainer } from '@/components/common/ToastContainer';
 import { PullToRefresh } from '@/components/common/PullToRefresh';
 import { InstrumentSearch } from '@/components/Trading/InstrumentSearch';
+import { MobileOrderSheet } from '@/components/common/MobileOrderSheet';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useMarketStore, registerTickPositionUpdater, registerServerEventHandler } from '@/stores/marketStore';
@@ -18,12 +19,12 @@ import { useCCCEngine } from '@/hooks/useCCCEngine';
 import type { Tick } from '@/types/market';
 
 const MOBILE_NAV = [
-  { href: '/trade',     label: 'Chart',    icon: '📊' },
-  { href: '/positions', label: 'Pos',      icon: '📈' },
-  { href: '/orders',    label: 'Orders',   icon: '📋' },
-  { href: '/trades',    label: 'Trades',   icon: '🔄' },
-  { href: '/watchlist', label: 'Watch',    icon: '👁' },
-  { href: '/alerts',    label: 'Alerts',   icon: '🔔' },
+  { href: '/trade', label: 'Chart', icon: '📊' },
+  { href: '/positions', label: 'Pos', icon: '📈' },
+  { href: '/orders', label: 'Orders', icon: '📋' },
+  { href: '/trades', label: 'Trades', icon: '🔄' },
+  { href: '/watchlist', label: 'Watch', icon: '👁' },
+  { href: '/alerts', label: 'Alerts', icon: '🔔' },
 ];
 
 export default function ChartPage() {
@@ -160,7 +161,7 @@ export default function ChartPage() {
           <SideNav />
 
           {/* Chart area + right sidebar */}
-          <div className="flex flex-1 ml-20 overflow-hidden">
+          <div className="flex flex-1 md:ml-20 overflow-hidden">
 
             {/* ── Chart column ── */}
             <div className="flex flex-col flex-1 overflow-hidden">
@@ -174,11 +175,10 @@ export default function ChartPage() {
                 <button
                   onClick={() => setCCCEngineEnabled(v => !v)}
                   title={cccEngineEnabled ? 'CCC Engine ON — click to disable' : 'CCC Engine OFF — click to enable'}
-                  className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors shrink-0 ${
-                    cccEngineEnabled
-                      ? 'bg-primary-container text-on-primary-fixed'
-                      : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                  }`}
+                  className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors shrink-0 ${cccEngineEnabled
+                    ? 'bg-primary-container text-on-primary-fixed'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                    }`}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cccEngineEnabled ? 'bg-on-primary-fixed animate-pulse' : 'bg-surface-dim'}`} />
                   CCC
@@ -200,6 +200,9 @@ export default function ChartPage() {
         </div>
 
         <ToastContainer />
+
+        {/* ── Mobile: Floating Order Button + Bottom Sheet ── */}
+        <MobileOrderSheet />
 
         {/* ── Mobile bottom navigation ── */}
         <nav className="mobile-bottom-nav">

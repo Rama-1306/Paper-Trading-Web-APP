@@ -105,7 +105,7 @@ export default function PortfolioDashboard() {
           <SideNav />
 
           {/* Main content — centered with max-width */}
-          <main className="flex-1 ml-20 p-8 lg:p-12 transition-all duration-300">
+          <main className="flex-1 md:ml-20 p-4 md:p-8 lg:p-12 pb-20 md:pb-12 transition-all duration-300">
             <div className="space-y-8">
 
               {/* ── Hero Header ──────────────────────────────── */}

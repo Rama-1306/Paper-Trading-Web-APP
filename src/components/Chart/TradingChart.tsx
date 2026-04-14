@@ -31,36 +31,36 @@ export function TradingChart() {
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { color: '#0a0e17' },
-        textColor: '#8b8f98',
+        background: { color: '#fbf9f5' },
+        textColor: '#4e4632',
         fontSize: 11,
-        fontFamily: "'Inter', sans-serif",
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
       },
       grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.03)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.03)' },
+        vertLines: { color: 'rgba(0, 0, 0, 0.04)' },
+        horzLines: { color: 'rgba(0, 0, 0, 0.04)' },
       },
       crosshair: {
         mode: 0,
         vertLine: {
-          color: 'rgba(99, 102, 241, 0.4)',
+          color: 'rgba(116, 91, 0, 0.4)',
           width: 1,
           style: 2,
-          labelBackgroundColor: '#6366f1',
+          labelBackgroundColor: '#745b00',
         },
         horzLine: {
-          color: 'rgba(99, 102, 241, 0.4)',
+          color: 'rgba(116, 91, 0, 0.4)',
           width: 1,
           style: 2,
-          labelBackgroundColor: '#6366f1',
+          labelBackgroundColor: '#745b00',
         },
       },
       rightPriceScale: {
-        borderColor: 'rgba(255, 255, 255, 0.06)',
+        borderColor: '#e4e2de',
         scaleMargins: { top: 0.1, bottom: 0.1 },
       },
       timeScale: {
-        borderColor: 'rgba(255, 255, 255, 0.06)',
+        borderColor: '#e4e2de',
         timeVisible: true,
         secondsVisible: false,
         shiftVisibleRangeOnNewBar: false,
@@ -79,12 +79,12 @@ export function TradingChart() {
     });
 
     const candlestickSeriesInstance = chart.addSeries(CandlestickSeries, {
-      upColor: '#00e676',
-      downColor: '#ff1744',
-      borderUpColor: '#00e676',
-      borderDownColor: '#ff1744',
-      wickUpColor: '#00e67688',
-      wickDownColor: '#ff174488',
+      upColor: '#00875a',
+      downColor: '#ba1a1a',
+      borderUpColor: '#00875a',
+      borderDownColor: '#ba1a1a',
+      wickUpColor: '#00875a99',
+      wickDownColor: '#ba1a1a99',
     });
 
     const markersPlugin = createSeriesMarkers(candlestickSeriesInstance, []);
@@ -288,7 +288,7 @@ export function TradingChart() {
 
     if (positionLinesRef.current.length > 0) {
       positionLinesRef.current.forEach(line => {
-        try { candlestickSeriesRef.current?.removePriceLine(line); } catch {}
+        try { candlestickSeriesRef.current?.removePriceLine(line); } catch { }
       });
       positionLinesRef.current = [];
     }

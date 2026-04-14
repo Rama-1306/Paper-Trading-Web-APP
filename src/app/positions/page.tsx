@@ -51,9 +51,9 @@ export default function PositionsPage() {
         <div className="flex flex-1 overflow-hidden">
           <SideNav />
           {/* Main area */}
-          <div className="flex flex-1 ml-20 overflow-hidden">
+          <div className="flex flex-1 md:ml-20 overflow-hidden">
             {/* Content */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto pb-16 md:pb-0">
               <PositionList />
             </div>
             {/* Right sidebar */}

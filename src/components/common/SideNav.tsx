@@ -31,7 +31,7 @@ export function SideNav() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-full z-40 flex flex-col pt-16 bg-surface-container-low w-20 hover:w-64 transition-all duration-300 group overflow-hidden border-r border-surface-dim/20">
+    <aside className="hidden md:flex fixed left-0 top-0 h-full z-40 flex flex-col pt-16 bg-surface-container-low w-20 hover:w-64 transition-all duration-300 group overflow-hidden border-r border-surface-dim/20">
       {/* Account badge */}
       <div className="flex items-center gap-4 px-5 py-5 mb-2">
         <div className="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center shrink-0">
@@ -54,8 +54,8 @@ export function SideNav() {
               key={href}
               href={href}
               className={`flex items-center gap-4 px-3 py-3 rounded-none transition-all duration-200 ${active
-                  ? 'bg-primary-container text-on-primary-fixed border-l-4 border-on-primary-fixed'
-                  : 'text-on-surface hover:bg-surface-dim/40'
+                ? 'bg-primary-container text-on-primary-fixed border-l-4 border-on-primary-fixed'
+                : 'text-on-surface hover:bg-surface-dim/40'
                 }`}
             >
               <span className="material-symbols-outlined shrink-0 text-xl">{icon}</span>
@@ -70,8 +70,8 @@ export function SideNav() {
           <Link
             href="/admin"
             className={`flex items-center gap-4 px-3 py-3 rounded-none transition-all duration-200 ${pathname === '/admin'
-                ? 'bg-primary-container text-on-primary-fixed border-l-4 border-on-primary-fixed'
-                : 'text-on-surface hover:bg-surface-dim/40'
+              ? 'bg-primary-container text-on-primary-fixed border-l-4 border-on-primary-fixed'
+              : 'text-on-surface hover:bg-surface-dim/40'
               }`}
           >
             <span className="material-symbols-outlined shrink-0 text-xl">admin_panel_settings</span>

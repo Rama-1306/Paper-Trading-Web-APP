@@ -4,8 +4,8 @@
   "description": "Real-time paper trading simulator for Bank Nifty Futures & Options",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#fbf9f5",
+  "theme_color": "#745b00",
   "orientation": "portrait-primary",
   "icons": [
     {
