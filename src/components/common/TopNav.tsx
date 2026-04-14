@@ -6,13 +6,17 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useMarketStore } from '@/stores/marketStore';
+import { useUIStore } from '@/stores/uiStore';
 
 export function TopNav() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const account = useTradingStore((s) => s.account);
   const connectionStatus = useMarketStore((s) => s.connectionStatus);
+  const notifications = useUIStore((s) => s.notifications);
+  const clearNotifications = useUIStore((s) => s.clearNotifications);
   const [hasToken, setHasToken] = useState(false);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
 
   useEffect(() => {
     setHasToken(!!localStorage.getItem('fyers_access_token'));
@@ -84,9 +88,39 @@ export function TopNav() {
         )}
 
         {/* Notifications */}
-        <button className="material-symbols-outlined text-on-surface-variant hover:text-on-surface text-xl transition-colors">
-          notifications
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowNotifPanel(v => !v)}
+            className="relative material-symbols-outlined text-on-surface-variant hover:text-on-surface text-xl transition-colors"
+          >
+            notifications
+          </button>
+          {notifications.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-error text-on-error text-[9px] font-bold rounded-full flex items-center justify-center pointer-events-none">
+              {notifications.length > 9 ? '9+' : notifications.length}
+            </span>
+          )}
+          {showNotifPanel && (
+            <div className="absolute right-0 top-full mt-2 w-80 bg-surface-container-lowest border border-surface-dim/30 rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-surface-dim/20">
+                <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Notifications</span>
+                <button onClick={() => { clearNotifications(); setShowNotifPanel(false); }} className="text-[10px] text-on-surface-variant hover:text-on-surface font-semibold">Clear all</button>
+              </div>
+              <div className="max-h-72 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="px-4 py-6 text-xs text-on-surface-variant text-center">No notifications</div>
+                ) : (
+                  notifications.slice().reverse().map((n) => (
+                    <div key={n.id} className={`px-4 py-3 border-b border-surface-dim/10 last:border-0 ${n.type === 'success' ? 'border-l-2 border-l-green-500' : n.type === 'error' ? 'border-l-2 border-l-red-600' : 'border-l-2 border-l-amber-500'}`}>
+                      <div className="text-xs font-semibold text-on-background">{n.title}</div>
+                      <div className="text-[11px] text-on-surface-variant mt-0.5">{n.message}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Balance chip */}
         {account && (

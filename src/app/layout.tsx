@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "@/components/common/Providers";
+import { StatusBar } from "@/components/common/StatusBar";
 import { Plus_Jakarta_Sans } from "next/font/google";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -52,6 +53,7 @@ export default function RootLayout({
       <body className={plusJakartaSans.className}>
         <Providers>
           {children}
+          <StatusBar />
         </Providers>
       </body>
     </html>

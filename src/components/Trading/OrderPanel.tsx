@@ -389,7 +389,7 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
           <div style={{ display: 'flex', flexDirection: 'column', flex: '2', gap: '4px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Req. Margin / Premium</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: '#ffeb3b', fontWeight: 'bold' }}>{formatINR(isOptionBuy ? premiumCost : marginRequired)}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)', fontWeight: 'bold' }}>{formatINR(isOptionBuy ? premiumCost : marginRequired)}</span>
             </div>
             {charges && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
@@ -666,7 +666,7 @@ export function OrderPanel({ onOrderPlaced, isMobile = false }: OrderPanelProps 
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ color: 'var(--text-muted)' }}>{isOptionBuy ? 'Premium Cost' : 'Margin Req.'}</span>
-            <span style={{ fontFamily: 'var(--font-mono)', color: '#ffeb3b', fontWeight: 600 }}>
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)', fontWeight: 600 }}>
               {formatINR(isOptionBuy ? premiumCost : marginRequired)}
             </span>
           </div>

@@ -2,7 +2,6 @@
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import { TopNav } from '@/components/common/TopNav';
 import { SideNav } from '@/components/common/SideNav';
-import { StatusBar } from '@/components/common/StatusBar';
 import { TradingChart } from '@/components/Chart/TradingChart';
 import { ChartControls } from '@/components/Chart/ChartControls';
 import { TradingSidebar } from '@/components/common/TradingSidebar';
@@ -200,7 +199,6 @@ export default function ChartPage() {
           </div>
         </div>
 
-        <StatusBar />
         <ToastContainer />
 
         {/* ── Mobile bottom navigation ── */}

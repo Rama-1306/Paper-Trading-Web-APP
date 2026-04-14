@@ -227,12 +227,12 @@ export function InstrumentSearch({
             maxHeight: '55vh',
             overflowY: 'auto',
             overscrollBehavior: 'contain',
-            background: '#1a1d23',
+            background: '#ffffff',
             border: '1px solid var(--border-primary)',
             borderTop: 'none',
             borderRadius: '0 0 8px 8px',
             zIndex: 9999,
-            boxShadow: '0 12px 32px rgba(0,0,0,0.7)',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.12)',
             WebkitOverflowScrolling: 'touch' as any,
           }}
         >
@@ -246,11 +246,11 @@ export function InstrumentSearch({
                     padding: '6px 14px',
                     fontSize: '10px',
                     fontWeight: 700,
-                    color: s.group === 'MCX' ? '#ff9800' : 'var(--text-muted)',
+                    color: s.group === 'MCX' ? '#d47a00' : 'var(--text-muted)',
                     textTransform: 'uppercase',
                     letterSpacing: '1px',
-                    background: 'rgba(255,255,255,0.03)',
-                    borderBottom: '1px solid rgba(255,255,255,0.08)',
+                    background: '#f5f3ef',
+                    borderBottom: '1px solid #e4e2de',
                     position: 'sticky',
                     top: 0,
                   }}>
@@ -275,18 +275,18 @@ export function InstrumentSearch({
                     padding: '10px 14px',
                     cursor: 'pointer',
                     fontSize: '13px',
-                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    borderBottom: '1px solid #e4e2de',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     minHeight: '48px',
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99,102,241,0.18)'}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f5f3ef'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
                   <div>
-                    <div style={{ color: 'var(--text-bright)', fontWeight: 600 }}>{s.label}</div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: 1 }}>{s.value}</div>
+                    <div style={{ color: '#1b1c1a', fontWeight: 600 }}>{s.label}</div>
+                    <div style={{ color: '#80765f', fontSize: '11px', marginTop: 1 }}>{s.value}</div>
                   </div>
                   {s.lotSize && (
                     <span style={{ color: 'var(--text-muted)', fontSize: '11px', flexShrink: 0 }}>
