@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { useUIStore } from '@/stores/uiStore';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 export function TopNav() {
   const { data: session } = useSession();
@@ -55,8 +56,8 @@ export function TopNav() {
                 key={link.href}
                 href={link.href}
                 className={`text-sm font-medium transition-colors duration-150 pb-0.5 ${active
-                    ? 'text-on-background border-b-2 border-primary-container font-bold'
-                    : 'text-surface-dim hover:text-on-background'
+                  ? 'text-on-background border-b-2 border-primary-container font-bold'
+                  : 'text-surface-dim hover:text-on-background'
                   }`}
               >
                 {link.label}
@@ -84,6 +85,9 @@ export function TopNav() {
             {hasToken ? 'Reconnect' : 'Connect Fyers'}
           </a>
         )}
+
+        {/* Theme Switcher */}
+        <ThemeSwitcher />
 
         {/* Notifications */}
         <div className="relative">

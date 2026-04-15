@@ -50,6 +50,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={plusJakartaSans.variable}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var t = localStorage.getItem('wu-theme');
+                if (t && t !== 'light') document.documentElement.dataset.theme = t;
+              } catch(e) {}
+            `,
+          }}
+        />
+      </head>
       <body className={plusJakartaSans.className}>
         <Providers>
           {children}
