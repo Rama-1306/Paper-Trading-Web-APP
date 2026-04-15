@@ -492,17 +492,19 @@ textarea:focus {
 
 .mobile-nav-tab {
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  padding: 4px 12px;
+  padding: 4px 2px;
   background: transparent;
   border: none;
   color: #80765f;
   cursor: pointer;
   font-size: 9px;
   text-decoration: none;
-  min-width: 48px;
+  min-width: 0;
   -webkit-tap-highlight-color: transparent;
 }
 
