@@ -6,6 +6,7 @@ import ProtectedRoute from '@/components/common/ProtectedRoute';
 import { TopNav } from '@/components/common/TopNav';
 import { SideNav } from '@/components/common/SideNav';
 import { ToastContainer } from '@/components/common/ToastContainer';
+import { MobileBottomNav } from '@/components/common/MobileBottomNav';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useMarketStore, registerTickPositionUpdater } from '@/stores/marketStore';
 import { formatINR } from '@/lib/utils/formatters';
@@ -390,6 +391,7 @@ export default function PortfolioDashboard() {
         </div>
 
         <ToastContainer />
+        <MobileBottomNav />
       </div>
     </ProtectedRoute>
   );

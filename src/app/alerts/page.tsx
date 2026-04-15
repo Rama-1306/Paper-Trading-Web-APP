@@ -7,6 +7,7 @@ import { SideNav } from '@/components/common/SideNav';
 import { ToastContainer } from '@/components/common/ToastContainer';
 import { TradingSidebar } from '@/components/common/TradingSidebar';
 import { AlertsPanel } from '@/components/Trading/AlertsPanel';
+import { MobileBottomNav } from '@/components/common/MobileBottomNav';
 import { useMarketStore, registerTickPositionUpdater } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import type { Tick } from '@/types/market';
@@ -64,6 +65,7 @@ export default function AlertsPage() {
           </div>
         </div>
         <ToastContainer />
+        <MobileBottomNav />
       </div>
     </ProtectedRoute>
   );

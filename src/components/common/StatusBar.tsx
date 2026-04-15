@@ -33,7 +33,6 @@ export function StatusBar() {
 
   return (
     <footer className="status-bar hidden md:flex" style={{
-      display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
       height: '28px',

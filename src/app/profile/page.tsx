@@ -8,6 +8,7 @@ import ProtectedRoute from '@/components/common/ProtectedRoute';
 import { TopNav } from '@/components/common/TopNav';
 import { SideNav } from '@/components/common/SideNav';
 import { ToastContainer } from '@/components/common/ToastContainer';
+import { MobileBottomNav } from '@/components/common/MobileBottomNav';
 import { formatINR } from '@/lib/utils/formatters';
 
 interface AccountData {
@@ -294,6 +295,7 @@ export default function ProfilePage() {
         </div>
 
         <ToastContainer />
+        <MobileBottomNav />
       </div>
     </ProtectedRoute>
   );

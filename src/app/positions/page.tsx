@@ -6,6 +6,7 @@ import { TopNav } from '@/components/common/TopNav';
 import { SideNav } from '@/components/common/SideNav';
 import { ToastContainer } from '@/components/common/ToastContainer';
 import { TradingSidebar } from '@/components/common/TradingSidebar';
+import { MobileBottomNav } from '@/components/common/MobileBottomNav';
 import { PositionList } from '@/components/Trading/PositionList';
 import { useMarketStore, registerTickPositionUpdater } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
@@ -61,6 +62,7 @@ export default function PositionsPage() {
           </div>
         </div>
         <ToastContainer />
+        <MobileBottomNav />
       </div>
     </ProtectedRoute>
   );

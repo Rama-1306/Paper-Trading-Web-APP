@@ -9,23 +9,14 @@ import { ToastContainer } from '@/components/common/ToastContainer';
 import { PullToRefresh } from '@/components/common/PullToRefresh';
 import { InstrumentSearch } from '@/components/Trading/InstrumentSearch';
 import { MobileOrderSheet } from '@/components/common/MobileOrderSheet';
+import { MobileBottomNav } from '@/components/common/MobileBottomNav';
 import { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
 import { useMarketStore, registerTickPositionUpdater, registerServerEventHandler } from '@/stores/marketStore';
 import { useAlertStore } from '@/stores/alertStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useCCCEngine } from '@/hooks/useCCCEngine';
 import type { Tick } from '@/types/market';
-
-const MOBILE_NAV = [
-  { href: '/trade', label: 'Chart', icon: '📊' },
-  { href: '/positions', label: 'Pos', icon: '📈' },
-  { href: '/orders', label: 'Orders', icon: '📋' },
-  { href: '/trades', label: 'Trades', icon: '🔄' },
-  { href: '/watchlist', label: 'Watch', icon: '👁' },
-  { href: '/alerts', label: 'Alerts', icon: '🔔' },
-];
 
 export default function ChartPage() {
   const [cccEngineEnabled, setCCCEngineEnabled] = useState(false);
@@ -204,15 +195,7 @@ export default function ChartPage() {
         {/* ── Mobile: Floating Order Button + Bottom Sheet ── */}
         <MobileOrderSheet />
 
-        {/* ── Mobile bottom navigation ── */}
-        <nav className="mobile-bottom-nav">
-          {MOBILE_NAV.map(item => (
-            <Link key={item.href} href={item.href} className="mobile-nav-tab">
-              <span className="mobile-nav-icon">{item.icon}</span>
-              <span className="mobile-nav-label">{item.label}</span>
-            </Link>
-          ))}
-        </nav>
+        <MobileBottomNav />
       </div>
     </ProtectedRoute>
   );
