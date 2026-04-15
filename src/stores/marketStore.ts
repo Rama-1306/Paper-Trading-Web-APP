@@ -328,11 +328,33 @@ export const useMarketStore = create<MarketState>((set, get) => ({
             newSpot = tick.ltp;
 
             if (nextCandles.length > 0) {
-              const last = { ...nextCandles[nextCandles.length - 1] };
-              last.close = tick.ltp;
-              last.high = Math.max(last.high, tick.ltp);
-              last.low = Math.min(last.low, tick.ltp);
-              nextCandles[nextCandles.length - 1] = last;
+              const periodSecs = parseInt(state.timeframe, 10) * 60;
+              const lastCandle = nextCandles[nextCandles.length - 1];
+              const tickTime = tick.timestamp || Math.floor(Date.now() / 1000);
+
+              // Compute the candle period this tick belongs to.
+              // The offset anchors the period grid to the same boundary as the
+              // historical candles (handles 30/60-min NSE 9:15 start alignment).
+              const offset = lastCandle.time % periodSecs;
+              const tickPeriodStart = Math.floor((tickTime - offset) / periodSecs) * periodSecs + offset;
+
+              if (tickPeriodStart > lastCandle.time) {
+                // Tick belongs to a new period — open a fresh candle.
+                nextCandles.push({
+                  time: tickPeriodStart,
+                  open: tick.ltp,
+                  high: tick.ltp,
+                  low: tick.ltp,
+                  close: tick.ltp,
+                });
+              } else {
+                // Same period — update the in-progress candle.
+                const updated = { ...lastCandle };
+                updated.close = tick.ltp;
+                updated.high = Math.max(updated.high, tick.ltp);
+                updated.low = Math.min(updated.low, tick.ltp);
+                nextCandles[nextCandles.length - 1] = updated;
+              }
             }
           }
         });
