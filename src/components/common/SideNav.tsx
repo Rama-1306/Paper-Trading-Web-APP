@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: '/orders', icon: 'receipt_long', label: 'Orders' },
   { href: '/trades', icon: 'swap_horiz', label: 'Trades' },
   { href: '/watchlist', icon: 'visibility', label: 'Watchlist' },
+  { href: '/option-chain', icon: 'table_chart', label: 'Option Chain' },
   { href: '/alerts', icon: 'notifications', label: 'Alerts' },
   { href: '/backtester', icon: 'query_stats', label: 'Backtester' },
   { href: '/signal-log', icon: 'bolt', label: 'Signals' },

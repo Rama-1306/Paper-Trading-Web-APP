@@ -9,6 +9,7 @@ const ITEMS = [
   { href: '/positions', label: 'Pos', icon: '📈' },
   { href: '/orders', label: 'Orders', icon: '📋' },
   { href: '/watchlist', label: 'Watch', icon: '👁' },
+  { href: '/option-chain', label: 'Chain', icon: '🔗' },
   { href: '/alerts', label: 'Alerts', icon: '🔔' },
 ];
 
