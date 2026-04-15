@@ -19,48 +19,93 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── Theme CSS Variables ───────────────────────────────────── */
+/* All Tailwind color tokens are driven by these CSS variables.
+   Override any block below to create a new theme. */
 :root {
-  /* Backgrounds */
-  --wu-bg-base: #fbf9f5;
-  --wu-bg-surface: #ffffff;
-  --wu-bg-surface-raised: #f5f3ef;
-  --wu-bg-surface-sunken: #f0ede6;
-  --wu-bg-inverse: #1b1c1a;
+  /* ── Tailwind palette tokens (referenced by tailwind.config.ts) ── */
+  --color-primary:                  #745b00;
+  --color-primary-container:        #ffcc00;
+  --color-on-primary:               #ffffff;
+  --color-on-primary-fixed:         #241a00;
+  --color-on-primary-container:     #6f5700;
+  --color-primary-fixed:            #ffe08b;
+  --color-primary-fixed-dim:        #f1c100;
+  --color-on-primary-fixed-variant: #584400;
+  --color-inverse-primary:          #f1c100;
+  --color-surface-tint:             #745b00;
 
-  /* Borders & dividers */
-  --wu-border-subtle: #e4e2de;
-  --wu-border-strong: #80765f;
+  --color-secondary:                    #5e5e5e;
+  --color-secondary-container:          #e2e2e2;
+  --color-on-secondary:                 #ffffff;
+  --color-on-secondary-container:       #646464;
+  --color-secondary-fixed:              #e2e2e2;
+  --color-secondary-fixed-dim:          #c6c6c6;
+  --color-on-secondary-fixed:           #1b1b1b;
+  --color-on-secondary-fixed-variant:   #474747;
 
-  /* Text */
-  --wu-text-primary: #1b1c1a;
-  --wu-text-secondary: #4e4632;
-  --wu-text-muted: #80765f;
-  --wu-text-inverse: #ffffff;
+  --color-tertiary:                    #3059b7;
+  --color-tertiary-container:          #c3d1ff;
+  --color-on-tertiary:                 #ffffff;
+  --color-on-tertiary-container:       #2b55b2;
+  --color-tertiary-fixed:              #dae2ff;
+  --color-tertiary-fixed-dim:          #b2c5ff;
+  --color-on-tertiary-fixed:           #001848;
+  --color-on-tertiary-fixed-variant:   #0b409e;
 
-  /* Brand / accent */
-  --wu-accent: #745b00;
-  --wu-accent-hover: #8a6d00;
-  --wu-accent-fg: #ffffff;
-  --wu-accent-container: #ffcc00;
-  --wu-accent-container-fg: #1b1c1a;
+  --color-background:           #fbf9f5;
+  --color-on-background:        #1b1c1a;
 
-  /* Semantic */
-  --wu-profit: #00875a;
-  --wu-loss: #ba1a1a;
-  --wu-buy: #4da6ff;
-  --wu-sell: #ff9800;
-  --wu-warning: #d47a00;
+  --color-surface:                  #fbf9f5;
+  --color-surface-dim:              #dbdad6;
+  --color-surface-bright:           #fbf9f5;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low:    #f5f3ef;
+  --color-surface-container:        #efeee9;
+  --color-surface-container-high:   #eae8e4;
+  --color-surface-container-highest:#e4e2de;
+  --color-surface-variant:          #e4e2de;
+  --color-on-surface:               #1b1c1a;
+  --color-on-surface-variant:       #4e4632;
+  --color-inverse-surface:          #30312e;
+  --color-inverse-on-surface:       #f2f1ec;
 
-  /* Chart */
-  --wu-chart-grid: #e4e2de;
-  --wu-chart-candle-up: #00875a;
-  --wu-chart-candle-down: #ba1a1a;
-  --wu-chart-volume-up: rgba(0, 135, 90, 0.35);
-  --wu-chart-volume-down: rgba(186, 26, 26, 0.35);
+  --color-outline:          #80765f;
+  --color-outline-variant:  #d2c5ab;
 
-  /* Scrollbar */
-  --wu-scrollbar: #d2c5ab;
-  --wu-scrollbar-hover: #80765f;
+  --color-error:              #ba1a1a;
+  --color-error-container:    #ffdad6;
+  --color-on-error:           #ffffff;
+  --color-on-error-container: #93000a;
+
+  /* ── WU semantic tokens (used by ThemeSwitcher + custom CSS) ── */
+  --wu-bg-base:            #fbf9f5;
+  --wu-bg-surface:         #ffffff;
+  --wu-bg-surface-raised:  #f5f3ef;
+  --wu-bg-surface-sunken:  #f0ede6;
+  --wu-bg-inverse:         #1b1c1a;
+  --wu-border-subtle:      #e4e2de;
+  --wu-border-strong:      #80765f;
+  --wu-text-primary:       #1b1c1a;
+  --wu-text-secondary:     #4e4632;
+  --wu-text-muted:         #80765f;
+  --wu-text-inverse:       #ffffff;
+  --wu-accent:             #745b00;
+  --wu-accent-hover:       #8a6d00;
+  --wu-accent-fg:          #ffffff;
+  --wu-accent-container:   #ffcc00;
+  --wu-accent-container-fg:#1b1c1a;
+  --wu-profit:             #00875a;
+  --wu-loss:               #ba1a1a;
+  --wu-buy:                #4da6ff;
+  --wu-sell:               #ff9800;
+  --wu-warning:            #d47a00;
+  --wu-chart-grid:         #e4e2de;
+  --wu-chart-candle-up:    #00875a;
+  --wu-chart-candle-down:  #ba1a1a;
+  --wu-chart-volume-up:    rgba(0, 135, 90, 0.35);
+  --wu-chart-volume-down:  rgba(186, 26, 26, 0.35);
+  --wu-scrollbar:          #d2c5ab;
+  --wu-scrollbar-hover:    #80765f;
 }
 
 /* ─── Base Styles ─────────────────────────────────────────── */
@@ -1358,46 +1403,77 @@ textarea:focus {
    ═══════════════════════════════════════════════════════════════ */
 
 [data-theme="dark"] {
-  /* Backgrounds */
-  --wu-bg-base: #0f0e0c;
-  --wu-bg-surface: #1a1816;
-  --wu-bg-surface-raised: #252220;
-  --wu-bg-surface-sunken: #0a0908;
-  --wu-bg-inverse: #fbf9f5;
+  /* ── Tailwind palette tokens — dark overrides ── */
+  --color-primary:                  #ffcc00;
+  --color-primary-container:        #745b00;
+  --color-on-primary:               #1b1c1a;
+  --color-on-primary-container:     #ffd54f;
+  --color-inverse-primary:          #745b00;
+  --color-surface-tint:             #ffcc00;
 
-  /* Borders & dividers */
-  --wu-border-subtle: #2e2a26;
-  --wu-border-strong: #6b6459;
+  --color-secondary:                    #c6c6c6;
+  --color-secondary-container:          #474747;
+  --color-on-secondary:                 #1b1b1b;
+  --color-on-secondary-container:       #c6c6c6;
 
-  /* Text */
-  --wu-text-primary: #f0ede6;
-  --wu-text-secondary: #c5bfb3;
-  --wu-text-muted: #8a8273;
-  --wu-text-inverse: #1b1c1a;
+  --color-tertiary:                    #b2c5ff;
+  --color-tertiary-container:          #0b409e;
+  --color-on-tertiary:                 #001848;
+  --color-on-tertiary-container:       #dae2ff;
 
-  /* Brand / accent */
-  --wu-accent: #ffcc00;
-  --wu-accent-hover: #ffd733;
-  --wu-accent-fg: #1b1c1a;
-  --wu-accent-container: #745b00;
-  --wu-accent-container-fg: #ffffff;
+  --color-background:           #0f0e0c;
+  --color-on-background:        #f0ede6;
 
-  /* Semantic */
-  --wu-profit: #22c55e;
-  --wu-loss: #ef4444;
-  --wu-buy: #60a5fa;
-  --wu-sell: #fb923c;
+  --color-surface:                  #1a1816;
+  --color-surface-dim:              #0f0e0c;
+  --color-surface-bright:           #252220;
+  --color-surface-container-lowest: #0a0908;
+  --color-surface-container-low:    #151311;
+  --color-surface-container:        #1a1816;
+  --color-surface-container-high:   #252220;
+  --color-surface-container-highest:#2e2a26;
+  --color-surface-variant:          #2e2a26;
+  --color-on-surface:               #f0ede6;
+  --color-on-surface-variant:       #c5bfb3;
+  --color-inverse-surface:          #f0ede6;
+  --color-inverse-on-surface:       #1a1816;
 
-  /* Chart */
-  --wu-chart-grid: #2e2a26;
-  --wu-chart-candle-up: #22c55e;
-  --wu-chart-candle-down: #ef4444;
-  --wu-chart-volume-up: rgba(34, 197, 94, 0.35);
-  --wu-chart-volume-down: rgba(239, 68, 68, 0.35);
+  --color-outline:          #8a8273;
+  --color-outline-variant:  #3a3530;
 
-  /* Scrollbar */
-  --wu-scrollbar: #3a3530;
-  --wu-scrollbar-hover: #5a554d;
+  --color-error:              #ef4444;
+  --color-error-container:    #7f1d1d;
+  --color-on-error:           #1a1816;
+  --color-on-error-container: #fecaca;
+
+  /* ── WU semantic tokens — dark overrides ── */
+  --wu-bg-base:            #0f0e0c;
+  --wu-bg-surface:         #1a1816;
+  --wu-bg-surface-raised:  #252220;
+  --wu-bg-surface-sunken:  #0a0908;
+  --wu-bg-inverse:         #fbf9f5;
+  --wu-border-subtle:      #2e2a26;
+  --wu-border-strong:      #6b6459;
+  --wu-text-primary:       #f0ede6;
+  --wu-text-secondary:     #c5bfb3;
+  --wu-text-muted:         #8a8273;
+  --wu-text-inverse:       #1b1c1a;
+  --wu-accent:             #ffcc00;
+  --wu-accent-hover:       #ffd733;
+  --wu-accent-fg:          #1b1c1a;
+  --wu-accent-container:   #745b00;
+  --wu-accent-container-fg:#ffffff;
+  --wu-profit:             #22c55e;
+  --wu-loss:               #ef4444;
+  --wu-buy:                #60a5fa;
+  --wu-sell:               #fb923c;
+  --wu-chart-grid:         #2e2a26;
+  --wu-chart-candle-up:    #22c55e;
+  --wu-chart-candle-down:  #ef4444;
+  --wu-chart-volume-up:    rgba(34, 197, 94, 0.35);
+  --wu-chart-volume-down:  rgba(239, 68, 68, 0.35);
+  --wu-scrollbar:          #3a3530;
+  --wu-scrollbar-hover:    #5a554d;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1405,17 +1481,40 @@ textarea:focus {
    ═══════════════════════════════════════════════════════════════ */
 
 [data-theme="ocean"] {
+  --color-primary: #0284c7;
+  --color-primary-container: #7dd3fc;
+  --color-on-primary-container: #0369a1;
   --wu-accent: #0284c7;
   --wu-accent-hover: #0369a1;
   --wu-accent-container: #7dd3fc;
 }
 
 [data-theme="ocean-dark"] {
-  --wu-accent: #38bdf8;
-  --wu-accent-hover: #7dd3fc;
-  --wu-accent-fg: #0c4a6e;
-  --wu-accent-container: #0369a1;
-  --wu-accent-container-fg: #e0f2fe;
+  /* inherits dark palette + ocean accent */
+  --color-primary:                  #38bdf8;
+  --color-primary-container:        #0369a1;
+  --color-on-primary:               #0c4a6e;
+  --color-background:               #0f0e0c;
+  --color-on-background:            #f0ede6;
+  --color-surface:                  #1a1816;
+  --color-surface-dim:              #0f0e0c;
+  --color-surface-bright:           #252220;
+  --color-surface-container-lowest: #0a0908;
+  --color-surface-container-low:    #151311;
+  --color-surface-container:        #1a1816;
+  --color-surface-container-high:   #252220;
+  --color-surface-container-highest:#2e2a26;
+  --color-surface-variant:          #2e2a26;
+  --color-on-surface:               #f0ede6;
+  --color-on-surface-variant:       #c5bfb3;
+  --color-outline:                  #8a8273;
+  --color-outline-variant:          #3a3530;
+  --wu-bg-base: #0f0e0c; --wu-bg-surface: #1a1816; --wu-bg-surface-raised: #252220;
+  --wu-bg-surface-sunken: #0a0908; --wu-border-subtle: #2e2a26; --wu-border-strong: #6b6459;
+  --wu-text-primary: #f0ede6; --wu-text-secondary: #c5bfb3; --wu-text-muted: #8a8273;
+  --wu-scrollbar: #3a3530; --wu-scrollbar-hover: #5a554d;
+  --wu-accent: #38bdf8; --wu-accent-hover: #7dd3fc; --wu-accent-fg: #0c4a6e;
+  --wu-accent-container: #0369a1; --wu-accent-container-fg: #e0f2fe;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1423,17 +1522,39 @@ textarea:focus {
    ═══════════════════════════════════════════════════════════════ */
 
 [data-theme="forest"] {
+  --color-primary: #15803d;
+  --color-primary-container: #86efac;
+  --color-on-primary-container: #166534;
   --wu-accent: #15803d;
   --wu-accent-hover: #166534;
   --wu-accent-container: #86efac;
 }
 
 [data-theme="forest-dark"] {
-  --wu-accent: #4ade80;
-  --wu-accent-hover: #86efac;
-  --wu-accent-fg: #14532d;
-  --wu-accent-container: #166534;
-  --wu-accent-container-fg: #dcfce7;
+  --color-primary:                  #4ade80;
+  --color-primary-container:        #166534;
+  --color-on-primary:               #14532d;
+  --color-background:               #0f0e0c;
+  --color-on-background:            #f0ede6;
+  --color-surface:                  #1a1816;
+  --color-surface-dim:              #0f0e0c;
+  --color-surface-bright:           #252220;
+  --color-surface-container-lowest: #0a0908;
+  --color-surface-container-low:    #151311;
+  --color-surface-container:        #1a1816;
+  --color-surface-container-high:   #252220;
+  --color-surface-container-highest:#2e2a26;
+  --color-surface-variant:          #2e2a26;
+  --color-on-surface:               #f0ede6;
+  --color-on-surface-variant:       #c5bfb3;
+  --color-outline:                  #8a8273;
+  --color-outline-variant:          #3a3530;
+  --wu-bg-base: #0f0e0c; --wu-bg-surface: #1a1816; --wu-bg-surface-raised: #252220;
+  --wu-bg-surface-sunken: #0a0908; --wu-border-subtle: #2e2a26; --wu-border-strong: #6b6459;
+  --wu-text-primary: #f0ede6; --wu-text-secondary: #c5bfb3; --wu-text-muted: #8a8273;
+  --wu-scrollbar: #3a3530; --wu-scrollbar-hover: #5a554d;
+  --wu-accent: #4ade80; --wu-accent-hover: #86efac; --wu-accent-fg: #14532d;
+  --wu-accent-container: #166534; --wu-accent-container-fg: #dcfce7;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1441,15 +1562,37 @@ textarea:focus {
    ═══════════════════════════════════════════════════════════════ */
 
 [data-theme="purple"] {
+  --color-primary: #7c3aed;
+  --color-primary-container: #c4b5fd;
+  --color-on-primary-container: #6d28d9;
   --wu-accent: #7c3aed;
   --wu-accent-hover: #6d28d9;
   --wu-accent-container: #c4b5fd;
 }
 
 [data-theme="purple-dark"] {
-  --wu-accent: #a78bfa;
-  --wu-accent-hover: #c4b5fd;
-  --wu-accent-fg: #2e1065;
-  --wu-accent-container: #6d28d9;
-  --wu-accent-container-fg: #ede9fe;
+  --color-primary:                  #a78bfa;
+  --color-primary-container:        #6d28d9;
+  --color-on-primary:               #2e1065;
+  --color-background:               #0f0e0c;
+  --color-on-background:            #f0ede6;
+  --color-surface:                  #1a1816;
+  --color-surface-dim:              #0f0e0c;
+  --color-surface-bright:           #252220;
+  --color-surface-container-lowest: #0a0908;
+  --color-surface-container-low:    #151311;
+  --color-surface-container:        #1a1816;
+  --color-surface-container-high:   #252220;
+  --color-surface-container-highest:#2e2a26;
+  --color-surface-variant:          #2e2a26;
+  --color-on-surface:               #f0ede6;
+  --color-on-surface-variant:       #c5bfb3;
+  --color-outline:                  #8a8273;
+  --color-outline-variant:          #3a3530;
+  --wu-bg-base: #0f0e0c; --wu-bg-surface: #1a1816; --wu-bg-surface-raised: #252220;
+  --wu-bg-surface-sunken: #0a0908; --wu-border-subtle: #2e2a26; --wu-border-strong: #6b6459;
+  --wu-text-primary: #f0ede6; --wu-text-secondary: #c5bfb3; --wu-text-muted: #8a8273;
+  --wu-scrollbar: #3a3530; --wu-scrollbar-hover: #5a554d;
+  --wu-accent: #a78bfa; --wu-accent-hover: #c4b5fd; --wu-accent-fg: #2e1065;
+  --wu-accent-container: #6d28d9; --wu-accent-container-fg: #ede9fe;
 }
