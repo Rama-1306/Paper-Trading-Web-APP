@@ -260,7 +260,7 @@ body {
 
 /* ─── Profit/Loss Colors ───────────────────────────────────── */
 .profit {
-  color: #00e676 !important;
+  color: #00875a !important;
 }
 
 .loss {
@@ -273,6 +273,205 @@ body {
 
 .loss-bg {
   background: rgba(186, 26, 26, 0.08);
+}
+
+/* ─── Option Chain Watchlist Button ──────────────────────── */
+.oc-wl-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.oc-wl-btn-ce {
+  background: rgba(41, 121, 255, 0.12);
+  color: #2979ff;
+}
+.oc-wl-btn-ce:hover {
+  background: rgba(41, 121, 255, 0.25);
+}
+.oc-wl-btn-pe {
+  background: rgba(255, 109, 0, 0.12);
+  color: #e65100;
+}
+.oc-wl-btn-pe:hover {
+  background: rgba(255, 109, 0, 0.25);
+}
+
+/* ─── Watchlist Add Modal ─────────────────────────────────── */
+.wl-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+.wl-modal-popup {
+  position: fixed;
+  z-index: 201;
+  width: 240px;
+  background: #ffffff;
+  border: 1px solid #e4e2de;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
+  pointer-events: all;
+  overflow: hidden;
+}
+.wl-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid #e4e2de;
+}
+.wl-modal-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #1b1c1a;
+}
+.wl-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #80765f;
+  font-size: 13px;
+  padding: 0;
+  line-height: 1;
+}
+.wl-modal-close:hover {
+  color: #1b1c1a;
+}
+.wl-modal-symbol {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #745b00;
+  background: rgba(116, 91, 0, 0.06);
+  border-bottom: 1px solid #e4e2de;
+}
+.wl-modal-list {
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.wl-modal-loading,
+.wl-modal-empty {
+  padding: 12px 14px;
+  font-size: 11px;
+  color: #80765f;
+  text-align: center;
+}
+.wl-modal-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.wl-modal-item:hover:not(:disabled) {
+  background: #f5f3ef;
+}
+.wl-modal-item-added {
+  opacity: 0.6;
+  cursor: default;
+}
+.wl-modal-item-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.wl-modal-item-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1b1c1a;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wl-modal-item-count {
+  font-size: 10px;
+  color: #80765f;
+  background: #f0ede6;
+  border-radius: 10px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+.wl-modal-item-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: #00875a;
+  background: rgba(0, 135, 90, 0.1);
+  border-radius: 4px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+.wl-modal-item-spinner {
+  font-size: 11px;
+  color: #80765f;
+}
+.wl-modal-new-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-top: 1px solid #e4e2de;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  color: #745b00;
+  text-align: center;
+  transition: background 0.1s;
+}
+.wl-modal-new-btn:hover {
+  background: rgba(116, 91, 0, 0.06);
+}
+.wl-modal-new-form {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid #e4e2de;
+}
+.wl-modal-input {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11px;
+  border: 1px solid #e4e2de;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1b1c1a;
+  outline: none;
+}
+.wl-modal-input:focus {
+  border-color: #745b00;
+}
+.wl-modal-btn-create {
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #745b00;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wl-modal-btn-create:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* ─── Glass Effect for Modals ─────────────────────────────── */
@@ -330,6 +529,8 @@ textarea:focus {
   --color-primary: #745b00;
   --color-profit: #00875a;
   --color-loss: #ba1a1a;
+  --color-buy: #4da6ff;
+  --color-sell: #ff9800;
   --font-mono: 'JetBrains Mono', monospace;
   --radius-md: 4px;
 }
