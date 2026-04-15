@@ -111,7 +111,7 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
           const data = await res.json();
           setSearchResults(data.results || []);
         }
-      } catch {}
+      } catch { }
       setSearchLoading(false);
     }, 300);
   };
@@ -310,8 +310,8 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
                   left: 0,
                   right: 0,
                   zIndex: 100,
-                  background: '#ffffff',
-                  border: '1px solid #e4e2de',
+                  background: 'var(--wu-bg-surface)',
+                  border: '1px solid var(--wu-border-subtle)',
                   borderRadius: '4px',
                   maxHeight: '200px',
                   overflowY: 'auto',
@@ -319,7 +319,7 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
                   boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
                 }}>
                   {searchLoading && (
-                    <div style={{ padding: '8px 12px', fontSize: '11px', color: '#80765f' }}>
+                    <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--wu-text-muted)' }}>
                       Searching...
                     </div>
                   )}
@@ -336,8 +336,8 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
                       onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f3ef')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
-                      <span style={{ color: '#1b1c1a', fontWeight: 600 }}>{r.label}</span>
-                      <span style={{ color: '#80765f', marginLeft: '8px', fontSize: '10px' }}>{r.value}</span>
+                      <span style={{ color: 'var(--wu-text-primary)', fontWeight: 600 }}>{r.label}</span>
+                      <span style={{ color: 'var(--wu-text-muted)', marginLeft: '8px', fontSize: '10px' }}>{r.value}</span>
                     </div>
                   ))}
                 </div>
@@ -347,43 +347,43 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
 
           {/* Instrument list */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
-          {activeWl.items.length === 0 && addingTo !== activeWl.id && (
-            <div className="wl-empty-list">No symbols added. Click + to add.</div>
-          )}
-          {activeWl.items.map((item) => {
-            const tick = ticks[item.symbol];
-            const ltp = tick?.ltp;
-            const change = tick?.change ?? 0;
-            const changePct = tick?.changePercent ?? 0;
-            return (
-              <div
-                key={item.id}
-                className="wl-item"
-                onClick={() => selectSymbol(item.symbol)}
-                style={{ cursor: 'pointer' }}
-                title="Click to place order"
-              >
-                <span className="wl-item-name">{item.displayName}</span>
-                {ltp !== undefined ? (
-                  <div className="wl-item-price-area">
-                    <span className="wl-item-ltp">{ltp.toFixed(2)}</span>
-                    <span className={`wl-item-change ${change >= 0 ? 'profit' : 'loss'}`}>
-                      {change >= 0 ? '+' : ''}{change.toFixed(2)} ({changePct.toFixed(2)}%)
-                    </span>
-                  </div>
-                ) : (
-                  <span className="wl-item-no-data">--</span>
-                )}
-                <button
-                  className="wl-item-remove"
-                  onClick={(e) => { e.stopPropagation(); removeItem(activeWl.id, item.id); }}
-                  title="Remove"
+            {activeWl.items.length === 0 && addingTo !== activeWl.id && (
+              <div className="wl-empty-list">No symbols added. Click + to add.</div>
+            )}
+            {activeWl.items.map((item) => {
+              const tick = ticks[item.symbol];
+              const ltp = tick?.ltp;
+              const change = tick?.change ?? 0;
+              const changePct = tick?.changePercent ?? 0;
+              return (
+                <div
+                  key={item.id}
+                  className="wl-item"
+                  onClick={() => selectSymbol(item.symbol)}
+                  style={{ cursor: 'pointer' }}
+                  title="Click to place order"
                 >
-                  &#10005;
-                </button>
-              </div>
-            );
-          })}
+                  <span className="wl-item-name">{item.displayName}</span>
+                  {ltp !== undefined ? (
+                    <div className="wl-item-price-area">
+                      <span className="wl-item-ltp">{ltp.toFixed(2)}</span>
+                      <span className={`wl-item-change ${change >= 0 ? 'profit' : 'loss'}`}>
+                        {change >= 0 ? '+' : ''}{change.toFixed(2)} ({changePct.toFixed(2)}%)
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="wl-item-no-data">--</span>
+                  )}
+                  <button
+                    className="wl-item-remove"
+                    onClick={(e) => { e.stopPropagation(); removeItem(activeWl.id, item.id); }}
+                    title="Remove"
+                  >
+                    &#10005;
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
