@@ -122,10 +122,20 @@ export function TradingChart() {
       lastCandle.time === prevLastTimeRef.current &&
       showIndicators === prevShowIndicatorsRef.current;
 
+    // New candle rolled over: count increased by exactly 1, same symbol/timeframe/indicators.
+    // Use update() instead of setData() so zoom & pan are preserved.
+    const isNewCandle =
+      candles.length === prevCandleCountRef.current + 1 &&
+      showIndicators === prevShowIndicatorsRef.current;
+
     const cccResults = calculateCCC(candles);
 
-    // --- Tick update: only update the last bar via update() to preserve pan/zoom ---
-    if (isTickUpdate) {
+    // --- Tick update OR new candle: update() preserves pan/zoom ---
+    if (isTickUpdate || isNewCandle) {
+      if (isNewCandle) {
+        prevCandleCountRef.current = candles.length;
+        prevLastTimeRef.current = lastCandle.time;
+      }
       const lastCCC = cccResults[cccResults.length - 1];
       const timeIST = (lastCCC.time + 19800) as Time;
       let mainColor: string;
@@ -152,7 +162,7 @@ export function TradingChart() {
       return;
     }
 
-    // --- Full data load: setData + fitContent (symbol/timeframe change, new candle, indicator toggle) ---
+    // --- Full data load: setData + fitContent (symbol/timeframe change, indicator toggle) ---
     prevCandleCountRef.current = candles.length;
     prevLastTimeRef.current = lastCandle.time;
     prevShowIndicatorsRef.current = showIndicators;
