@@ -1,0 +1,54 @@
+## Analysis Complete - Found the Issues!
+
+I've identified the problems with the dark theme. There are **two main issues**:
+
+### Issue 1: Hardcoded Colors in CSS Classes (globals.css)
+Many CSS classes still use hardcoded hex colors instead of CSS variables. For example:
+- `.toast` → `background: #ffffff` (should use `var(--wu-bg-surface)`)
+- `.card` → `background: #ffffff` 
+- `.card-elevated` → `background: #f5f3ef`
+- `.data-table th` → `background: #1b1c1a`
+- And 80+ more...
+
+### Issue 2: Hardcoded Inline Styles in Components
+Multiple TSX files have inline hardcoded colors that don't respond to theme changes:
+- `WatchlistPanel.tsx` - hardcoded `#ffffff`, `#1b1c1a`, `#80765f`
+- `PositionList.tsx` - hardcoded `#ff9800`, `#ef5350`, `#66bb6a`
+- `OrderPanel.tsx` - hardcoded colors
+- `InstrumentSearch.tsx` - hardcoded colors
+- `TradingChart.tsx` - hardcoded chart colors
+- `Header.tsx` - hardcoded colors
+- `ChartControls.tsx` - hardcoded accent colors
+- And more...
+
+---
+
+## Fix Plan
+
+**Step 1**: Update `globals.css` to replace all hardcoded colors with CSS variables
+
+**Step 2**: Update components to use CSS variables via inline styles instead of hardcoded hex colors
+
+**Step 3**: Test dark mode thoroughly
+
+---
+
+### Files that need fixing (by priority):
+
+**High Priority (affects dark theme most):**
+1. `src/app/globals.css` - ~80 hardcoded colors to fix
+2. `src/components/Trading/WatchlistPanel.tsx`
+3. `src/components/Trading/PositionList.tsx`
+4. `src/components/Trading/OrderPanel.tsx`
+5. `src/components/Trading/InstrumentSearch.tsx`
+
+**Medium Priority:**
+6. `src/components/Chart/TradingChart.tsx`
+7. `src/components/common/Header.tsx`
+8. `src/components/Chart/ChartControls.tsx`
+9. `src/components/Trading/TradeHistory.tsx`
+10. `src/components/Trading/TradeDetailModal.tsx`
+
+---
+
+Would you like me to proceed with Act Mode to fix these issues? I'll systematically replace all hardcoded colors with CSS variables.
