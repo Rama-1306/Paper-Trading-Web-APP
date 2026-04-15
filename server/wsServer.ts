@@ -267,6 +267,10 @@ let lastTickReceivedAt = 0; // epoch ms — updated on every Fyers message with 
 let fyersSocketInitializing = false; // true between skt=fyersSocket and the first connect/error/close
 let lastFyersResetAt = 0; // epoch ms — timestamp of most recent resetFyersSocket, used to suppress watchdog thrash
 let intentionalClose = false; // set true right before we close the socket ourselves so the 'close' handler doesn't re-trigger reconnect
+
+// Unique ID for this server process — written to DB on startup so we can
+// detect when two instances are running simultaneously (dual-deploy scenario).
+const INSTANCE_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 // Backoff state for managed reconnect after auth/network errors.
 // Reset to 0 on every successful Fyers `connect`.
 let reconnectAttempts = 0;
@@ -388,6 +392,68 @@ async function loadPersistedSharedBrokerToken(): Promise<string | null> {
   const token = rows[0]?.accessToken?.trim();
   return token && token.length > 0 ? token : null;
 }
+
+// ── Dual-instance detection ──────────────────────────────────────────────────
+// Each WS server process writes its unique INSTANCE_ID + timestamp to the DB
+// every 15 s. On every write it checks if a DIFFERENT instance also has a
+// recent heartbeat — that means two servers are running simultaneously and
+// they will keep kicking each other's Fyers socket.
+const HEARTBEAT_INTERVAL_MS = 15_000;
+const HEARTBEAT_STALE_MS    = 45_000; // a heartbeat older than this is considered dead
+
+async function writeHeartbeat(): Promise<void> {
+  try {
+    await ensureSharedBrokerStateTable();
+    await prisma.$executeRaw`
+      INSERT INTO "SharedBrokerState" ("provider", "accessToken", "updatedAt")
+      VALUES ('WS_INSTANCE', ${INSTANCE_ID}, NOW())
+      ON CONFLICT ("provider")
+      DO UPDATE SET
+        "accessToken" = EXCLUDED."accessToken",
+        "updatedAt"   = NOW()
+    `;
+  } catch (err) {
+    // Non-fatal — heartbeat is advisory only
+    console.warn('⚠️ Heartbeat write failed:', err);
+  }
+}
+
+async function checkDualInstance(): Promise<void> {
+  try {
+    await ensureSharedBrokerStateTable();
+    const rows = await prisma.$queryRaw<Array<{ accessToken: string | null; updatedAt: Date }>>`
+      SELECT "accessToken", "updatedAt"
+      FROM "SharedBrokerState"
+      WHERE "provider" = 'WS_INSTANCE'
+      LIMIT 1
+    `;
+    if (!rows.length) return;
+    const { accessToken: dbInstanceId, updatedAt } = rows[0];
+    if (!dbInstanceId || dbInstanceId === INSTANCE_ID) return;
+    const ageSec = Math.round((Date.now() - new Date(updatedAt).getTime()) / 1000);
+    if (ageSec < HEARTBEAT_STALE_MS / 1000) {
+      console.error(
+        `🚨 DUAL INSTANCE DETECTED — another WS server (${dbInstanceId}) ` +
+        `sent a heartbeat ${ageSec}s ago. ` +
+        `Two servers sharing the same Fyers token will kick each other's ` +
+        `socket every ~40s. Suspend the old Railway deployment immediately.`
+      );
+    }
+  } catch (err) {
+    console.warn('⚠️ Dual-instance check failed:', err);
+  }
+}
+
+// Start heartbeat loop: write own ID, check for rivals, repeat every 15 s.
+void (async () => {
+  await writeHeartbeat();
+  await checkDualInstance();
+  setInterval(async () => {
+    await writeHeartbeat();
+    await checkDualInstance();
+  }, HEARTBEAT_INTERVAL_MS);
+})();
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function ensurePrimaryBrokerTokenLoaded(): Promise<string | null> {
   if (primaryBrokerToken) return primaryBrokerToken;
