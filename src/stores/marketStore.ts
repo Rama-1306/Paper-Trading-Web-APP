@@ -189,16 +189,42 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       } else {
         console.warn(`No candle data for ${state.activeSymbol}: ${data.error || 'empty response'}`);
         set({ candles: [] });
+        // Auto-retry once after 3 s — handles WS server still warming up
+        setTimeout(() => {
+          if (get().candles.length === 0) {
+            console.log('Retrying fetchHistory after empty response...');
+            void get().fetchHistory();
+          }
+        }, 3000);
       }
     } catch (err) {
       console.error('Failed to load history:', err);
       set({ candles: [] });
+      // Retry once after 3 s on network error
+      setTimeout(() => {
+        if (get().candles.length === 0) {
+          console.log('Retrying fetchHistory after error...');
+          void get().fetchHistory();
+        }
+      }, 3000);
     }
   },
 
   initSocket: () => {
     const { socket, connectionStatus } = get();
-    if (socket) return; // Already initialized
+
+    if (socket) {
+      // Socket already exists — re-subscribe active symbol and reload candles
+      // if empty. This handles page-navigation re-mounts where the socket
+      // persists across routes but subscriptions or history may have been lost.
+      if (socket.connected) {
+        socket.emit('subscribe', [get().activeSymbol]);
+        if (get().candles.length === 0) {
+          void get().fetchHistory();
+        }
+      }
+      return;
+    }
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('fyers_access_token') : null;
     set({ connectionStatus: { ...connectionStatus, isAuthenticated: !!token } });
@@ -224,8 +250,18 @@ export const useMarketStore = create<MarketState>((set, get) => ({
         marketStatus: computeMarketStatus(),
       }));
 
-      // Auto-subscribe to the active symbol
+      // Subscribe active symbol
       newSocket.emit('subscribe', [get().activeSymbol]);
+
+      // Re-subscribe open position symbols so a WS server restart never drops them
+      try {
+        const { useTradingStore } = require('@/stores/tradingStore');
+        const positions = useTradingStore.getState().positions as Array<{ isOpen: boolean; symbol: string }>;
+        const openSymbols = positions.filter((p: any) => p.isOpen).map((p: any) => p.symbol as string);
+        if (openSymbols.length > 0) {
+          newSocket.emit('subscribe', openSymbols);
+        }
+      } catch {}
 
       // Fetch historical candles for the chart
       get().fetchHistory();

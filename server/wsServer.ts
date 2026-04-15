@@ -263,6 +263,7 @@ let ensureSharedStatePromise: Promise<void> | null = null;
 let skt: any = null;
 let isProcessingOrders = false;
 let fyersFeedLive = false;
+let lastTickReceivedAt = 0; // epoch ms — updated on every Fyers message with real ticks
 // Backoff state for managed reconnect after auth/network errors.
 // Reset to 0 on every successful Fyers `connect`.
 let reconnectAttempts = 0;
@@ -496,6 +497,7 @@ function initFyersSocket(token: string, forceReconnect = false) {
     });
 
     if (ticks.length > 0) {
+      lastTickReceivedAt = Date.now();
       if (!fyersFeedLive) {
         fyersFeedLive = true;
         io.emit('feed_status', { live: true });
@@ -1555,6 +1557,29 @@ void ensurePrimaryBrokerTokenLoaded().then((token) => {
     initFyersSocket(token);
   }
 });
+
+// Feed watchdog — detects when the Fyers socket silently stops delivering ticks
+// without firing a close/error event (e.g. idle network drop, carrier NAT timeout).
+// If feed is marked live but no tick arrived in the last 90 s, force a reconnect.
+// 90 s is conservative: during market hours ticks come every few seconds; outside
+// hours the feed is legitimately quiet, so we only check when activeSymbols > 0.
+const FEED_WATCHDOG_MS = 30_000;
+const FEED_STALE_THRESHOLD_MS = 90_000;
+setInterval(() => {
+  if (!fyersFeedLive) return;
+  if (activeSymbols.size === 0) return;
+  if (lastTickReceivedAt === 0) return; // haven't received any tick yet this session
+  const staleness = Date.now() - lastTickReceivedAt;
+  if (staleness > FEED_STALE_THRESHOLD_MS) {
+    console.warn(
+      `⚠️ Feed watchdog: no ticks for ${Math.round(staleness / 1000)}s — forcing reconnect`
+    );
+    fyersFeedLive = false;
+    io.emit('feed_status', { live: false });
+    resetFyersSocket('feed stale — watchdog');
+    void refreshTokenAndReconnect('feed watchdog');
+  }
+}, FEED_WATCHDOG_MS);
 
 // Periodically poll PostgreSQL for a new Fyers access token. This is the
 // safety net for the daily expiry case: when the admin re-authenticates in

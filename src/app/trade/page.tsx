@@ -126,6 +126,19 @@ export default function ChartPage() {
     useTradingStore.getState().fetchTrades();
   }, [isSocketConnected]);
 
+  // Feed health check: if the feed is live but candles are empty (history fetch
+  // failed or raced with a reconnect), retry history every 10 s until they load.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const ms = useMarketStore.getState();
+      if (ms.connectionStatus.isFeedLive && ms.candles.length === 0) {
+        console.warn('Health check: feed live but candles empty — refetching history');
+        void ms.fetchHistory();
+      }
+    }, 10_000);
+    return () => clearInterval(id);
+  }, []);
+
   const handleRefresh = useCallback(async () => {
     reconnectSocket();
     await Promise.all([
