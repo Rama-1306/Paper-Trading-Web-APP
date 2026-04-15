@@ -18,6 +18,51 @@
    Light Theme Based on Stitch Design
    ═══════════════════════════════════════════════════════════════ */
 
+/* ─── Theme CSS Variables ───────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --wu-bg-base: #fbf9f5;
+  --wu-bg-surface: #ffffff;
+  --wu-bg-surface-raised: #f5f3ef;
+  --wu-bg-surface-sunken: #f0ede6;
+  --wu-bg-inverse: #1b1c1a;
+
+  /* Borders & dividers */
+  --wu-border-subtle: #e4e2de;
+  --wu-border-strong: #80765f;
+
+  /* Text */
+  --wu-text-primary: #1b1c1a;
+  --wu-text-secondary: #4e4632;
+  --wu-text-muted: #80765f;
+  --wu-text-inverse: #ffffff;
+
+  /* Brand / accent */
+  --wu-accent: #745b00;
+  --wu-accent-hover: #8a6d00;
+  --wu-accent-fg: #ffffff;
+  --wu-accent-container: #ffcc00;
+  --wu-accent-container-fg: #1b1c1a;
+
+  /* Semantic */
+  --wu-profit: #00875a;
+  --wu-loss: #ba1a1a;
+  --wu-buy: #4da6ff;
+  --wu-sell: #ff9800;
+  --wu-warning: #d47a00;
+
+  /* Chart */
+  --wu-chart-grid: #e4e2de;
+  --wu-chart-candle-up: #00875a;
+  --wu-chart-candle-down: #ba1a1a;
+  --wu-chart-volume-up: rgba(0, 135, 90, 0.35);
+  --wu-chart-volume-down: rgba(186, 26, 26, 0.35);
+
+  /* Scrollbar */
+  --wu-scrollbar: #d2c5ab;
+  --wu-scrollbar-hover: #80765f;
+}
+
 /* ─── Base Styles ─────────────────────────────────────────── */
 html {
   height: 100%;
@@ -29,8 +74,8 @@ body {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  color: #1b1c1a;
-  background: #fbf9f5;
+  color: var(--wu-text-primary);
+  background: var(--wu-bg-base);
   height: 100%;
 }
 
@@ -45,12 +90,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d2c5ab;
+  background: var(--wu-scrollbar);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #80765f;
+  background: var(--wu-scrollbar-hover);
 }
 
 /* ─── Ledger Line Input Style ─────────────────────────────── */
@@ -290,17 +335,21 @@ body {
   justify-content: center;
   transition: background 0.15s;
 }
+
 .oc-wl-btn-ce {
   background: rgba(41, 121, 255, 0.12);
   color: #2979ff;
 }
+
 .oc-wl-btn-ce:hover {
   background: rgba(41, 121, 255, 0.25);
 }
+
 .oc-wl-btn-pe {
   background: rgba(255, 109, 0, 0.12);
   color: #e65100;
 }
+
 .oc-wl-btn-pe:hover {
   background: rgba(255, 109, 0, 0.25);
 }
@@ -312,6 +361,7 @@ body {
   z-index: 200;
   pointer-events: none;
 }
+
 .wl-modal-popup {
   position: fixed;
   z-index: 201;
@@ -323,6 +373,7 @@ body {
   pointer-events: all;
   overflow: hidden;
 }
+
 .wl-modal-header {
   display: flex;
   align-items: center;
@@ -330,6 +381,7 @@ body {
   padding: 10px 14px 8px;
   border-bottom: 1px solid #e4e2de;
 }
+
 .wl-modal-title {
   font-size: 11px;
   font-weight: 700;
@@ -337,6 +389,7 @@ body {
   letter-spacing: 0.4px;
   color: #1b1c1a;
 }
+
 .wl-modal-close {
   background: none;
   border: none;
@@ -346,9 +399,11 @@ body {
   padding: 0;
   line-height: 1;
 }
+
 .wl-modal-close:hover {
   color: #1b1c1a;
 }
+
 .wl-modal-symbol {
   padding: 8px 14px;
   font-size: 12px;
@@ -357,11 +412,13 @@ body {
   background: rgba(116, 91, 0, 0.06);
   border-bottom: 1px solid #e4e2de;
 }
+
 .wl-modal-list {
   max-height: 180px;
   overflow-y: auto;
   padding: 4px 0;
 }
+
 .wl-modal-loading,
 .wl-modal-empty {
   padding: 12px 14px;
@@ -369,6 +426,7 @@ body {
   color: #80765f;
   text-align: center;
 }
+
 .wl-modal-item {
   display: flex;
   align-items: center;
@@ -381,17 +439,21 @@ body {
   text-align: left;
   transition: background 0.1s;
 }
+
 .wl-modal-item:hover:not(:disabled) {
   background: #f5f3ef;
 }
+
 .wl-modal-item-added {
   opacity: 0.6;
   cursor: default;
 }
+
 .wl-modal-item-icon {
   font-size: 13px;
   flex-shrink: 0;
 }
+
 .wl-modal-item-name {
   font-size: 12px;
   font-weight: 500;
@@ -401,6 +463,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .wl-modal-item-count {
   font-size: 10px;
   color: #80765f;
@@ -409,6 +472,7 @@ body {
   padding: 1px 6px;
   flex-shrink: 0;
 }
+
 .wl-modal-item-badge {
   font-size: 9px;
   font-weight: 700;
@@ -418,10 +482,12 @@ body {
   padding: 1px 5px;
   flex-shrink: 0;
 }
+
 .wl-modal-item-spinner {
   font-size: 11px;
   color: #80765f;
 }
+
 .wl-modal-new-btn {
   display: block;
   width: 100%;
@@ -436,15 +502,18 @@ body {
   text-align: center;
   transition: background 0.1s;
 }
+
 .wl-modal-new-btn:hover {
   background: rgba(116, 91, 0, 0.06);
 }
+
 .wl-modal-new-form {
   display: flex;
   gap: 6px;
   padding: 8px 10px;
   border-top: 1px solid #e4e2de;
 }
+
 .wl-modal-input {
   flex: 1;
   padding: 6px 8px;
@@ -455,9 +524,11 @@ body {
   color: #1b1c1a;
   outline: none;
 }
+
 .wl-modal-input:focus {
   border-color: #745b00;
 }
+
 .wl-modal-btn-create {
   padding: 6px 10px;
   font-size: 10px;
@@ -469,6 +540,7 @@ body {
   cursor: pointer;
   white-space: nowrap;
 }
+
 .wl-modal-btn-create:disabled {
   opacity: 0.5;
   cursor: default;
@@ -1279,4 +1351,105 @@ textarea:focus {
 .page-heading-meta {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK THEME
+   ═══════════════════════════════════════════════════════════════ */
+
+[data-theme="dark"] {
+  /* Backgrounds */
+  --wu-bg-base: #0f0e0c;
+  --wu-bg-surface: #1a1816;
+  --wu-bg-surface-raised: #252220;
+  --wu-bg-surface-sunken: #0a0908;
+  --wu-bg-inverse: #fbf9f5;
+
+  /* Borders & dividers */
+  --wu-border-subtle: #2e2a26;
+  --wu-border-strong: #6b6459;
+
+  /* Text */
+  --wu-text-primary: #f0ede6;
+  --wu-text-secondary: #c5bfb3;
+  --wu-text-muted: #8a8273;
+  --wu-text-inverse: #1b1c1a;
+
+  /* Brand / accent */
+  --wu-accent: #ffcc00;
+  --wu-accent-hover: #ffd733;
+  --wu-accent-fg: #1b1c1a;
+  --wu-accent-container: #745b00;
+  --wu-accent-container-fg: #ffffff;
+
+  /* Semantic */
+  --wu-profit: #22c55e;
+  --wu-loss: #ef4444;
+  --wu-buy: #60a5fa;
+  --wu-sell: #fb923c;
+
+  /* Chart */
+  --wu-chart-grid: #2e2a26;
+  --wu-chart-candle-up: #22c55e;
+  --wu-chart-candle-down: #ef4444;
+  --wu-chart-volume-up: rgba(34, 197, 94, 0.35);
+  --wu-chart-volume-down: rgba(239, 68, 68, 0.35);
+
+  /* Scrollbar */
+  --wu-scrollbar: #3a3530;
+  --wu-scrollbar-hover: #5a554d;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COLOR VARIANTS - OCEAN
+   ═══════════════════════════════════════════════════════════════ */
+
+[data-theme="ocean"] {
+  --wu-accent: #0284c7;
+  --wu-accent-hover: #0369a1;
+  --wu-accent-container: #7dd3fc;
+}
+
+[data-theme="ocean-dark"] {
+  --wu-accent: #38bdf8;
+  --wu-accent-hover: #7dd3fc;
+  --wu-accent-fg: #0c4a6e;
+  --wu-accent-container: #0369a1;
+  --wu-accent-container-fg: #e0f2fe;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COLOR VARIANTS - FOREST
+   ═══════════════════════════════════════════════════════════════ */
+
+[data-theme="forest"] {
+  --wu-accent: #15803d;
+  --wu-accent-hover: #166534;
+  --wu-accent-container: #86efac;
+}
+
+[data-theme="forest-dark"] {
+  --wu-accent: #4ade80;
+  --wu-accent-hover: #86efac;
+  --wu-accent-fg: #14532d;
+  --wu-accent-container: #166534;
+  --wu-accent-container-fg: #dcfce7;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COLOR VARIANTS - PURPLE
+   ═══════════════════════════════════════════════════════════════ */
+
+[data-theme="purple"] {
+  --wu-accent: #7c3aed;
+  --wu-accent-hover: #6d28d9;
+  --wu-accent-container: #c4b5fd;
+}
+
+[data-theme="purple-dark"] {
+  --wu-accent: #a78bfa;
+  --wu-accent-hover: #c4b5fd;
+  --wu-accent-fg: #2e1065;
+  --wu-accent-container: #6d28d9;
+  --wu-accent-container-fg: #ede9fe;
 }
