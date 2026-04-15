@@ -264,6 +264,9 @@ let skt: any = null;
 let isProcessingOrders = false;
 let fyersFeedLive = false;
 let lastTickReceivedAt = 0; // epoch ms — updated on every Fyers message with real ticks
+let fyersSocketInitializing = false; // true between skt=fyersSocket and the first connect/error/close
+let lastFyersResetAt = 0; // epoch ms — timestamp of most recent resetFyersSocket, used to suppress watchdog thrash
+let intentionalClose = false; // set true right before we close the socket ourselves so the 'close' handler doesn't re-trigger reconnect
 // Backoff state for managed reconnect after auth/network errors.
 // Reset to 0 on every successful Fyers `connect`.
 let reconnectAttempts = 0;
@@ -298,10 +301,13 @@ function safelyCloseFyersSocket(instance: any) {
 function resetFyersSocket(reason: string) {
   if (skt) {
     console.log(`♻️ Resetting Fyers socket (${reason})`);
+    intentionalClose = true;
     safelyCloseFyersSocket(skt);
   }
   skt = null;
   activeSocketToken = null;
+  fyersSocketInitializing = false;
+  lastFyersResetAt = Date.now();
 }
 
 // Reload the latest token from PostgreSQL (bypassing the in-memory cache),
@@ -420,6 +426,15 @@ function initFyersSocket(token: string, forceReconnect = false) {
   const sameToken = activeSocketToken === normalizedToken;
   const connected = isFyersSocketConnected();
 
+  // In-flight guard: if an init is already in progress with the same token and
+  // we aren't forcing a reconnect, let the existing attempt complete instead of
+  // killing it. Without this, rapid successive subscribe() calls each spawn a
+  // fresh socket and reset the previous one mid-handshake, so the feed never
+  // stabilizes and no ticks ever arrive.
+  if (fyersSocketInitializing && skt && sameToken && !forceReconnect) {
+    return;
+  }
+
   if (skt) {
     if (!forceReconnect && sameToken && connected) {
       return;
@@ -437,12 +452,16 @@ function initFyersSocket(token: string, forceReconnect = false) {
 
   const fyersSocket = fyersDataSocket.getInstance(accessTokenFull);
   skt = fyersSocket;
+  fyersSocketInitializing = true;
+  intentionalClose = false;
 
   fyersSocket.on('connect', () => {
     console.log('🔗 Connected to Fyers Real-time Data WebSocket');
     skt = fyersSocket; // Reassign in case it was cleared after a previous close
     activeSocketToken = normalizedToken;
     fyersFeedLive = true;
+    fyersSocketInitializing = false;
+    lastTickReceivedAt = Date.now(); // seed watchdog baseline at connect so staleness is measured from now
     reconnectAttempts = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
@@ -510,6 +529,7 @@ function initFyersSocket(token: string, forceReconnect = false) {
   fyersSocket.on('error', (err: any) => {
     console.error('❌ Fyers WS Error:', err);
     fyersFeedLive = false;
+    fyersSocketInitializing = false;
     io.emit('feed_status', { live: false });
     const code = typeof err?.code === 'number' ? err.code : null;
     const msg = String(err?.message || err || '').toLowerCase();
@@ -531,13 +551,22 @@ function initFyersSocket(token: string, forceReconnect = false) {
   });
 
   fyersSocket.on('close', () => {
-    console.log('🔌 Fyers WS Closed — refreshing token from DB and reconnecting');
+    const wasIntentional = intentionalClose;
+    intentionalClose = false;
     fyersFeedLive = false;
+    fyersSocketInitializing = false;
     io.emit('feed_status', { live: false });
     skt = null;
     activeSocketToken = null;
-    // Always reload from DB on close — cheap, and the only way to recover
-    // from a token rotation that happened while we were connected.
+    if (wasIntentional) {
+      // We closed the socket ourselves (via resetFyersSocket). The caller is
+      // responsible for the next step — do NOT recursively refresh here or
+      // we stack duplicate reconnects on top of the caller's own reconnect.
+      console.log('🔌 Fyers WS Closed (intentional) — caller will reconnect');
+      return;
+    }
+    console.log('🔌 Fyers WS Closed — refreshing token from DB and reconnecting');
+    // Unexpected close: reload token from DB (covers rotation while connected).
     void refreshTokenAndReconnect('socket close');
   });
   try {
@@ -1490,7 +1519,12 @@ io.on('connection', (socket) => {
     } else {
       const tokenForFeed = token || primaryBrokerToken;
       if (tokenForFeed) {
-        initFyersSocket(tokenForFeed, !!token);
+        // Never force-reconnect from a subscribe: multiple browser components
+        // emit subscribe() back-to-back on page load (chart + positions + option
+        // chain + watchlist), and passing force=true would kill the in-flight
+        // socket each time. The in-flight guard inside initFyersSocket makes
+        // this a no-op when an init is already running.
+        initFyersSocket(tokenForFeed, false);
       } else {
         // Token not in memory yet — load from DB then start feed
         void ensurePrimaryBrokerTokenLoaded().then((persisted) => {
@@ -1565,10 +1599,16 @@ void ensurePrimaryBrokerTokenLoaded().then((token) => {
 // hours the feed is legitimately quiet, so we only check when activeSymbols > 0.
 const FEED_WATCHDOG_MS = 30_000;
 const FEED_STALE_THRESHOLD_MS = 90_000;
+const FEED_RESET_COOLDOWN_MS = 60_000; // don't fire watchdog again for a minute after a reset
 setInterval(() => {
   if (!fyersFeedLive) return;
   if (activeSymbols.size === 0) return;
   if (lastTickReceivedAt === 0) return; // haven't received any tick yet this session
+  // Cooldown: if we reset the socket recently (including due to a previous
+  // watchdog trip), give the new connection time to settle before we judge it
+  // stale again. Without this the watchdog can fire repeatedly on startup
+  // before any ticks arrive, stacking reconnects on top of each other.
+  if (Date.now() - lastFyersResetAt < FEED_RESET_COOLDOWN_MS) return;
   const staleness = Date.now() - lastTickReceivedAt;
   if (staleness > FEED_STALE_THRESHOLD_MS) {
     console.warn(
