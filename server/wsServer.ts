@@ -1569,7 +1569,12 @@ io.on('connection', (socket) => {
     void persistSharedBrokerToken(token).catch((error) => {
       console.error('Failed to persist shared broker token:', error);
     });
-    initFyersSocket(token, true);
+    // Only force-reconnect if the token has actually changed.
+    // Page reloads and navigation reconnect Socket.IO with the SAME token —
+    // forcing a Fyers socket reset each time is the root cause of the
+    // reconnect storm observed in production logs.
+    const tokenChanged = token !== activeSocketToken;
+    initFyersSocket(token, tokenChanged);
   } else {
     void ensurePrimaryBrokerTokenLoaded().then((persistedToken) => {
       if (persistedToken && !isFyersSocketConnected()) {
