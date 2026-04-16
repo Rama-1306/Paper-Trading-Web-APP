@@ -266,7 +266,30 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
   // ── Compact 2-row card layout (used in sidebar) ──────────────────────────
   if (compact) {
     return (
-      <div style={{ overflow: 'auto', height: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Day P&L strip */}
+        <div style={{
+          padding: '6px 10px',
+          background: 'var(--bg-card)',
+          borderBottom: '1px solid var(--border-primary)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+        }}>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Day P&L</span>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+              R: <span className={realizedPnlInfo.className} style={{ fontWeight: 700 }}>{realizedPnlInfo.text}</span>
+            </span>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+              U: <span className={unrealizedPnlInfo.className} style={{ fontWeight: 700 }}>{unrealizedPnlInfo.text}</span>
+            </span>
+            <span className={totalPnlInfo.className} style={{ fontWeight: 800, fontSize: '13px' }}>{totalPnlInfo.text}</span>
+          </div>
+        </div>
+
+        <div style={{ overflow: 'auto', flex: 1 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
           {nettedPositions.map((pos) => {
             const liveLtp = ticks[pos.symbol]?.ltp;
@@ -510,6 +533,7 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
             })}
           </>
         )}
+        </div>
       </div>
     );
   }

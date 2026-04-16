@@ -211,7 +211,7 @@ body {
   .toast-container {
     left: auto;
     right: 16px;
-    top: 80px;
+    top: 96px;
   }
 }
 
@@ -879,6 +879,34 @@ textarea:focus {
 .btn-sm {
   padding: 4px 12px;
   font-size: 12px;
+}
+
+/* ─── Danger Button ───────────────────────────────────────── */
+.btn-danger {
+  background: rgba(186, 26, 26, 0.1);
+  color: #ba1a1a;
+  border: 1px solid rgba(186, 26, 26, 0.35);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-danger:hover {
+  background: rgba(186, 26, 26, 0.2);
+}
+
+/* ─── Position Side Labels ────────────────────────────────── */
+.buy-side {
+  color: #00875a;
+  font-weight: 700;
+}
+
+.sell-side {
+  color: #ba1a1a;
+  font-weight: 700;
 }
 
 /* ─── Chart Controls ──────────────────────────────────────── */
