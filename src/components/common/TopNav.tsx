@@ -2,16 +2,14 @@
 
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { useUIStore } from '@/stores/uiStore';
-import { ThemeSwitcher } from './ThemeSwitcher';
 
 export function TopNav() {
   const { data: session } = useSession();
-  const pathname = usePathname();
   const account = useTradingStore((s) => s.account);
   const connectionStatus = useMarketStore((s) => s.connectionStatus);
   const notifications = useUIStore((s) => s.notifications);
@@ -34,37 +32,20 @@ export function TopNav() {
     await signOut({ callbackUrl: '/auth/signin' });
   };
 
-  const navLinks = [
-    { href: '/trade', label: 'Markets' },
-    { href: '/', label: 'Portfolio' },
-    { href: '/positions', label: 'Positions' },
-    ...(isAdmin ? [{ href: '/admin', label: 'Admin' }] : []),
-  ];
-
   return (
     <nav className="sticky top-0 z-50 h-16 flex items-center justify-between px-8 bg-surface-container-lowest border-b border-surface-dim/30 font-sans">
-      {/* Logo + nav links */}
-      <div className="flex items-center gap-8">
-        <Link href="/" className="text-xl font-black tracking-tighter text-on-background select-none">
-          WU Precision Ledger
+      {/* Logo */}
+      <div className="flex items-center">
+        <Link href="/" className="flex items-center select-none">
+          <Image
+            src="/sahaai-logo.png"
+            alt="SAHAAI"
+            width={140}
+            height={48}
+            className="h-10 w-auto object-contain"
+            priority
+          />
         </Link>
-        <div className="hidden md:flex items-center gap-6">
-          {navLinks.map((link) => {
-            const active = pathname === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`text-sm font-medium transition-colors duration-150 pb-0.5 ${active
-                  ? 'text-on-background border-b-2 border-primary-container font-bold'
-                  : 'text-surface-dim hover:text-on-background'
-                  }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-        </div>
       </div>
 
       {/* Right controls */}
@@ -85,9 +66,6 @@ export function TopNav() {
             {hasToken ? 'Reconnect' : 'Connect Fyers'}
           </a>
         )}
-
-        {/* Theme Switcher */}
-        <ThemeSwitcher />
 
         {/* Notifications */}
         <div className="relative">
