@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { useSession } from 'next-auth/react';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import { TopNav } from '@/components/common/TopNav';
 import { SideNav } from '@/components/common/SideNav';
@@ -13,6 +15,7 @@ import { formatINR } from '@/lib/utils/formatters';
 import type { Tick } from '@/types/market';
 
 export default function PortfolioDashboard() {
+  const { data: session } = useSession();
   const initSocket = useMarketStore(s => s.initSocket);
   const ticks = useMarketStore(s => s.ticks);
   const account = useTradingStore(s => s.account);
@@ -111,10 +114,20 @@ export default function PortfolioDashboard() {
 
               {/* ── Hero Header ──────────────────────────────── */}
               <header className="flex flex-col md:flex-row justify-between items-end gap-4">
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-primary">
-                    Precision Ledger v2.4
-                  </p>
+                <div className="space-y-2">
+                  <Image
+                    src="/sahaai-logo.png"
+                    alt="SAHAAI"
+                    width={160}
+                    height={56}
+                    className="h-12 w-auto object-contain"
+                    priority
+                  />
+                  {session?.user?.name && (
+                    <p className="text-sm font-semibold text-on-surface-variant">
+                      Welcome, {session.user.name}
+                    </p>
+                  )}
                   <h1 className="text-4xl font-extrabold tracking-tighter text-on-background">
                     Portfolio Overview
                   </h1>

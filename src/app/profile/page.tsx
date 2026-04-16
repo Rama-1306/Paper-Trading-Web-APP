@@ -9,6 +9,7 @@ import { TopNav } from '@/components/common/TopNav';
 import { SideNav } from '@/components/common/SideNav';
 import { ToastContainer } from '@/components/common/ToastContainer';
 import { MobileBottomNav } from '@/components/common/MobileBottomNav';
+import { ThemeSwitcher } from '@/components/common/ThemeSwitcher';
 import { formatINR } from '@/lib/utils/formatters';
 
 interface AccountData {
@@ -256,6 +257,12 @@ export default function ProfilePage() {
                 <h2 className="text-lg font-bold tracking-tight uppercase text-on-background mb-8">
                   Quick Actions
                 </h2>
+                <div className="mb-6 p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/20">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">
+                    Appearance
+                  </p>
+                  <ThemeSwitcher />
+                </div>
                 <div className="space-y-3">
                   <Link
                     href="/trade"
