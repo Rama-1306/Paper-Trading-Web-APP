@@ -44,7 +44,7 @@ export function Header() {
 
   const handleLogout = async () => {
     await clearBrowserCache();
-    await signOut({ callbackUrl: "/auth/signin" });
+    await signOut({ callbackUrl: "/" });
   };
 
   const balance = account?.balance ?? 1000000;

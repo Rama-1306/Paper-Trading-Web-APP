@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 
 const NAV_ITEMS = [
-  { href: '/', icon: 'dashboard', label: 'Dashboard' },
+  { href: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
   { href: '/trade', icon: 'candlestick_chart', label: 'Chart' },
   { href: '/positions', icon: 'account_balance_wallet', label: 'Positions' },
   { href: '/orders', icon: 'receipt_long', label: 'Orders' },
@@ -28,7 +28,7 @@ export function SideNav() {
       localStorage.removeItem('activeSymbol');
       localStorage.removeItem('activeLotSize');
     }
-    await signOut({ callbackUrl: '/auth/signin' });
+    await signOut({ callbackUrl: '/' });
   };
 
   return (

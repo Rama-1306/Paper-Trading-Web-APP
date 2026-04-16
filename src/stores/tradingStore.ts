@@ -80,7 +80,7 @@ export const useTradingStore = create<TradingState>((set) => ({
       set({ account: null, positions: [], orders: [], pendingOrders: [], trades: [] });
       if (typeof window !== 'undefined' && !authRedirectInProgress && !window.location.pathname.startsWith('/auth/')) {
         authRedirectInProgress = true;
-        window.location.href = '/auth/signin';
+        window.location.href = '/';
       }
     };
 
