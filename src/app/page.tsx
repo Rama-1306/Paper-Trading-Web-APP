@@ -116,11 +116,11 @@ export default function PortfolioDashboard() {
               <header className="flex flex-col md:flex-row justify-between items-end gap-4">
                 <div className="space-y-2">
                   <Image
-                    src="/sahaai-logo.png"
+                    src="/sahaai-favicon.png"
                     alt="SAHAAI"
-                    width={160}
-                    height={56}
-                    className="h-12 w-auto object-contain"
+                    width={72}
+                    height={72}
+                    className="h-16 w-16 object-contain"
                     priority
                   />
                   {session?.user?.name && (

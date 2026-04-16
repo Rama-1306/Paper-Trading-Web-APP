@@ -40,9 +40,9 @@ export function TopNav() {
           <Image
             src="/sahaai-logo.png"
             alt="SAHAAI"
-            width={140}
-            height={48}
-            className="h-10 w-auto object-contain"
+            width={220}
+            height={76}
+            className="h-14 w-auto object-contain"
             priority
           />
         </Link>
