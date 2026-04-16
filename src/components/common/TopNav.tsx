@@ -38,7 +38,7 @@ export function TopNav() {
       <div className="flex items-center">
         <Link href="/" className="flex items-center select-none">
           <Image
-            src="/sahaai-logo.png"
+            src="/sahaai-logo-v3.png"
             alt="SAHAAI"
             width={240}
             height={80}
