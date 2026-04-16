@@ -14,10 +14,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/auth/signin");
+      router.push("/");
     }
     if (status === "authenticated" && session?.user?.status === "DISABLED") {
-      signOut({ callbackUrl: "/auth/signin" });
+      signOut({ callbackUrl: "/" });
     }
   }, [status, router, session?.user?.status]);
 

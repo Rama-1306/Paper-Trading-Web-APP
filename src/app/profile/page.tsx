@@ -28,7 +28,7 @@ export default function ProfilePage() {
   const isAdmin = session?.user?.role === 'ADMIN';
 
   useEffect(() => {
-    if (status === 'unauthenticated') router.push('/auth/signin');
+    if (status === 'unauthenticated') router.push('/');
   }, [status, router]);
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function ProfilePage() {
         await Promise.all(keys.map(k => caches.delete(k)));
       }
     }
-    await signOut({ callbackUrl: '/auth/signin' });
+    await signOut({ callbackUrl: '/' });
   };
 
   if (status === 'loading' || loading) {
