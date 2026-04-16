@@ -18,7 +18,7 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["*.replit.dev", "*.pike.replit.dev"],
+  turbopack: {},
 };
 
 export default withPWA(nextConfig);
