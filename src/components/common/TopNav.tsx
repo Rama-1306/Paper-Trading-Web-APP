@@ -29,7 +29,7 @@ export function TopNav() {
       localStorage.removeItem('activeSymbol');
       localStorage.removeItem('activeLotSize');
     }
-    await signOut({ callbackUrl: '/auth/signin' });
+    await signOut({ callbackUrl: '/' });
   };
 
   return (

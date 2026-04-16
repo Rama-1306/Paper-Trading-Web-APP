@@ -28,7 +28,7 @@ export function SideNav() {
       localStorage.removeItem('activeSymbol');
       localStorage.removeItem('activeLotSize');
     }
-    await signOut({ callbackUrl: '/auth/signin' });
+    await signOut({ callbackUrl: '/' });
   };
 
   return (
