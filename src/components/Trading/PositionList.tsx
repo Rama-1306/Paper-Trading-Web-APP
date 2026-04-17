@@ -115,7 +115,11 @@ export function PositionList({ compact = false, onSelectInstrument }: { compact?
       .join(' · ');
 
   const getTargetSummary = (pos: any) => {
-    const targetOrders = pendingExitOrdersByPosition.get(pos.id)?.targets ?? [];
+    const rawTargets = pendingExitOrdersByPosition.get(pos.id)?.targets ?? [];
+    // SELL targets must be sorted descending: highest price = closest to entry = T1 hit first
+    const targetOrders = pos.side === 'SELL'
+      ? [...rawTargets].sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
+      : rawTargets;
     if (targetOrders.length > 0) return formatExitLevels(targetOrders, 'T');
     if (!pos.targetPrice) return '';
     const fallbackQty = pos.targetQty && pos.targetQty > 0 ? pos.targetQty : pos.quantity;

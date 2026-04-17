@@ -104,33 +104,33 @@ export async function routeSignal(signal: RouterSignal, hostUrl: string): Promis
     timestamp:   saved.created_at.toISOString(),
   };
 
-  let botNotified = false;
-  let botsAccepted = 0;
-
-  try {
-    const broadcastRes = await fetch(`${hostUrl}/api/signals/broadcast`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(broadcastPayload),
-    });
-    if (broadcastRes.ok) {
-      const data = await broadcastRes.json() as { accepted?: number };
-      botsAccepted  = data.accepted ?? 0;
-      botNotified   = botsAccepted > 0;
-    } else {
-      console.warn(`[SignalRouter] Broadcast returned ${broadcastRes.status}`);
+  // 3. Broadcast to bots in background — fire-and-forget so TradingView gets
+  //    a fast 200 before the bot responds (avoids "request took too long" timeouts).
+  //    Railway is a persistent process so the promise completes after response is sent.
+  void (async () => {
+    try {
+      const broadcastRes = await fetch(`${hostUrl}/api/signals/broadcast`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(broadcastPayload),
+      });
+      if (broadcastRes.ok) {
+        const data = await broadcastRes.json() as { accepted?: number };
+        const accepted = data.accepted ?? 0;
+        if (accepted > 0) {
+          await prisma.webhookSignal.update({
+            where: { id: saved.id },
+            data:  { bot_notified: true },
+          });
+          console.log(`[SignalRouter] Bot notified — ${accepted} bot(s) accepted signal ${saved.id}`);
+        }
+      } else {
+        console.warn(`[SignalRouter] Broadcast returned ${broadcastRes.status}`);
+      }
+    } catch (err) {
+      console.error('[SignalRouter] Background broadcast failed:', err);
     }
-  } catch (err) {
-    console.error('[SignalRouter] Broadcast call failed (bot may be offline):', err);
-  }
+  })();
 
-  // 4. Persist bot_notified flag
-  if (botNotified) {
-    await prisma.webhookSignal.update({
-      where: { id: saved.id },
-      data:  { bot_notified: true },
-    });
-  }
-
-  return { signal_id: saved.id, bot_notified: botNotified, bots_accepted: botsAccepted };
+  return { signal_id: saved.id, bot_notified: false, bots_accepted: 0 };
 }
