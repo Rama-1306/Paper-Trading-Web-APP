@@ -54,7 +54,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { getQuickMargin } from '@/lib/utils/margins';
+import { getQuickMargin, getLotSizeForSymbol } from '@/lib/utils/margins';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -91,7 +91,8 @@ function authenticateBot(req: NextRequest): boolean {
  */
 function resolveTargetQtys(
   totalQty: number,
-  levels: Array<{ price: number; qty?: number | null }>
+  levels: Array<{ price: number; qty?: number | null }>,
+  lotSize: number = 1,
 ): number[] | null {
   const explicit = levels.map((l) => (l.qty !== undefined && l.qty !== null ? Math.floor(Number(l.qty)) : null));
   for (const q of explicit) {
@@ -108,18 +109,20 @@ function resolveTargetQtys(
     return explicit.map((q) => q as number);
   }
 
-  const base = Math.floor(remaining / unspecifiedCount);
-  const leftover = remaining - base * unspecifiedCount;
+  // Work in whole lots so each unspecified target gets a lot-aligned qty.
+  // Leftover lots (after even distribution) go to the FIRST unspecified
+  // target (T1) — closest to market, so the extra partial lot exits earliest.
+  const totalLots = Math.floor(remaining / lotSize);
+  const baseLots = Math.floor(totalLots / unspecifiedCount);
+  const leftoverLots = totalLots - baseLots * unspecifiedCount;
 
-  // Distribute base to each unspecified, push leftover onto the last unspecified.
   let unspecifiedIdx = 0;
-  return explicit.map((q, i) => {
+  return explicit.map((q) => {
     if (q !== null) return q;
     unspecifiedIdx += 1;
-    const isLastUnspecified = unspecifiedIdx === unspecifiedCount;
-    const assigned = base + (isLastUnspecified ? leftover : 0);
-    void i;
-    return assigned;
+    const isFirstUnspecified = unspecifiedIdx === 1;
+    const assignedLots = baseLots + (isFirstUnspecified ? leftoverLots : 0);
+    return assignedLots * lotSize;   // may be 0 → caller skips qty < 1
   });
 }
 
@@ -484,7 +487,7 @@ export async function POST(req: NextRequest) {
         });
 
         if (validAvgTargets.length > 0) {
-          const avgQtys = resolveTargetQtys(quantity, validAvgTargets);
+          const avgQtys = resolveTargetQtys(quantity, validAvgTargets, getLotSizeForSymbol(symbol));
           if (!avgQtys) {
             console.warn(
               `[BotOrder] Averaged into ${samePosition.id} — invalid target qty allocation (sum > ${quantity}); targets skipped`
@@ -549,7 +552,7 @@ export async function POST(req: NextRequest) {
 
       let resolvedQtys: number[] = [];
       if (targetLevels.length > 0) {
-        const r = resolveTargetQtys(quantity, targetLevels);
+        const r = resolveTargetQtys(quantity, targetLevels, getLotSizeForSymbol(symbol));
         if (!r) {
           return reject(
             `Target qty allocation invalid — t1_qty/t2_qty/t3_qty must each be >= 1 and sum to <= ${quantity}`,
