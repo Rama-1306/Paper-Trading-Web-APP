@@ -38,9 +38,15 @@ export async function GET() {
       if (positionIds.length > 0) {
         const positions = await prisma.position.findMany({
           where: { id: { in: positionIds } },
-          select: { id: true, pnl: true },
+          select: { id: true, pnl: true, isOpen: true, currentPrice: true, entryPrice: true, quantity: true, side: true },
         });
-        positionPnlMap = Object.fromEntries(positions.map((p) => [p.id, p.pnl]));
+        positionPnlMap = Object.fromEntries(positions.map((p) => {
+          if (p.isOpen && p.currentPrice && p.entryPrice && p.currentPrice !== 0) {
+            const multiplier = p.side === 'BUY' ? 1 : -1;
+            return [p.id, multiplier * (p.currentPrice - p.entryPrice) * p.quantity];
+          }
+          return [p.id, p.pnl];
+        }));
       }
 
       pnlMap = Object.fromEntries(
