@@ -427,19 +427,6 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        // Resize any existing SL-M order for this position to protect the new
-        // combined qty. LIMIT target orders keep their original per-target qty.
-        await tx.order.updateMany({
-          where: {
-            accountId:  account.id,
-            positionId: samePosition.id,
-            status:     'PENDING',
-            orderType:  'SL-M',
-            side:       exitSide,
-          },
-          data: { quantity: newQty },
-        });
-
         const balanceChange = isOption ? (sideUpper === 'BUY' ? -premium : premium) : 0;
         await tx.account.update({
           where: { id: account.id },
@@ -454,13 +441,82 @@ export async function POST(req: NextRequest) {
           data:  { positionId: samePosition.id },
         });
 
-        if (sl != null || t1 != null || t2 != null || t3 != null) {
-          console.warn(
-            `[BotOrder] Averaged into ${samePosition.id} — IGNORED bot's sl/t1/t2/t3. ` +
-            `SL-M order qty was bumped to ${newQty}; LIMIT targets unchanged. ` +
-            `Update targets via /api/positions PUT if needed.`
-          );
+        // ── Bot's sl / t1 / t2 / t3 → pending orders for THIS fill's qty ───
+        // Existing pending orders for the pre-average qty are left untouched
+        // so each fill keeps its own risk levels. Invalid-side SL/targets are
+        // silently skipped (not the whole order rejected) — averaging already
+        // succeeded, so we never want to unwind it over a bad target value.
+        if (sl != null) {
+          const e = slSideError(sideUpper, fillPrice, Number(sl));
+          if (e) {
+            console.warn(`[BotOrder] Averaged into ${samePosition.id} — skipping SL: ${e}`);
+          } else {
+            await tx.order.create({
+              data: {
+                accountId:    account.id,
+                positionId:   samePosition.id,
+                symbol,
+                displayName,
+                side:         exitSide,
+                orderType:    'SL-M',
+                quantity,                         // bot's fill qty, not combined
+                price:        null,
+                triggerPrice: Number(sl),
+                status:       'PENDING',
+                intent:       'CLOSE',
+              },
+            });
+          }
         }
+
+        const avgTargetLevels: Array<{ price: number; qty?: number | null; label: string }> = [];
+        if (t1 != null) avgTargetLevels.push({ price: Number(t1), qty: t1_qty, label: 't1' });
+        if (t2 != null) avgTargetLevels.push({ price: Number(t2), qty: t2_qty, label: 't2' });
+        if (t3 != null) avgTargetLevels.push({ price: Number(t3), qty: t3_qty, label: 't3' });
+
+        const validAvgTargets = avgTargetLevels.filter((t) => {
+          const e = targetSideError(sideUpper, fillPrice, t.price, t.label);
+          if (e) {
+            console.warn(`[BotOrder] Averaged into ${samePosition.id} — skipping ${t.label}: ${e}`);
+            return false;
+          }
+          return true;
+        });
+
+        if (validAvgTargets.length > 0) {
+          const avgQtys = resolveTargetQtys(quantity, validAvgTargets);
+          if (!avgQtys) {
+            console.warn(
+              `[BotOrder] Averaged into ${samePosition.id} — invalid target qty allocation (sum > ${quantity}); targets skipped`
+            );
+          } else {
+            for (let i = 0; i < validAvgTargets.length; i++) {
+              const lvl = validAvgTargets[i];
+              const qty = avgQtys[i];
+              if (qty < 1) continue;
+              await tx.order.create({
+                data: {
+                  accountId:    account.id,
+                  positionId:   samePosition.id,
+                  symbol,
+                  displayName,
+                  side:         exitSide,
+                  orderType:    'LIMIT',
+                  quantity:     qty,
+                  price:        lvl.price,
+                  triggerPrice: null,
+                  status:       'PENDING',
+                  intent:       'CLOSE',
+                },
+              });
+            }
+          }
+        }
+
+        console.log(
+          `[BotOrder] Averaged into ${samePosition.id} (qty ${oldQty}→${newQty}) | ` +
+          `new pending orders for this fill: SL=${sl ?? '-'} T1=${t1 ?? '-'} T2=${t2 ?? '-'} T3=${t3 ?? '-'}`
+        );
 
         return { kind: 'averaged', orderId: order.id, positionId: samePosition.id };
       }
