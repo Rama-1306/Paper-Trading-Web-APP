@@ -34,7 +34,7 @@ import prisma from '@/lib/db';
 const OFFLINE_THRESHOLD_MS = 5 * 60 * 1000;
 
 // Max wait time for each bot to respond
-const BOT_TIMEOUT_MS = 10_000;
+const BOT_TIMEOUT_MS = 5_000;
 
 type BotResult = {
   user_id:     string;
