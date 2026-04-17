@@ -652,6 +652,22 @@ async function processTicksForOrders(ticks: any[]) {
     const tickMap: Record<string, number> = {};
     ticks.forEach(t => { tickMap[t.symbol] = t.ltp; globalTickCache[t.symbol] = t.ltp; });
 
+    // Auto-subscribe any open position symbol not yet in activeSymbols.
+    // Catches bot-created positions that bypass the client subscribe() path.
+    const openPositionSymbols = await prisma.position.findMany({
+      where: { isOpen: true, quantity: { gt: 0 } },
+      select: { symbol: true },
+    });
+    let newSymbolAdded = false;
+    for (const { symbol } of openPositionSymbols) {
+      if (symbol && !activeSymbols.has(symbol)) {
+        activeSymbols.add(symbol);
+        newSymbolAdded = true;
+        console.log(`📡 Auto-subscribed new position symbol: ${symbol}`);
+      }
+    }
+    if (newSymbolAdded) handleSymbolSync();
+
     // Reap any position whose quantity has hit zero BEFORE evaluating SL/
     // target or firing pending orders. Without this, an orphaned SL on a
     // zero-qty position can fire and create a phantom new opposite-side
