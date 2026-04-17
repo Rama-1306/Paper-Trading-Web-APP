@@ -104,12 +104,12 @@ export async function PATCH(
         // Cap exit at remaining qty so we never go negative.
         const cappedExit = Math.min(exitedQty, position.quantity);
         const remaining  = position.quantity - cappedExit;
-        // Promote to a full exit if the status says so OR if there's nothing
-        // left after this exit. Without the qty check, a T1_HIT that drains
-        // the last contract leaves the row at quantity=0, isOpen=true — the
-        // orphan-position bug.
-        const isFullExit = remaining <= 0
-          || ['SL_HIT', 'T3_HIT', 'EOD_EXIT', 'CLOSED', 'NET_OFF'].includes(status);
+        // Full exit ONLY if the order's qty drains the position. Never force a
+        // full close based on the status name — when a bot order has been
+        // averaged into a larger user-held position, SL_HIT / EOD_EXIT must
+        // close only the bot's portion, not wipe the whole position (which
+        // caused the "50qty vanished without exit record" bug).
+        const isFullExit = remaining <= 0;
 
         closedPosition = await prisma.position.update({
           where: { id: position.id },
