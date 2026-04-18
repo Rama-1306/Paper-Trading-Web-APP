@@ -32,6 +32,9 @@ export function InstrumentSearch({
   const [liveSearchResults, setLiveSearchResults] = useState<SymbolItem[]>([]);
   const [liveSearchLoading, setLiveSearchLoading] = useState(false);
   const [dropdownRect, setDropdownRect] = useState({ top: 0, left: 0, width: 400 });
+  const [starredWlId, setStarredWlId] = useState<string | null>(null);
+  const [starredSymbols, setStarredSymbols] = useState<Set<string>>(new Set());
+  const [starredItemIds, setStarredItemIds] = useState<Record<string, string>>({});
   
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -41,6 +44,47 @@ export function InstrumentSearch({
   useEffect(() => {
     setSymbolInput(activeSymbol);
   }, [activeSymbol]);
+
+  // Load Starred watchlist for star toggle
+  const refreshStarred = useCallback(() => {
+    fetch('/api/watchlists')
+      .then(r => r.json())
+      .then((lists: Array<{ id: string; name: string; items: Array<{ id: string; symbol: string }> }>) => {
+        const starred = Array.isArray(lists) ? lists.find(l => l.name === 'Starred') : null;
+        if (starred) {
+          setStarredWlId(starred.id);
+          setStarredSymbols(new Set(starred.items.map(i => i.symbol)));
+          const idMap: Record<string, string> = {};
+          starred.items.forEach(i => { idMap[i.symbol] = i.id; });
+          setStarredItemIds(idMap);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => { refreshStarred(); }, [refreshStarred]);
+
+  const toggleStar = async (e: React.MouseEvent, symbol: string, label: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!starredWlId) return;
+    if (starredSymbols.has(symbol)) {
+      const itemId = starredItemIds[symbol];
+      if (!itemId) return;
+      await fetch('/api/watchlists', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ watchlistId: starredWlId, removeItemId: itemId }),
+      });
+    } else {
+      await fetch('/api/watchlists', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ watchlistId: starredWlId, addSymbol: symbol, addDisplayName: label }),
+      });
+    }
+    refreshStarred();
+  };
 
   const fetchMcxSymbols = useCallback(async () => {
     if (mcxLoaded || mcxLoading) return;
@@ -280,11 +324,12 @@ export function InstrumentSearch({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     minHeight: '48px',
+                    gap: '8px',
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.background = '#f5f3ef'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  <div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ color: '#1b1c1a', fontWeight: 600 }}>{s.label}</div>
                     <div style={{ color: '#80765f', fontSize: '11px', marginTop: 1 }}>{s.value}</div>
                   </div>
@@ -293,6 +338,25 @@ export function InstrumentSearch({
                       Lot: {s.lotSize}
                     </span>
                   )}
+                  <button
+                    onMouseDown={(e) => toggleStar(e, s.value, s.label)}
+                    title={starredSymbols.has(s.value) ? 'Remove from Starred' : 'Add to Starred watchlist'}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      lineHeight: 1,
+                      padding: '2px 4px',
+                      flexShrink: 0,
+                      opacity: starredSymbols.has(s.value) ? 1 : 0.35,
+                      transition: 'opacity 0.15s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = starredSymbols.has(s.value) ? '1' : '0.35')}
+                  >
+                    {starredSymbols.has(s.value) ? '⭐' : '☆'}
+                  </button>
                 </div>
               </div>
             );

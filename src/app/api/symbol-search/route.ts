@@ -3,46 +3,49 @@ import axios from 'axios';
 
 const SYMBOL_MASTER_URLS: Record<string, string> = {
   'MCX_COM': 'https://public.fyers.in/sym_details/MCX_COM.csv',
-  'NSE_FO': 'https://public.fyers.in/sym_details/NSE_FO.csv',
+  'NSE_FO':  'https://public.fyers.in/sym_details/NSE_FO.csv',
+  'BSE_FO':  'https://public.fyers.in/sym_details/BSE_FO.csv',
 };
 
+// Only these index underlyings are allowed — no stock F&O
+const INDEX_UNDERLYINGS = new Set([
+  'NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'NIFTYNXT50',
+  'SENSEX', 'BANKEX',
+]);
+
 const MCX_LOT_SIZES: Record<string, number> = {
-  'CRUDEOIL': 100,
-  'CRUDEOILM': 10,
-  'NATGAS': 1250,
-  'NATGASMINI': 250,
-  'GOLD': 100,
-  'GOLDM': 10,
-  'GOLDGUINEA': 1,
-  'GOLDPETAL': 1,
-  'GOLDTEN': 10,
-  'SILVER': 30,
-  'SILVERM': 5,
-  'SILVERMIC': 1,
-  'COPPER': 2500,
-  'ALUMINIUM': 5000,
-  'ZINC': 5000,
-  'LEAD': 5000,
-  'NICKEL': 1500,
-  'MENTHAOIL': 360,
-  'COTTONCANDY': 25,
-  'CPO': 10,
+  'CRUDEOIL': 100, 'CRUDEOILM': 10,
+  'NATGAS': 1250, 'NATGASMINI': 250,
+  'GOLD': 100, 'GOLDM': 10, 'GOLDGUINEA': 1, 'GOLDPETAL': 1, 'GOLDTEN': 10,
+  'SILVER': 30, 'SILVERM': 5, 'SILVERMIC': 1,
+  'COPPER': 2500, 'ALUMINIUM': 5000, 'ZINC': 5000, 'LEAD': 5000,
+  'NICKEL': 1500, 'MENTHAOIL': 360, 'COTTONCANDY': 25, 'CPO': 10,
 };
 
 const NSE_LOT_SIZES: Record<string, number> = {
-  'BANKNIFTY': 30,
-  'NIFTY': 75,
-  'FINNIFTY': 65,
-  'MIDCPNIFTY': 120,
+  'NIFTY': 75, 'BANKNIFTY': 30, 'FINNIFTY': 65,
+  'MIDCPNIFTY': 120, 'NIFTYNXT50': 25,
+};
+
+const BSE_LOT_SIZES: Record<string, number> = {
+  'SENSEX': 10, 'BANKEX': 15,
+};
+
+// Query aliases — maps user input → underlying names to match
+const QUERY_ALIASES: Record<string, string[]> = {
+  'NIFTY50':    ['NIFTY'],
+  'NIFTY 50':   ['NIFTY'],
+  'NF':         ['NIFTY'],
+  'BN':         ['BANKNIFTY'],
+  'NIFTYBANK':  ['BANKNIFTY'],
+  'BANK NIFTY': ['BANKNIFTY'],
+  'SNX':        ['SENSEX'],
 };
 
 function getLotSize(underlying: string, exchange: string): number {
-  if (exchange === 'MCX') {
-    return MCX_LOT_SIZES[underlying] || 1;
-  }
-  if (exchange === 'NSE') {
-    return NSE_LOT_SIZES[underlying] || 1;
-  }
+  if (exchange === 'MCX') return MCX_LOT_SIZES[underlying] || 1;
+  if (exchange === 'NSE') return NSE_LOT_SIZES[underlying] || 1;
+  if (exchange === 'BSE') return BSE_LOT_SIZES[underlying] || 1;
   return 1;
 }
 
@@ -64,25 +67,17 @@ function parseCSVLine(line: string): ParsedSymbol | null {
   if (cols.length < 18) return null;
 
   const symbolTicker = cols[9] || '';
-  const description = cols[1] || '';
-  const expiryTs = parseInt(cols[8]) || 0;
-  const underlying = cols[13] || '';
-  const optionType = cols[16] || '';
+  const description  = cols[1] || '';
+  const expiryTs     = parseInt(cols[8]) || 0;
+  const underlying   = cols[13] || '';
+  const optionType   = cols[16] || '';
 
   if (!symbolTicker) return null;
 
   const exchange = symbolTicker.split(':')[0] || '';
-  const lotSize = getLotSize(underlying, exchange);
+  const lotSize  = getLotSize(underlying, exchange);
 
-  return {
-    symbol: symbolTicker,
-    description,
-    lotSize,
-    expiry: expiryTs,
-    underlying,
-    optionType,
-    exchange,
-  };
+  return { symbol: symbolTicker, description, lotSize, expiry: expiryTs, underlying, optionType, exchange };
 }
 
 async function fetchAllSymbols(): Promise<ParsedSymbol[]> {
@@ -96,12 +91,17 @@ async function fetchAllSymbols(): Promise<ParsedSymbol[]> {
   for (const [key, url] of Object.entries(SYMBOL_MASTER_URLS)) {
     try {
       const res = await axios.get(url, { timeout: 15000 });
-      const lines = res.data.split('\n');
+      const lines: string[] = res.data.split('\n');
 
-      for (let i = 0; i < lines.length; i++) {
-        const parsed = parseCSVLine(lines[i]);
+      for (const line of lines) {
+        const parsed = parseCSVLine(line);
         if (!parsed) continue;
-        if (parsed.expiry > 0 && parsed.expiry < now) continue;
+        if (parsed.expiry > 0 && parsed.expiry < now) continue; // skip expired
+
+        // MCX: allow all commodities; NSE/BSE: only index underlyings
+        const isMcx = parsed.exchange === 'MCX';
+        if (!isMcx && !INDEX_UNDERLYINGS.has(parsed.underlying)) continue;
+
         allSymbols.push(parsed);
       }
     } catch (err: any) {
@@ -115,43 +115,54 @@ async function fetchAllSymbols(): Promise<ParsedSymbol[]> {
   return allSymbols;
 }
 
-// Predefined index symbols returned for matching queries
-const NSE_INDICES = [
-  { value: 'NSE:NIFTYBANK-INDEX', label: 'Bank Nifty Index', group: 'NSE', lotSize: 30, expiry: 0 },
-  { value: 'NSE:NIFTY50-INDEX', label: 'Nifty 50 Index', group: 'NSE', lotSize: 75, expiry: 0 },
-  { value: 'NSE:FINNIFTY-INDEX', label: 'Fin Nifty Index', group: 'NSE', lotSize: 65, expiry: 0 },
-  { value: 'NSE:MIDCPNIFTY-INDEX', label: 'Mid Cap Nifty Index', group: 'NSE', lotSize: 120, expiry: 0 },
-  { value: 'BSE:SENSEX-INDEX', label: 'Sensex Index', group: 'BSE', lotSize: 10, expiry: 0 },
+// Expand query using aliases → returns list of strings to match against
+function expandQuery(query: string): string[] {
+  const upper = query.toUpperCase().trim();
+  const extras = QUERY_ALIASES[upper] || [];
+  return [upper, ...extras];
+}
+
+// Index feed symbols (always prepended when query matches)
+const INDEX_FEED_SYMBOLS = [
+  { value: 'NSE:NIFTYBANK-INDEX',  label: 'Bank Nifty Index',    group: 'NSE Index', lotSize: 30,  expiry: 0 },
+  { value: 'NSE:NIFTY50-INDEX',    label: 'Nifty 50 Index',      group: 'NSE Index', lotSize: 75,  expiry: 0 },
+  { value: 'NSE:FINNIFTY-INDEX',   label: 'Fin Nifty Index',     group: 'NSE Index', lotSize: 65,  expiry: 0 },
+  { value: 'NSE:MIDCPNIFTY-INDEX', label: 'Mid Cap Nifty Index', group: 'NSE Index', lotSize: 120, expiry: 0 },
+  { value: 'BSE:SENSEX-INDEX',     label: 'Sensex Index',        group: 'BSE Index', lotSize: 10,  expiry: 0 },
+  { value: 'BSE:BANKEX-INDEX',     label: 'Bankex Index',        group: 'BSE Index', lotSize: 15,  expiry: 0 },
 ];
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const query = (searchParams.get('q') || '').toUpperCase();
-    const exchange = searchParams.get('exchange') || '';
-    const type = searchParams.get('type') || 'futures';
-    const limit = parseInt(searchParams.get('limit') || '30');
+    const rawQuery = (searchParams.get('q') || '').trim();
+    const exchange  = searchParams.get('exchange') || '';
+    const type      = searchParams.get('type') || 'futures';
+    const limit     = parseInt(searchParams.get('limit') || '30');
 
     const allSymbols = await fetchAllSymbols();
+    const queries    = rawQuery.length >= 2 ? expandQuery(rawQuery) : [];
 
     let filtered = allSymbols.filter(s => {
-      // type=all: no instrument-type filter; type=futures: futures only; type=options: options only
       if (type === 'futures' && s.optionType !== 'XX') return false;
       if (type === 'options' && s.optionType !== 'CE' && s.optionType !== 'PE') return false;
-      // type=all: pass through all optionTypes
       if (exchange && s.exchange !== exchange.toUpperCase()) return false;
 
-      if (!query || query.length < 2) {
-        if (exchange === 'MCX') {
-          const MCX_POPULAR = ['CRUDEOIL', 'CRUDEOILM', 'NATGAS', 'NATGASMINI', 'GOLD', 'GOLDM', 'GOLDGUINEA', 'GOLDPETAL', 'SILVER', 'SILVERM', 'SILVERMIC', 'COPPER'];
+      if (queries.length === 0) {
+        // No query — return popular defaults
+        if (s.exchange === 'MCX') {
+          const MCX_POPULAR = ['CRUDEOIL', 'CRUDEOILM', 'NATGAS', 'NATGASMINI', 'GOLD', 'GOLDM', 'SILVER', 'SILVERM', 'COPPER'];
           return MCX_POPULAR.some(p => s.underlying === p);
         }
-        return false;
+        // NSE/BSE index futures default
+        return s.optionType === 'XX';
       }
 
-      return s.symbol.toUpperCase().includes(query) ||
-             s.description.toUpperCase().includes(query) ||
-             s.underlying.toUpperCase().includes(query);
+      return queries.some(q =>
+        s.symbol.toUpperCase().includes(q) ||
+        s.description.toUpperCase().includes(q) ||
+        s.underlying.toUpperCase().includes(q)
+      );
     });
 
     filtered.sort((a, b) => {
@@ -169,11 +180,14 @@ export async function GET(request: NextRequest) {
       expiry: s.expiry,
     }));
 
-    // Prepend matching NSE index symbols when query is provided
-    if (query.length >= 2) {
-      const matchingIndices = NSE_INDICES.filter(idx =>
-        idx.label.toUpperCase().includes(query) ||
-        idx.value.toUpperCase().includes(query)
+    // Prepend matching index feed symbols
+    if (queries.length > 0) {
+      const matchingIndices = INDEX_FEED_SYMBOLS.filter(idx =>
+        queries.some(q =>
+          idx.label.toUpperCase().includes(q) ||
+          idx.value.toUpperCase().includes(q) ||
+          idx.group.toUpperCase().includes(q)
+        )
       );
       results.unshift(...matchingIndices);
     }
