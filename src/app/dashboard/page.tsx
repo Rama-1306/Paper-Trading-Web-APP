@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import { TopNav } from '@/components/common/TopNav';
 import { SideNav } from '@/components/common/SideNav';
@@ -23,7 +22,6 @@ const CAL_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
 export default function PortfolioDashboard() {
   const router = useRouter();
   const { data: session } = useSession();
-  const router = useRouter();
   const initSocket = useMarketStore(s => s.initSocket);
   const ticks = useMarketStore(s => s.ticks);
   const account = useTradingStore(s => s.account);
@@ -140,21 +138,6 @@ export default function PortfolioDashboard() {
   const maxDrawdown = pnlValues.length ? Math.min(0, Math.min(...pnlValues)) : 0;
   const winTrades = trades.filter(t => t.pnl > 0).length;
   const winRate = trades.length > 0 ? Math.round((winTrades / trades.length) * 100) : 0;
-
-  // Trades calendar — P&L per day (IST)
-  const tradePnlByDay: Record<string, number> = {};
-  trades.forEach(t => {
-    const day = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
-    }).format(new Date(t.exitTime));
-    tradePnlByDay[day] = (tradePnlByDay[day] ?? 0) + t.pnl;
-  });
-  const calNow = new Date();
-  const calYear = calNow.getFullYear();
-  const calMonth = calNow.getMonth();
-  const calMonthName = calNow.toLocaleString('en-IN', { month: 'long' });
-  const calFirstDow = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
-  const calDaysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
 
   // Recent trades (last 5)
   const recentTrades = [...trades].sort(
@@ -279,7 +262,7 @@ export default function PortfolioDashboard() {
                   <div className="md:w-7/12 p-5 flex flex-col gap-3">
                     <div className="flex justify-between items-center">
                       <h3 className="text-xs font-black uppercase tracking-widest text-on-surface">Trades Calendar</h3>
-                      <span className="text-[10px] font-bold text-on-surface-variant">{calMonthName} {calYear}</span>
+                      <span className="text-[10px] font-bold text-on-surface-variant">{CAL_MONTH_NAMES[calMonth]} {calYear}</span>
                     </div>
 
                     {/* Day-of-week headers */}
@@ -301,7 +284,7 @@ export default function PortfolioDashboard() {
                         const dateStr = `${calYear}-${mm}-${dd}`;
                         const pnl = tradePnlByDay[dateStr];
                         const hasTraded = pnl !== undefined;
-                        const isToday = day === calNow.getDate();
+                        const isToday = isCalCurrentMonth && day === todayDashboard.getDate();
 
                         return (
                           <button
