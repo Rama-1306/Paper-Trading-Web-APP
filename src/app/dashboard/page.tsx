@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/common/ProtectedRoute';
 import { TopNav } from '@/components/common/TopNav';
 import { SideNav } from '@/components/common/SideNav';
@@ -16,6 +17,7 @@ import type { Tick } from '@/types/market';
 
 export default function PortfolioDashboard() {
   const { data: session } = useSession();
+  const router = useRouter();
   const initSocket = useMarketStore(s => s.initSocket);
   const ticks = useMarketStore(s => s.ticks);
   const account = useTradingStore(s => s.account);
@@ -103,6 +105,21 @@ export default function PortfolioDashboard() {
   const winTrades = trades.filter(t => t.pnl > 0).length;
   const winRate = trades.length > 0 ? Math.round((winTrades / trades.length) * 100) : 0;
 
+  // Trades calendar — P&L per day (IST)
+  const tradePnlByDay: Record<string, number> = {};
+  trades.forEach(t => {
+    const day = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date(t.exitTime));
+    tradePnlByDay[day] = (tradePnlByDay[day] ?? 0) + t.pnl;
+  });
+  const calNow = new Date();
+  const calYear = calNow.getFullYear();
+  const calMonth = calNow.getMonth();
+  const calMonthName = calNow.toLocaleString('en-IN', { month: 'long' });
+  const calFirstDow = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+  const calDaysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
   // Recent trades (last 5)
   const recentTrades = [...trades].sort(
     (a, b) => new Date(b.exitTime).getTime() - new Date(a.exitTime).getTime()
@@ -164,25 +181,54 @@ export default function PortfolioDashboard() {
               {/* ── Bento Grid ───────────────────────────────── */}
               <div className="grid grid-cols-12 gap-6">
 
-                {/* Col 1 – Account Summary (Net Liquidity + Stats) */}
+                {/* Col 1 – Account Summary + Trades Calendar */}
                 <section className="col-span-12 lg:col-span-6 bg-surface-container-lowest rounded-xl overflow-hidden flex flex-col md:flex-row shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)]">
-                  {/* Net Liquidity */}
-                  <div className="md:w-5/12 bg-surface-container-high p-8 flex flex-col justify-between">
+
+                  {/* Gray box – Net Liquidity + 4 stats + Buying Power */}
+                  <div className="md:w-5/12 bg-surface-container-high p-6 flex flex-col gap-4">
                     <div>
                       <p className="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">
                         Net Liquidity
                       </p>
-                      <h2 className="text-3xl font-black tracking-tight text-on-background">
+                      <h2 className="text-2xl font-black tracking-tight text-on-background">
                         {formatINR(netLiquidity)}
                       </h2>
-                      <p className={`text-sm font-bold mt-1 ${unrealizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <p className={`text-xs font-bold mt-0.5 ${unrealizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {unrealizedPnl >= 0 ? '+' : ''}{formatINR(unrealizedPnl)} unrealized
                       </p>
                     </div>
-                    <div className="mt-8 space-y-3">
+
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                      <div>
+                        <p className="text-[9px] uppercase font-bold text-on-surface-variant">Margin Used</p>
+                        <p className="text-sm font-bold text-on-background">{formatINR(usedMargin)}</p>
+                        <p className="text-[10px] text-on-surface-variant">{marginPct}% of capital</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] uppercase font-bold text-on-surface-variant">{"Day's P&L"}</p>
+                        <p className={`text-sm font-bold ${dayPnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {dayPnl >= 0 ? '+' : ''}{formatINR(dayPnl)}
+                        </p>
+                        <p className="text-[10px] text-on-surface-variant">Realized + unrealized</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] uppercase font-bold text-on-surface-variant">Open Profit</p>
+                        <p className={`text-sm font-bold ${unrealizedPnl >= 0 ? 'text-primary' : 'text-red-600'}`}>
+                          {unrealizedPnl >= 0 ? '+' : ''}{formatINR(unrealizedPnl)}
+                        </p>
+                        <p className="text-[10px] text-on-surface-variant">Unrealized gains</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] uppercase font-bold text-on-surface-variant">Cash Balance</p>
+                        <p className="text-sm font-bold text-on-background">{formatINR(balance)}</p>
+                        <p className="text-[10px] text-on-surface-variant">Settled funds</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-auto space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-bold text-on-surface-variant">BUYING POWER</span>
-                        <span className="text-sm font-bold">{formatINR(buyingPower)}</span>
+                        <span className="text-[9px] font-bold text-on-surface-variant uppercase">Buying Power</span>
+                        <span className="text-xs font-bold">{formatINR(buyingPower)}</span>
                       </div>
                       <div className="w-full bg-surface-container-highest h-1 rounded-full overflow-hidden">
                         <div
@@ -193,31 +239,68 @@ export default function PortfolioDashboard() {
                     </div>
                   </div>
 
-                  {/* Stats grid */}
-                  <div className="md:w-7/12 p-8 grid grid-cols-2 gap-6 content-center">
-                    <div className="space-y-1">
-                      <p className="text-[10px] uppercase font-bold text-on-surface-variant">Margin Used</p>
-                      <p className="text-xl font-bold text-on-background">{formatINR(usedMargin)}</p>
-                      <p className="text-xs text-on-surface-variant">{marginPct}% of capital</p>
+                  {/* White box – Trades Calendar */}
+                  <div className="md:w-7/12 p-5 flex flex-col gap-3">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-on-surface">Trades Calendar</h3>
+                      <span className="text-[10px] font-bold text-on-surface-variant">{calMonthName} {calYear}</span>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] uppercase font-bold text-on-surface-variant">{"Day's P&L"}</p>
-                      <p className={`text-xl font-bold ${dayPnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {dayPnl >= 0 ? '+' : ''}{formatINR(dayPnl)}
-                      </p>
-                      <p className="text-xs text-on-surface-variant">Realized + unrealized</p>
+
+                    {/* Day-of-week headers */}
+                    <div className="grid grid-cols-7 gap-1 text-center">
+                      {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+                        <div key={d} className="text-[9px] font-bold text-on-surface-variant py-1">{d}</div>
+                      ))}
+
+                      {/* Empty cells before first day */}
+                      {Array.from({ length: calFirstDow }).map((_, i) => (
+                        <div key={`e${i}`} />
+                      ))}
+
+                      {/* Day cells */}
+                      {Array.from({ length: calDaysInMonth }).map((_, i) => {
+                        const day = i + 1;
+                        const mm = String(calMonth + 1).padStart(2, '0');
+                        const dd = String(day).padStart(2, '0');
+                        const dateStr = `${calYear}-${mm}-${dd}`;
+                        const pnl = tradePnlByDay[dateStr];
+                        const hasTraded = pnl !== undefined;
+                        const isToday = day === calNow.getDate();
+
+                        return (
+                          <button
+                            key={day}
+                            onClick={() => hasTraded && router.push('/trades')}
+                            className={`
+                              flex flex-col items-center justify-center py-1 px-0.5 rounded transition-all min-h-[42px]
+                              ${isToday ? 'ring-2 ring-primary ring-offset-1' : ''}
+                              ${hasTraded
+                                ? pnl >= 0
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer'
+                                  : 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer'
+                                : 'text-on-surface-variant cursor-default'
+                              }
+                            `}
+                          >
+                            <span className="text-[10px] font-bold leading-none">{day}</span>
+                            {hasTraded && (
+                              <span className="text-[8px] font-bold leading-tight mt-0.5 truncate w-full text-center">
+                                {pnl >= 0 ? '+' : ''}{Math.abs(pnl) >= 1000 ? `${(pnl / 1000).toFixed(1)}k` : pnl.toFixed(0)}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] uppercase font-bold text-on-surface-variant">Open Profit</p>
-                      <p className={`text-xl font-bold ${unrealizedPnl >= 0 ? 'text-primary' : 'text-red-600'}`}>
-                        {unrealizedPnl >= 0 ? '+' : ''}{formatINR(unrealizedPnl)}
-                      </p>
-                      <p className="text-xs text-on-surface-variant">Unrealized gains</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] uppercase font-bold text-on-surface-variant">Cash Balance</p>
-                      <p className="text-xl font-bold text-on-background">{formatINR(balance)}</p>
-                      <p className="text-xs text-on-surface-variant">Settled funds</p>
+
+                    {/* Legend */}
+                    <div className="flex items-center gap-4 mt-auto">
+                      <span className="flex items-center gap-1 text-[9px] text-on-surface-variant">
+                        <span className="w-2.5 h-2.5 rounded bg-green-100 inline-block" /> Profit
+                      </span>
+                      <span className="flex items-center gap-1 text-[9px] text-on-surface-variant">
+                        <span className="w-2.5 h-2.5 rounded bg-red-100 inline-block" /> Loss
+                      </span>
                     </div>
                   </div>
                 </section>
