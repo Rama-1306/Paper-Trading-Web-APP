@@ -10,9 +10,6 @@ const NAV_ITEMS = [
   { href: '/positions', icon: 'account_balance_wallet', label: 'Positions' },
   { href: '/orders', icon: 'receipt_long', label: 'Orders' },
   { href: '/trades', icon: 'swap_horiz', label: 'Trades' },
-  { href: '/watchlist', icon: 'visibility', label: 'Watchlist' },
-  { href: '/option-chain', icon: 'table_chart', label: 'Option Chain' },
-  { href: '/alerts', icon: 'notifications', label: 'Alerts' },
   { href: '/backtester', icon: 'query_stats', label: 'Backtester' },
   { href: '/signal-log', icon: 'bolt', label: 'Signals' },
 ];
@@ -32,20 +29,7 @@ export function SideNav() {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-full z-40 flex flex-col pt-[104px] bg-surface-container-low w-20 hover:w-64 transition-all duration-300 group overflow-hidden border-r border-surface-dim/20">
-      {/* Account badge */}
-      <div className="flex items-center gap-4 px-5 py-5 mb-2">
-        <div className="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center shrink-0">
-          <span className="material-symbols-outlined text-on-primary-fixed text-lg">
-            account_balance_wallet
-          </span>
-        </div>
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-          <p className="font-bold text-[10px] uppercase tracking-widest text-on-surface">Global Ledger</p>
-          <p className="text-[10px] text-on-surface-variant">Verified Account</p>
-        </div>
-      </div>
-
+    <aside className="hidden md:flex fixed left-0 top-0 h-full z-40 flex flex-col pt-[168px] bg-surface-container-low w-20 hover:w-64 transition-all duration-300 group overflow-hidden border-r border-surface-dim/20">
       {/* Nav items */}
       <nav className="flex flex-col gap-1 px-2 flex-grow">
         {NAV_ITEMS.map(({ href, icon, label }) => {
