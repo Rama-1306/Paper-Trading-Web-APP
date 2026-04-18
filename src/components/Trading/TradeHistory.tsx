@@ -363,10 +363,10 @@ export function TradeHistory({ type }: TradeHistoryProps) {
 
   return (
     <>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'row', height: '100%', overflow: 'hidden' }}>
 
-        {/* ── UPPER HALF: Calendar ─────────────────────────────── */}
-        <div style={{ flexShrink: 0, borderBottom: '2px solid var(--border-primary)', background: 'var(--bg-secondary)' }}>
+        {/* ── LEFT: Calendar ──────────────────────────────────── */}
+        <div style={{ width: '55%', flexShrink: 0, borderRight: '2px solid var(--border-primary)', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
           {/* Month header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px 4px' }}>
@@ -397,7 +397,7 @@ export function TradeHistory({ type }: TradeHistoryProps) {
           </div>
 
           {/* Week rows */}
-          <div style={{ padding: '0 4px 6px' }}>
+          <div style={{ padding: '0 4px 6px', overflowY: 'auto', flex: 1 }}>
             {calendarWeeks.map((week, wi) => {
               const ws = weekStats(week);
               const isSelWeek = selectedWeekIdx === wi && selectedDate === null;
@@ -508,8 +508,8 @@ export function TradeHistory({ type }: TradeHistoryProps) {
           </div>
         </div>
 
-        {/* ── LOWER HALF: Trade list ────────────────────────────── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        {/* ── RIGHT: Trade list ────────────────────────────── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
 
           {/* Bottom header */}
           <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
@@ -14,7 +15,12 @@ import { useMarketStore, registerTickPositionUpdater } from '@/stores/marketStor
 import { formatINR } from '@/lib/utils/formatters';
 import type { Tick } from '@/types/market';
 
+const CAL_DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const CAL_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+
 export default function PortfolioDashboard() {
+  const router = useRouter();
   const { data: session } = useSession();
   const initSocket = useMarketStore(s => s.initSocket);
   const ticks = useMarketStore(s => s.ticks);
@@ -23,6 +29,11 @@ export default function PortfolioDashboard() {
   const trades = useTradingStore(s => s.trades);
   const orders = useTradingStore(s => s.orders);
   const [watchlistItems, setWatchlistItems] = useState<Array<{id: string, symbol: string, displayName: string}>>([]);
+  const _calToday = new Date();
+  const [calYear, setCalYear] = useState(_calToday.getFullYear());
+  const [calMonth, setCalMonth] = useState(_calToday.getMonth());
+  const prevCalMonth = () => { if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); } else setCalMonth(m => m - 1); };
+  const nextCalMonth = () => { if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); } else setCalMonth(m => m + 1); };
 
   useEffect(() => {
     registerTickPositionUpdater((incoming: Tick[]) => {
@@ -97,6 +108,31 @@ export default function PortfolioDashboard() {
   const buyingPower = balance - usedMargin;
   const bpPct = initial > 0 ? Math.min(100, (buyingPower / initial) * 100) : 0;
 
+  // ── Trades Calendar data ────────────────────────────────────
+  const tradePnlByDay = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const t of trades) {
+      const dk = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date(t.exitTime));
+      map[dk] = (map[dk] ?? 0) + t.pnl;
+    }
+    return map;
+  }, [trades]);
+
+  const calFirstDow = new Date(calYear, calMonth, 1).getDay();
+  const calDaysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const calWeeks: (number | null)[][] = [];
+  let calWeek: (number | null)[] = Array(calFirstDow).fill(null);
+  for (let d = 1; d <= calDaysInMonth; d++) {
+    calWeek.push(d);
+    if (calWeek.length === 7) { calWeeks.push(calWeek); calWeek = []; }
+  }
+  if (calWeek.length > 0) { while (calWeek.length < 7) calWeek.push(null); calWeeks.push(calWeek); }
+
+  const todayDashboard = new Date();
+  const isCalCurrentMonth = calYear === todayDashboard.getFullYear() && calMonth === todayDashboard.getMonth();
+
   // Best / worst P&L position for analytics
   const pnlValues = openPositions.map(p => p.pnl);
   const maxDrawdown = pnlValues.length ? Math.min(0, Math.min(...pnlValues)) : 0;
@@ -120,7 +156,7 @@ export default function PortfolioDashboard() {
           <SideNav />
 
           {/* Main content — centered with max-width */}
-          <main className="flex-1 md:ml-20 p-4 md:p-6 lg:p-8 pb-20 md:pb-8 transition-all duration-300">
+          <main className="flex-1 md:ml-20 p-2 md:p-3 lg:p-4 pb-20 md:pb-4 transition-all duration-300">
             <div className="space-y-4">
 
               {/* ── Hero Header ──────────────────────────────── */}
@@ -293,6 +329,77 @@ export default function PortfolioDashboard() {
                     )}
                   </div>
                 </aside>
+
+                {/* Trades Calendar */}
+                <section className="col-span-12 lg:col-span-6 bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)]">
+                  <div className="px-5 py-3 border-b border-surface-dim/20 flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-on-surface">Trades Calendar</h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={prevCalMonth}
+                        className="w-6 h-6 flex items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high text-sm font-bold transition-colors"
+                      >‹</button>
+                      <span className="text-[11px] font-bold text-on-surface min-w-[110px] text-center">
+                        {CAL_MONTH_NAMES[calMonth]} {calYear}
+                      </span>
+                      <button
+                        onClick={nextCalMonth}
+                        className="w-6 h-6 flex items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high text-sm font-bold transition-colors"
+                      >›</button>
+                      <Link href="/trades" className="text-[10px] font-bold text-primary underline ml-2">All Trades</Link>
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    {/* Day-of-week headers */}
+                    <div className="grid grid-cols-7 mb-1">
+                      {CAL_DAY_SHORT.map(d => (
+                        <div key={d} className="text-center text-[9px] font-bold uppercase tracking-wide text-on-surface-variant py-1">
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+                    {/* Calendar weeks */}
+                    {calWeeks.map((week, wi) => (
+                      <div key={wi} className="grid grid-cols-7 gap-0.5 mb-0.5">
+                        {week.map((d, ci) => {
+                          if (!d) return <div key={ci} className="h-12" />;
+                          const mo = String(calMonth).padStart(2, '0');
+                          const da = String(d).padStart(2, '0');
+                          const dk = `${calYear}-${mo}-${da}`;
+                          const pnl = tradePnlByDay[dk];
+                          const hasTrades = pnl !== undefined;
+                          const isToday = isCalCurrentMonth && d === todayDashboard.getDate();
+                          const pnlK = hasTrades
+                            ? (Math.abs(pnl) >= 1000 ? `${(pnl / 1000).toFixed(1)}k` : pnl.toFixed(0))
+                            : null;
+                          return (
+                            <div
+                              key={ci}
+                              onClick={() => router.push('/trades')}
+                              className={`h-12 flex flex-col items-center justify-center rounded cursor-pointer transition-colors
+                                ${hasTrades
+                                  ? pnl >= 0
+                                    ? 'bg-green-50 hover:bg-green-100'
+                                    : 'bg-red-50 hover:bg-red-100'
+                                  : 'hover:bg-surface-container-low'}
+                                ${isToday ? 'ring-2 ring-primary ring-inset' : ''}
+                              `}
+                            >
+                              <span className={`text-[10px] font-bold leading-none ${isToday ? 'text-primary' : hasTrades ? 'text-on-background' : 'text-on-surface-variant'}`}>
+                                {d}
+                              </span>
+                              {hasTrades && (
+                                <span className={`text-[9px] font-bold leading-none mt-0.5 ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {pnl >= 0 ? '+' : '-'}{pnlK}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </section>
 
                 {/* Open Positions Table */}
                 <section className="col-span-12 bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)]">
