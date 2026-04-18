@@ -32,7 +32,7 @@ export function SideNav() {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-full z-40 flex flex-col pt-[88px] bg-surface-container-low w-20 hover:w-64 transition-all duration-300 group overflow-hidden border-r border-surface-dim/20">
+    <aside className="hidden md:flex fixed left-0 top-0 h-full z-40 flex flex-col pt-[104px] bg-surface-container-low w-20 hover:w-64 transition-all duration-300 group overflow-hidden border-r border-surface-dim/20">
       {/* Account badge */}
       <div className="flex items-center gap-4 px-5 py-5 mb-2">
         <div className="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center shrink-0">
