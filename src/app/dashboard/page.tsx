@@ -200,11 +200,11 @@ export default function PortfolioDashboard() {
               {/* ── Bento Grid ───────────────────────────────── */}
               <div className="grid grid-cols-12 gap-6">
 
-                {/* Col 1 – Account Summary + Trades Calendar */}
-                <section className="col-span-12 lg:col-span-6 bg-surface-container-lowest rounded-xl overflow-hidden flex flex-col md:flex-row shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)]">
+                {/* Col 1 – Account Summary */}
+                <section className="col-span-12 lg:col-span-6 bg-surface-container-high rounded-xl overflow-hidden shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)]">
 
-                  {/* Gray box – Net Liquidity + 4 stats + Buying Power */}
-                  <div className="md:w-5/12 bg-surface-container-high p-6 flex flex-col gap-4">
+                  {/* Stats */}
+                  <div className="p-6 flex flex-col gap-4">
                     <div>
                       <p className="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">
                         Net Liquidity
@@ -255,71 +255,6 @@ export default function PortfolioDashboard() {
                           style={{ width: `${Math.max(5, bpPct)}%` }}
                         />
                       </div>
-                    </div>
-                  </div>
-
-                  {/* White box – Trades Calendar */}
-                  <div className="md:w-7/12 p-5 flex flex-col gap-3">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-on-surface">Trades Calendar</h3>
-                      <span className="text-[10px] font-bold text-on-surface-variant">{CAL_MONTH_NAMES[calMonth]} {calYear}</span>
-                    </div>
-
-                    {/* Day-of-week headers */}
-                    <div className="grid grid-cols-7 gap-1 text-center">
-                      {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                        <div key={d} className="text-[9px] font-bold text-on-surface-variant py-1">{d}</div>
-                      ))}
-
-                      {/* Empty cells before first day */}
-                      {Array.from({ length: calFirstDow }).map((_, i) => (
-                        <div key={`e${i}`} />
-                      ))}
-
-                      {/* Day cells */}
-                      {Array.from({ length: calDaysInMonth }).map((_, i) => {
-                        const day = i + 1;
-                        const mm = String(calMonth + 1).padStart(2, '0');
-                        const dd = String(day).padStart(2, '0');
-                        const dateStr = `${calYear}-${mm}-${dd}`;
-                        const pnl = tradePnlByDay[dateStr];
-                        const hasTraded = pnl !== undefined;
-                        const isToday = isCalCurrentMonth && day === todayDashboard.getDate();
-
-                        return (
-                          <button
-                            key={day}
-                            onClick={() => hasTraded && router.push('/trades')}
-                            className={`
-                              flex flex-col items-center justify-center py-1 px-0.5 rounded transition-all min-h-[42px]
-                              ${isToday ? 'ring-2 ring-primary ring-offset-1' : ''}
-                              ${hasTraded
-                                ? pnl >= 0
-                                  ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer'
-                                  : 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer'
-                                : 'text-on-surface-variant cursor-default'
-                              }
-                            `}
-                          >
-                            <span className="text-[10px] font-bold leading-none">{day}</span>
-                            {hasTraded && (
-                              <span className="text-[8px] font-bold leading-tight mt-0.5 truncate w-full text-center">
-                                {pnl >= 0 ? '+' : ''}{Math.abs(pnl) >= 1000 ? `${(pnl / 1000).toFixed(1)}k` : pnl.toFixed(0)}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Legend */}
-                    <div className="flex items-center gap-4 mt-auto">
-                      <span className="flex items-center gap-1 text-[9px] text-on-surface-variant">
-                        <span className="w-2.5 h-2.5 rounded bg-green-100 inline-block" /> Profit
-                      </span>
-                      <span className="flex items-center gap-1 text-[9px] text-on-surface-variant">
-                        <span className="w-2.5 h-2.5 rounded bg-red-100 inline-block" /> Loss
-                      </span>
                     </div>
                   </div>
                 </section>
