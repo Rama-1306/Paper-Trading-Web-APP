@@ -39,8 +39,33 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
     try {
       const res = await fetch('/api/watchlists');
       if (res.ok) {
-        const data = await res.json();
-        setWatchlists(data);
+        const data: WatchlistData[] = await res.json();
+        // Ensure "Starred" is always first; auto-create if missing
+        const hasStarred = data.some(w => w.name === 'Starred');
+        if (!hasStarred) {
+          const cr = await fetch('/api/watchlists', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: 'Starred' }),
+          });
+          if (cr.ok) {
+            const fresh = await fetch('/api/watchlists');
+            if (fresh.ok) {
+              const freshData: WatchlistData[] = await fresh.json();
+              const sorted = [
+                ...freshData.filter(w => w.name === 'Starred'),
+                ...freshData.filter(w => w.name !== 'Starred'),
+              ];
+              setWatchlists(sorted);
+              return;
+            }
+          }
+        }
+        const sorted = [
+          ...data.filter(w => w.name === 'Starred'),
+          ...data.filter(w => w.name !== 'Starred'),
+        ];
+        setWatchlists(sorted);
       }
     } catch (e) {
       console.error('Failed to fetch watchlists:', e);
@@ -241,10 +266,14 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
                 cursor: 'pointer',
                 transition: 'color 0.15s',
                 flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
               }}
             >
+              {wl.name === 'Starred' && <span style={{ fontSize: '12px' }}>⭐</span>}
               {wl.name}
-              <span style={{ marginLeft: '5px', fontSize: '10px', opacity: 0.6 }}>({wl.items.length})</span>
+              <span style={{ marginLeft: '3px', fontSize: '10px', opacity: 0.6 }}>({wl.items.length})</span>
             </button>
           ))}
         </div>
@@ -282,8 +311,12 @@ export function WatchlistPanel({ onSelectInstrument }: WatchlistPanelProps = {})
               <>
                 <span style={{ flex: 1, fontSize: '11px', color: 'var(--text-muted)' }}>{activeWl.items.length} symbols</span>
                 <button className="wl-action" onClick={() => { setAddingTo(addingTo === activeWl.id ? null : activeWl.id); setAddSymbolInput(''); }} title="Add symbol">+</button>
-                <button className="wl-action" onClick={() => { setRenaming(activeWl.id); setRenameValue(activeWl.name); }} title="Rename">&#9998;</button>
-                <button className="wl-action wl-action-delete" onClick={() => deleteList(activeWl.id)} title="Delete list">&#128465;</button>
+                {activeWl.name !== 'Starred' && (
+                  <>
+                    <button className="wl-action" onClick={() => { setRenaming(activeWl.id); setRenameValue(activeWl.name); }} title="Rename">&#9998;</button>
+                    <button className="wl-action wl-action-delete" onClick={() => deleteList(activeWl.id)} title="Delete list">&#128465;</button>
+                  </>
+                )}
               </>
             )}
           </div>
