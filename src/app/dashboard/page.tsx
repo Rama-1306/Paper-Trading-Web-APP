@@ -271,9 +271,8 @@ export default function PortfolioDashboard() {
                           <button
                             key={day}
                             onClick={() => hasTraded && router.push('/trades')}
-                            title={hasTraded ? `${formatINR(pnl)}` : undefined}
                             className={`
-                              aspect-square flex items-center justify-center rounded text-[10px] font-bold transition-all
+                              flex flex-col items-center justify-center py-1 px-0.5 rounded transition-all min-h-[42px]
                               ${isToday ? 'ring-2 ring-primary ring-offset-1' : ''}
                               ${hasTraded
                                 ? pnl >= 0
@@ -283,7 +282,12 @@ export default function PortfolioDashboard() {
                               }
                             `}
                           >
-                            {day}
+                            <span className="text-[10px] font-bold leading-none">{day}</span>
+                            {hasTraded && (
+                              <span className="text-[8px] font-bold leading-tight mt-0.5 truncate w-full text-center">
+                                {pnl >= 0 ? '+' : ''}{Math.abs(pnl) >= 1000 ? `${(pnl / 1000).toFixed(1)}k` : pnl.toFixed(0)}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
