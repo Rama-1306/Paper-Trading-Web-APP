@@ -15,7 +15,6 @@ import { useMarketStore, registerTickPositionUpdater } from '@/stores/marketStor
 import { formatINR } from '@/lib/utils/formatters';
 import type { Tick } from '@/types/market';
 
-const CAL_DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const CAL_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -122,14 +121,6 @@ export default function PortfolioDashboard() {
 
   const calFirstDow = new Date(calYear, calMonth, 1).getDay();
   const calDaysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  const calWeeks: (number | null)[][] = [];
-  let calWeek: (number | null)[] = Array(calFirstDow).fill(null);
-  for (let d = 1; d <= calDaysInMonth; d++) {
-    calWeek.push(d);
-    if (calWeek.length === 7) { calWeeks.push(calWeek); calWeek = []; }
-  }
-  if (calWeek.length > 0) { while (calWeek.length < 7) calWeek.push(null); calWeeks.push(calWeek); }
-
   const todayDashboard = new Date();
   const isCalCurrentMonth = calYear === todayDashboard.getFullYear() && calMonth === todayDashboard.getMonth();
 
@@ -200,11 +191,11 @@ export default function PortfolioDashboard() {
               {/* ── Bento Grid ───────────────────────────────── */}
               <div className="grid grid-cols-12 gap-6">
 
-                {/* Col 1 – Account Summary */}
-                <section className="col-span-12 lg:col-span-6 bg-surface-container-high rounded-xl overflow-hidden shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)]">
+                {/* Col 1 – Account Summary + Trades Calendar */}
+                <section className="col-span-12 lg:col-span-6 bg-surface-container-lowest rounded-xl overflow-hidden flex flex-col md:flex-row shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)]">
 
-                  {/* Stats */}
-                  <div className="p-6 flex flex-col gap-4">
+                  {/* Gray box – Net Liquidity + 4 stats + Buying Power */}
+                  <div className="md:w-5/12 bg-surface-container-high p-6 flex flex-col gap-4">
                     <div>
                       <p className="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">
                         Net Liquidity
@@ -255,6 +246,83 @@ export default function PortfolioDashboard() {
                           style={{ width: `${Math.max(5, bpPct)}%` }}
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  {/* White box – Trades Calendar with month navigation */}
+                  <div className="md:w-7/12 p-5 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-on-surface">Trades Calendar</h3>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={prevCalMonth}
+                          className="w-6 h-6 flex items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high text-sm font-bold transition-colors"
+                        >‹</button>
+                        <span className="text-[10px] font-bold text-on-surface-variant min-w-[90px] text-center">
+                          {CAL_MONTH_NAMES[calMonth]} {calYear}
+                        </span>
+                        <button
+                          onClick={nextCalMonth}
+                          className="w-6 h-6 flex items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high text-sm font-bold transition-colors"
+                        >›</button>
+                      </div>
+                    </div>
+
+                    {/* Day-of-week headers */}
+                    <div className="grid grid-cols-7 gap-1 text-center">
+                      {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+                        <div key={d} className="text-[9px] font-bold text-on-surface-variant py-1">{d}</div>
+                      ))}
+
+                      {/* Empty cells before first day */}
+                      {Array.from({ length: calFirstDow }).map((_, i) => (
+                        <div key={`e${i}`} />
+                      ))}
+
+                      {/* Day cells */}
+                      {Array.from({ length: calDaysInMonth }).map((_, i) => {
+                        const day = i + 1;
+                        const mm = String(calMonth + 1).padStart(2, '0');
+                        const dd = String(day).padStart(2, '0');
+                        const dateStr = `${calYear}-${mm}-${dd}`;
+                        const pnl = tradePnlByDay[dateStr];
+                        const hasTraded = pnl !== undefined;
+                        const isToday = isCalCurrentMonth && day === todayDashboard.getDate();
+
+                        return (
+                          <button
+                            key={day}
+                            onClick={() => hasTraded && router.push('/trades')}
+                            className={`
+                              flex flex-col items-center justify-center py-1 px-0.5 rounded transition-all min-h-[40px]
+                              ${isToday ? 'ring-2 ring-primary ring-offset-1' : ''}
+                              ${hasTraded
+                                ? pnl >= 0
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer'
+                                  : 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer'
+                                : 'text-on-surface-variant cursor-default'
+                              }
+                            `}
+                          >
+                            <span className="text-[10px] font-bold leading-none">{day}</span>
+                            {hasTraded && (
+                              <span className="text-[8px] font-bold leading-tight mt-0.5 truncate w-full text-center">
+                                {pnl >= 0 ? '+' : ''}{Math.abs(pnl) >= 1000 ? `${(pnl / 1000).toFixed(1)}k` : pnl.toFixed(0)}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex items-center gap-4 mt-auto">
+                      <span className="flex items-center gap-1 text-[9px] text-on-surface-variant">
+                        <span className="w-2.5 h-2.5 rounded bg-green-100 inline-block" /> Profit
+                      </span>
+                      <span className="flex items-center gap-1 text-[9px] text-on-surface-variant">
+                        <span className="w-2.5 h-2.5 rounded bg-red-100 inline-block" /> Loss
+                      </span>
                     </div>
                   </div>
                 </section>
@@ -330,77 +398,6 @@ export default function PortfolioDashboard() {
                     )}
                   </div>
                 </aside>
-
-                {/* Trades Calendar */}
-                <section className="col-span-12 lg:col-span-6 bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)]">
-                  <div className="px-5 py-3 border-b border-surface-dim/20 flex items-center justify-between">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-on-surface">Trades Calendar</h3>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={prevCalMonth}
-                        className="w-6 h-6 flex items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high text-sm font-bold transition-colors"
-                      >‹</button>
-                      <span className="text-[11px] font-bold text-on-surface min-w-[110px] text-center">
-                        {CAL_MONTH_NAMES[calMonth]} {calYear}
-                      </span>
-                      <button
-                        onClick={nextCalMonth}
-                        className="w-6 h-6 flex items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high text-sm font-bold transition-colors"
-                      >›</button>
-                      <Link href="/trades" className="text-[10px] font-bold text-primary underline ml-2">All Trades</Link>
-                    </div>
-                  </div>
-                  <div className="p-3">
-                    {/* Day-of-week headers */}
-                    <div className="grid grid-cols-7 mb-1">
-                      {CAL_DAY_SHORT.map(d => (
-                        <div key={d} className="text-center text-[9px] font-bold uppercase tracking-wide text-on-surface-variant py-1">
-                          {d}
-                        </div>
-                      ))}
-                    </div>
-                    {/* Calendar weeks */}
-                    {calWeeks.map((week, wi) => (
-                      <div key={wi} className="grid grid-cols-7 gap-0.5 mb-0.5">
-                        {week.map((d, ci) => {
-                          if (!d) return <div key={ci} className="h-12" />;
-                          const mo = String(calMonth).padStart(2, '0');
-                          const da = String(d).padStart(2, '0');
-                          const dk = `${calYear}-${mo}-${da}`;
-                          const pnl = tradePnlByDay[dk];
-                          const hasTrades = pnl !== undefined;
-                          const isToday = isCalCurrentMonth && d === todayDashboard.getDate();
-                          const pnlK = hasTrades
-                            ? (Math.abs(pnl) >= 1000 ? `${(pnl / 1000).toFixed(1)}k` : pnl.toFixed(0))
-                            : null;
-                          return (
-                            <div
-                              key={ci}
-                              onClick={() => router.push('/trades')}
-                              className={`h-12 flex flex-col items-center justify-center rounded cursor-pointer transition-colors
-                                ${hasTrades
-                                  ? pnl >= 0
-                                    ? 'bg-green-50 hover:bg-green-100'
-                                    : 'bg-red-50 hover:bg-red-100'
-                                  : 'hover:bg-surface-container-low'}
-                                ${isToday ? 'ring-2 ring-primary ring-inset' : ''}
-                              `}
-                            >
-                              <span className={`text-[10px] font-bold leading-none ${isToday ? 'text-primary' : hasTrades ? 'text-on-background' : 'text-on-surface-variant'}`}>
-                                {d}
-                              </span>
-                              {hasTrades && (
-                                <span className={`text-[9px] font-bold leading-none mt-0.5 ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {pnl >= 0 ? '+' : '-'}{pnlK}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </section>
 
                 {/* Open Positions Table */}
                 <section className="col-span-12 bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)]">
