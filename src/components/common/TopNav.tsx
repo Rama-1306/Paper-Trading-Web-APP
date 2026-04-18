@@ -33,16 +33,16 @@ export function TopNav() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 h-[88px] flex items-center justify-between px-8 bg-surface-container-lowest border-b border-surface-dim/30 font-sans">
+    <nav className="sticky top-0 z-50 h-[104px] flex items-center justify-between px-12 bg-surface-container-lowest border-b border-surface-dim/30 font-sans">
       {/* Logo */}
       <div className="flex items-center">
         <Link href="/" className="flex items-center select-none">
           <Image
             src="/sahaai-logo-v3.png"
             alt="SAHAAI"
-            width={240}
-            height={80}
-            className="h-20 w-auto object-contain"
+            width={276}
+            height={92}
+            className="h-[92px] w-auto object-contain"
             priority
           />
         </Link>

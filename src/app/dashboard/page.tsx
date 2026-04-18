@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
@@ -22,6 +22,7 @@ export default function PortfolioDashboard() {
   const positions = useTradingStore(s => s.positions);
   const trades = useTradingStore(s => s.trades);
   const orders = useTradingStore(s => s.orders);
+  const [watchlistItems, setWatchlistItems] = useState<Array<{id: string, symbol: string, displayName: string}>>([]);
 
   useEffect(() => {
     registerTickPositionUpdater((incoming: Tick[]) => {
@@ -50,6 +51,16 @@ export default function PortfolioDashboard() {
     });
     useTradingStore.getState().fetchOrders();
     useTradingStore.getState().fetchTrades();
+    fetch('/api/watchlists')
+      .then(r => r.json())
+      .then((lists: Array<{items: Array<{id: string, symbol: string, displayName: string}>}>) => {
+        const items = Array.isArray(lists) ? lists.flatMap(l => l.items) : [];
+        setWatchlistItems(items);
+        if (items.length) {
+          useMarketStore.getState().subscribePositionSymbols(items.map(i => i.symbol));
+        }
+      })
+      .catch(() => {});
     initSocket();
   }, [initSocket]);
 
@@ -92,10 +103,10 @@ export default function PortfolioDashboard() {
   const winTrades = trades.filter(t => t.pnl > 0).length;
   const winRate = trades.length > 0 ? Math.round((winTrades / trades.length) * 100) : 0;
 
-  // Recent trades (last 3)
+  // Recent trades (last 5)
   const recentTrades = [...trades].sort(
     (a, b) => new Date(b.exitTime).getTime() - new Date(a.exitTime).getTime()
-  ).slice(0, 3);
+  ).slice(0, 5);
 
   // Pending orders count
   const pendingCount = orders.filter(o => o.status === 'PENDING').length;
@@ -109,25 +120,27 @@ export default function PortfolioDashboard() {
           <SideNav />
 
           {/* Main content — centered with max-width */}
-          <main className="flex-1 md:ml-20 p-4 md:p-8 lg:p-12 pb-20 md:pb-12 transition-all duration-300">
-            <div className="space-y-8">
+          <main className="flex-1 md:ml-20 p-4 md:p-6 lg:p-8 pb-20 md:pb-8 transition-all duration-300">
+            <div className="space-y-4">
 
               {/* ── Hero Header ──────────────────────────────── */}
               <header className="flex flex-col md:flex-row justify-between items-end gap-4">
-                <div className="space-y-2">
-                  <Image
-                    src="/sahaai-favicon.png"
-                    alt="SAHAAI"
-                    width={72}
-                    height={72}
-                    className="h-16 w-16 object-contain"
-                    priority
-                  />
-                  {session?.user?.name && (
-                    <p className="text-sm font-semibold text-on-surface-variant">
-                      Welcome, {session.user.name}
-                    </p>
-                  )}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Image
+                      src="/sahaai-favicon.png"
+                      alt="SAHAAI"
+                      width={28}
+                      height={28}
+                      className="h-7 w-7 object-contain"
+                      priority
+                    />
+                    {session?.user?.name && (
+                      <p className="text-sm font-semibold text-on-surface-variant">
+                        Welcome, {session.user.name}
+                      </p>
+                    )}
+                  </div>
                   <h1 className="text-4xl font-extrabold tracking-tighter text-on-background">
                     Portfolio Overview
                   </h1>
@@ -151,10 +164,10 @@ export default function PortfolioDashboard() {
               {/* ── Bento Grid ───────────────────────────────── */}
               <div className="grid grid-cols-12 gap-6">
 
-                {/* Account Summary Card */}
-                <section className="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-xl overflow-hidden flex flex-col md:flex-row shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)]">
+                {/* Col 1 – Account Summary (Net Liquidity + Stats) */}
+                <section className="col-span-12 lg:col-span-6 bg-surface-container-lowest rounded-xl overflow-hidden flex flex-col md:flex-row shadow-[0_2px_16px_-4px_rgba(0,0,0,0.06)]">
                   {/* Net Liquidity */}
-                  <div className="md:w-1/3 bg-surface-container-high p-8 flex flex-col justify-between">
+                  <div className="md:w-5/12 bg-surface-container-high p-8 flex flex-col justify-between">
                     <div>
                       <p className="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant mb-1">
                         Net Liquidity
@@ -181,7 +194,7 @@ export default function PortfolioDashboard() {
                   </div>
 
                   {/* Stats grid */}
-                  <div className="md:w-2/3 p-8 grid grid-cols-2 gap-8 content-center">
+                  <div className="md:w-7/12 p-8 grid grid-cols-2 gap-6 content-center">
                     <div className="space-y-1">
                       <p className="text-[10px] uppercase font-bold text-on-surface-variant">Margin Used</p>
                       <p className="text-xl font-bold text-on-background">{formatINR(usedMargin)}</p>
@@ -209,45 +222,40 @@ export default function PortfolioDashboard() {
                   </div>
                 </section>
 
-                {/* Recent Activity */}
-                <aside className="col-span-12 lg:col-span-4 bg-surface-container-low rounded-xl p-6 space-y-5">
+                {/* Col 2 – Recent Activity */}
+                <aside className="col-span-12 lg:col-span-3 bg-surface-container-low rounded-xl p-5 flex flex-col gap-3">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xs font-black uppercase tracking-widest text-on-surface">Recent Activity</h3>
-                    <Link href="/positions" className="text-[10px] font-bold text-primary underline">
-                      View All
-                    </Link>
+                    <Link href="/positions" className="text-[10px] font-bold text-primary underline">View All</Link>
                   </div>
 
-                  {recentTrades.length === 0 ? (
-                    <p className="text-xs text-on-surface-variant italic">No recent trades</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {recentTrades.map(t => (
+                  <div className="flex-1 overflow-y-auto space-y-2">
+                    {recentTrades.length === 0 ? (
+                      <p className="text-xs text-on-surface-variant italic">No recent trades</p>
+                    ) : (
+                      recentTrades.map(t => (
                         <div
                           key={t.id}
-                          className={`p-4 bg-surface-container-lowest rounded-xl border-l-4 ${t.pnl >= 0 ? 'border-green-500' : 'border-red-500'
-                            }`}
+                          className={`p-3 bg-surface-container-lowest rounded-xl border-l-4 ${t.pnl >= 0 ? 'border-green-500' : 'border-red-500'}`}
                         >
-                          <p className="text-[9px] font-bold text-on-surface-variant uppercase mb-1">
+                          <p className="text-[9px] font-bold text-on-surface-variant uppercase mb-0.5">
                             {t.side} Order Filled
                           </p>
-                          <p className="text-xs font-bold text-on-surface">
+                          <p className="text-xs font-bold text-on-surface leading-tight">
                             {t.displayName} @ ₹{t.exitPrice.toFixed(2)}
                           </p>
-                          <div className="flex justify-between items-end mt-2">
+                          <div className="flex justify-between items-end mt-1.5">
                             <span className="text-[10px] text-on-surface-variant italic">
-                              {new Date(t.exitTime).toLocaleTimeString('en-IN', {
-                                hour: '2-digit', minute: '2-digit',
-                              })}
+                              {new Date(t.exitTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                             <span className={`text-[10px] font-black ${t.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {t.pnl >= 0 ? '+' : ''}{formatINR(t.pnl)}
                             </span>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    )}
+                  </div>
 
                   <Link
                     href="/trade"
@@ -255,6 +263,35 @@ export default function PortfolioDashboard() {
                   >
                     Open Trading Terminal
                   </Link>
+                </aside>
+
+                {/* Col 3 – Watchlist with LTP */}
+                <aside className="col-span-12 lg:col-span-3 bg-surface-container-low rounded-xl p-5 flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-on-surface">Watchlist</h3>
+                    <Link href="/watchlist" className="text-[10px] font-bold text-primary underline">Manage</Link>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-2">
+                    {watchlistItems.length === 0 ? (
+                      <p className="text-xs text-on-surface-variant italic">No watchlist items. Add symbols from the Watchlist page.</p>
+                    ) : (
+                      watchlistItems.map(item => {
+                        const ltp = ticks[item.symbol]?.ltp;
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between px-3 py-2.5 bg-surface-container-lowest rounded-lg"
+                          >
+                            <span className="text-xs font-bold text-on-surface truncate max-w-[55%]">{item.displayName}</span>
+                            <span className="text-xs font-mono font-bold text-on-background">
+                              {ltp !== undefined ? `₹${ltp.toFixed(2)}` : '—'}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </aside>
 
                 {/* Open Positions Table */}
